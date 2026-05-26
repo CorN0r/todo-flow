@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Plus, Calendar, List } from 'lucide-react';
 import { useCreateTask } from '../../hooks/useTasks';
 import { useLists } from '../../hooks/useLists';
@@ -37,7 +37,7 @@ export function TaskQuickAdd({ listId, parentTaskId, placeholder = 'Add a task..
     <div
       className={cn(
         'flex items-center gap-2 p-2 rounded-lg border transition-colors flex-wrap',
-        isFocused ? 'border-primary/50 bg-accent/30' : 'border-transparent hover:bg-accent/20'
+        isFocused ? 'border-primary bg-accent' : 'border-border hover:border-border hover:bg-muted'
       )}
     >
       <Plus size={16} className="text-muted-foreground flex-shrink-0 ml-1" />

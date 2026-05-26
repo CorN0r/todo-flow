@@ -1,3 +1,10 @@
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  task_count?: number;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -11,6 +18,9 @@ export interface Task {
   parent_task_id: string | null;
   sort_order: number;
   recurrence: string | null;
+  my_day_date?: string | null;
+  tags: Tag[];
+  children_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +39,7 @@ export interface CreateTaskInput {
   priority?: number;
   reminder?: string;
   recurrence?: string;
+  tags?: string[];
 }
 
 export interface UpdateTaskInput {
@@ -42,6 +53,8 @@ export interface UpdateTaskInput {
   parent_task_id?: string | null;
   reminder?: string;
   recurrence?: string;
+  my_day_date?: string | null;
+  tags?: string[];
 }
 
 export interface ReorderItem {

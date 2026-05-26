@@ -2,9 +2,16 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '../stores/uiStore';
 
-export function useKeyboardShortcuts() {
+interface ShortcutCallbacks {
+  onNewTask?: () => void;
+  onToggleComplete?: () => void;
+  onDeleteTask?: () => void;
+  onToggleMyDay?: () => void;
+}
+
+export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
   const navigate = useNavigate();
-  const { setSelectedTaskId, selectedTaskId, sidebarOpen, toggleSidebar } = useUIStore();
+  const { setSelectedTaskId, selectedTaskId, sidebarOpen, toggleSidebar, setCommandPaletteOpen, selectionMode, exitSelectionMode } = useUIStore();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -30,10 +37,41 @@ export function useKeyboardShortcuts() {
         navigate('/calendar');
       }
 
-      // Panel close
-      if (e.key === 'Escape' && selectedTaskId) {
+      // New task: N key
+      if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        setSelectedTaskId(null);
+        callbacks?.onNewTask?.();
+      }
+
+      // Toggle complete: Ctrl+Enter
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && selectedTaskId) {
+        e.preventDefault();
+        callbacks?.onToggleComplete?.();
+      }
+
+      // Delete selected task: Delete key
+      if (e.key === 'Delete' && selectedTaskId) {
+        e.preventDefault();
+        callbacks?.onDeleteTask?.();
+      }
+
+      // Toggle My Day: D key
+      if (e.key === 'd' && !e.ctrlKey && !e.metaKey && selectedTaskId) {
+        e.preventDefault();
+        callbacks?.onToggleMyDay?.();
+      }
+
+      // Escape: exit selection mode first, then close panel
+      if (e.key === 'Escape') {
+        if (selectionMode) {
+          e.preventDefault();
+          exitSelectionMode();
+          return;
+        }
+        if (selectedTaskId) {
+          e.preventDefault();
+          setSelectedTaskId(null);
+        }
       }
 
       // Sidebar toggle
@@ -41,9 +79,27 @@ export function useKeyboardShortcuts() {
         e.preventDefault();
         toggleSidebar();
       }
+
+      // Settings page
+      if (e.key === '3' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        navigate('/settings');
+      }
+
+      // Command palette
+      if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+
+      // Show shortcuts
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        navigate('/settings');
+      }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, setSelectedTaskId, selectedTaskId, sidebarOpen, toggleSidebar]);
+  }, [navigate, selectedTaskId, sidebarOpen, toggleSidebar, setCommandPaletteOpen, selectionMode, exitSelectionMode, callbacks]);
 }

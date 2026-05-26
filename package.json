@@ -8,7 +8,16 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:visual": "vitest run src/test/visual",
+    "test:rust": "cd src-tauri && cargo test",
+    "test:all": "npm run test:coverage && npm run test:rust",
+    "test:smoke": "vitest run src/test/utils.test.ts src/test/components/TaskCard.test.tsx src/test/stores",
+    "test:updated-snapshots": "vitest run --update",
+    "check": "powershell -ExecutionPolicy Bypass -File scripts/self-check.ps1"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -20,6 +29,8 @@
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
+    "@tauri-apps/plugin-global-shortcut": "^2.3.1",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "clsx": "^2.1.1",
     "date-fns": "^4.3.0",
@@ -28,6 +39,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.76.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.15.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
@@ -38,6 +50,9 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.11.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -46,8 +61,10 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "jsdom": "^29.1.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vitest": "^4.1.7"
   }
 }

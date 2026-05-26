@@ -1,0 +1,5 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TaskDetail visual modes > dark: loading 1`] = `"<p class="text-sm text-muted-foreground py-8 text-center">Loading...</p>"`;
+
+exports[`TaskDetail visual modes > light: loading 1`] = `"<p class="text-sm text-muted-foreground py-8 text-center">Loading...</p>"`;

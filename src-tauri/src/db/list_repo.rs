@@ -92,6 +92,100 @@ pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::migrations;
+    use rusqlite::Connection;
+
+    fn setup() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        migrations::run(&conn).unwrap();
+        conn
+    }
+
+    fn create_req(name: &str) -> CreateListRequest {
+        CreateListRequest { name: name.to_string(), color: None, icon: None }
+    }
+
+    #[test]
+    fn test_create_and_retrieve() {
+        let conn = setup();
+        let list = create(&conn, create_req("Work")).unwrap();
+        assert_eq!(list.name, "Work");
+        assert_eq!(list.color, "#6366f1");
+
+        let fetched = get_by_id(&conn, &list.id).unwrap().unwrap();
+        assert_eq!(fetched.name, "Work");
+    }
+
+    #[test]
+    fn test_get_all_with_counts() {
+        let conn = setup();
+        create(&conn, create_req("Personal")).unwrap();
+        create(&conn, create_req("Work")).unwrap();
+
+        let lists = get_all_with_counts(&conn).unwrap();
+        assert_eq!(lists.len(), 2);
+        assert_eq!(lists[0].task_count, 0);
+    }
+
+    #[test]
+    fn test_update_list() {
+        let conn = setup();
+        let list = create(&conn, create_req("Old Name")).unwrap();
+
+        let updated = update(&conn, &list.id, UpdateListRequest {
+            name: Some("New Name".to_string()),
+            color: Some("#ff0000".to_string()),
+            icon: None,
+        }).unwrap();
+        assert_eq!(updated.name, "New Name");
+        assert_eq!(updated.color, "#ff0000");
+    }
+
+    #[test]
+    fn test_delete_list() {
+        let conn = setup();
+        let list = create(&conn, create_req("To Delete")).unwrap();
+        delete(&conn, &list.id).unwrap();
+        assert!(get_by_id(&conn, &list.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_delete_not_found() {
+        let conn = setup();
+        let result = delete(&conn, "nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_not_found() {
+        let conn = setup();
+        let result = update(&conn, "nonexistent", UpdateListRequest {
+            name: None, color: None, icon: None,
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reorder_lists() {
+        let conn = setup();
+        let l1 = create(&conn, create_req("First")).unwrap();
+        let l2 = create(&conn, create_req("Second")).unwrap();
+
+        reorder(&conn, vec![
+            ReorderListsItem { id: l2.id.clone(), sort_order: 0 },
+            ReorderListsItem { id: l1.id.clone(), sort_order: 1 },
+        ]).unwrap();
+
+        let lists = get_all_with_counts(&conn).unwrap();
+        assert_eq!(lists[0].id, l2.id);
+        assert_eq!(lists[1].id, l1.id);
+    }
+}
+
 pub fn reorder(conn: &Connection, items: Vec<ReorderListsItem>) -> Result<(), AppError> {
     for item in &items {
         conn.execute(

@@ -1,0 +1,5 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CSS variable audit > dark theme CSS variables 1`] = `{}`;
+
+exports[`CSS variable audit > light theme CSS variables 1`] = `{}`;

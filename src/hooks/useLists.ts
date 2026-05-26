@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createList, getLists, updateList, deleteList } from '../lib/db';
+import { createList, getLists, updateList, deleteList, reorderLists } from '../lib/db';
 import type { CreateListInput } from '../types/list';
 
 const LISTS_KEY = ['lists'] as const;
@@ -46,5 +46,13 @@ export function useDeleteList() {
       toast.success('List deleted');
     },
     onError: (err: string) => toast.error(err),
+  });
+}
+
+export function useReorderLists() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: { id: string; sort_order: number }[]) => reorderLists(items),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: LISTS_KEY }),
   });
 }

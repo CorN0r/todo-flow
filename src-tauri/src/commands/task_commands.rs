@@ -7,7 +7,7 @@ use crate::models::task::{
 };
 use crate::AppState;
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn create_task(
     state: State<AppState>,
     title: String,
@@ -18,6 +18,7 @@ pub fn create_task(
     priority: Option<i32>,
     reminder: Option<String>,
     recurrence: Option<String>,
+    tags: Option<Vec<String>>,
 ) -> Result<Task, AppError> {
     let conn = state.db.lock().unwrap();
     task_repo::create(
@@ -31,6 +32,7 @@ pub fn create_task(
             priority,
             reminder,
             recurrence,
+            tags,
         },
     )
 }
@@ -42,7 +44,7 @@ pub fn get_task(state: State<AppState>, id: String) -> Result<TaskDetail, AppErr
         .ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn update_task(
     state: State<AppState>,
     id: String,
@@ -55,6 +57,8 @@ pub fn update_task(
     parent_task_id: Option<Option<String>>,
     reminder: Option<String>,
     recurrence: Option<String>,
+    my_day_date: Option<Option<String>>,
+    tags: Option<Vec<String>>,
 ) -> Result<Task, AppError> {
     let conn = state.db.lock().unwrap();
     task_repo::update(
@@ -70,6 +74,8 @@ pub fn update_task(
             parent_task_id,
             reminder,
             recurrence,
+            my_day_date,
+            tags,
         },
     )
 }
@@ -86,7 +92,7 @@ pub fn reorder_tasks(state: State<AppState>, items: Vec<ReorderItem>) -> Result<
     task_repo::reorder(&conn, items)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_tasks(
     state: State<AppState>,
     list_id: Option<String>,
@@ -95,6 +101,8 @@ pub fn get_tasks(
     due_date_to: Option<String>,
     search_query: Option<String>,
     parent_task_id: Option<String>,
+    my_day_date: Option<String>,
+    tag_id: Option<String>,
 ) -> Result<Vec<Task>, AppError> {
     let conn = state.db.lock().unwrap();
     task_repo::get_all(
@@ -106,12 +114,66 @@ pub fn get_tasks(
             due_date_to,
             search_query,
             parent_task_id,
+            my_day_date,
+            tag_id,
         },
     )
+}
+
+#[tauri::command]
+pub fn get_today_task_count(state: State<AppState>) -> Result<i64, AppError> {
+    let conn = state.db.lock().unwrap();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    task_repo::get_today_count(&conn, &today)
 }
 
 #[tauri::command]
 pub fn duplicate_task(state: State<AppState>, id: String) -> Result<Task, AppError> {
     let conn = state.db.lock().unwrap();
     task_repo::duplicate(&conn, &id)
+}
+
+#[tauri::command]
+pub fn add_task_to_my_day(state: State<AppState>, id: String) -> Result<Task, AppError> {
+    let conn = state.db.lock().unwrap();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    task_repo::update(
+        &conn,
+        &id,
+        UpdateTaskRequest {
+            title: None,
+            description: None,
+            is_completed: None,
+            priority: None,
+            due_date: None,
+            list_id: None,
+            parent_task_id: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: Some(Some(today)),
+            tags: None,
+        },
+    )
+}
+
+#[tauri::command]
+pub fn remove_task_from_my_day(state: State<AppState>, id: String) -> Result<Task, AppError> {
+    let conn = state.db.lock().unwrap();
+    task_repo::update(
+        &conn,
+        &id,
+        UpdateTaskRequest {
+            title: None,
+            description: None,
+            is_completed: None,
+            priority: None,
+            due_date: None,
+            list_id: None,
+            parent_task_id: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: Some(None),
+            tags: None,
+        },
+    )
 }

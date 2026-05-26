@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
+import { Search, X, ArrowRight } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { getTasks } from '../../lib/db';
 import { useUIStore } from '../../stores/uiStore';
@@ -73,7 +73,7 @@ export function SearchBar() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md border bg-muted/50 hover:bg-muted transition-colors min-w-[200px]"
+        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md border bg-muted hover:bg-muted transition-colors min-w-[200px]"
       >
         <Search size={14} />
         <span>Search tasks...</span>
@@ -112,19 +112,24 @@ export function SearchBar() {
                   No tasks found.
                 </p>
               )}
+              {results.length > 0 && (
+                <div className="px-3 py-1.5 text-xs text-muted-foreground border-b">
+                  {results.length} result{results.length !== 1 ? 's' : ''} — top matches
+                </div>
+              )}
               {results.map((task, i) => (
                 <button
                   key={task.id}
                   onClick={() => handleSelect(task)}
                   className={cn(
                     'w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors',
-                    i === selectedIndex ? 'bg-accent' : 'hover:bg-muted/50'
+                    i === selectedIndex ? 'bg-accent' : 'hover:bg-muted'
                   )}
                 >
                   <span
                     className={cn(
                       'w-3 h-3 rounded-full flex-shrink-0',
-                      task.is_completed ? 'bg-muted-foreground/30' : 'bg-primary/60'
+                      task.is_completed ? 'bg-muted' : 'bg-primary'
                     )}
                   />
                   <span className={cn(task.is_completed && 'line-through text-muted-foreground')}>
@@ -136,6 +141,19 @@ export function SearchBar() {
                 </button>
               ))}
             </div>
+            {results.length > 0 && (
+              <button
+                onClick={() => {
+                  navigate(`/search?q=${encodeURIComponent(query)}`);
+                  setIsOpen(false);
+                  setQuery('');
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-primary hover:bg-accent border-t transition-colors font-medium"
+              >
+                Show all results
+                <ArrowRight size={14} />
+              </button>
+            )}
             {query.length < 2 && (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 <Search size={24} className="mx-auto mb-2 opacity-30" />

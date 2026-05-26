@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use rusqlite::params;
 use tauri::State;
@@ -44,4 +45,25 @@ pub fn get_all_settings(state: State<AppState>) -> Result<HashMap<String, String
         map.insert(k, v);
     }
     Ok(map)
+}
+
+#[tauri::command]
+pub fn backup_database(state: State<AppState>, destination: String) -> Result<(), AppError> {
+    let src = state.data_dir.join("todo.db");
+    let dest = PathBuf::from(&destination);
+    if dest.exists() {
+        return Err(AppError::Validation(
+            "Destination file already exists".to_string(),
+        ));
+    }
+    if let Some(parent) = dest.parent() {
+        if !parent.exists() {
+            return Err(AppError::Validation(format!(
+                "Directory '{}' does not exist",
+                parent.display()
+            )));
+        }
+    }
+    std::fs::copy(&src, &dest).map_err(|e| AppError::Generic(format!("Backup failed: {}", e)))?;
+    Ok(())
 }

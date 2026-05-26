@@ -4,6 +4,8 @@ import { useLists } from '../hooks/useLists';
 import { TaskList } from '../components/tasks/TaskList';
 import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
+import { EmptyState } from '../components/shared/EmptyState';
+import { List } from 'lucide-react';
 
 export function ListPage() {
   const { listId } = useParams<{ listId: string }>();
@@ -26,9 +28,11 @@ export function ListPage() {
         <TaskQuickAdd listId={listId} />
       </div>
       {tasks?.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground py-8">
-          No tasks in this list. Add one above.
-        </p>
+        <EmptyState
+          icon={<List size={40} />}
+          title="No tasks in this list"
+          description="Add one above or drag tasks here from other views"
+        />
       )}
     </div>
   );
