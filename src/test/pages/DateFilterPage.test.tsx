@@ -14,8 +14,8 @@ vi.mock('../../hooks/useTasks', () => ({
   useReorderTasks: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: [], isLoading: false }),
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -43,7 +43,7 @@ describe('DateFilterPage', () => {
   it('renders All Tasks for all filter', () => {
     mockTasks.data = [];
     renderWithProviders(<DateFilterPage />);
-    expect(screen.getByText('All Tasks')).toBeInTheDocument();
+    expect(screen.getByText('全部任务')).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', () => {
@@ -55,12 +55,11 @@ describe('DateFilterPage', () => {
   it('shows task count', () => {
     mockTasks.data = [{
       id: 't1', title: 'T1', is_completed: false, is_archived: false,
-      priority: 0, due_date: null, reminder: null, list_id: null,
+      priority: 0, due_date: null, reminder: null, tag_id: null,
       parent_task_id: null, sort_order: 0, recurrence: null,
-      my_day_date: null, children_count: 0, tags: [],
-      created_at: '', updated_at: '',
+      my_day_date: null, children_count: 0, created_at: '', updated_at: '',
     }];
     renderWithProviders(<DateFilterPage />);
-    expect(screen.getByText('1 task')).toBeInTheDocument();
+    expect(screen.getByText('0/1 项')).toBeInTheDocument();
   });
 });

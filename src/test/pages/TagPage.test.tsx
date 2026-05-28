@@ -19,6 +19,7 @@ vi.mock('../../hooks/useTags', () => ({
   useTags: () => mockTags,
 }));
 
+// Mock useParams so TagPage gets tagId without full route matching
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
@@ -32,7 +33,7 @@ describe('TagPage', () => {
   beforeEach(() => {
     mockTasks.data = null;
     mockTasks.isLoading = false;
-    mockTags.data = [{ id: 't1', name: 'urgent', color: '#ef4444' }];
+    mockTags.data = [{ id: 't1', name: 'Work', color: '#ff0000', icon: 'tag', sort_order: 0 }];
   });
 
   it('shows loading skeleton', () => {
@@ -45,13 +46,13 @@ describe('TagPage', () => {
   it('renders tag name', () => {
     mockTasks.data = [];
     renderWithProviders(<TagPage />);
-    expect(screen.getByText('urgent')).toBeInTheDocument();
+    expect(screen.getByText('Work')).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', () => {
     mockTasks.data = [];
     renderWithProviders(<TagPage />);
-    expect(screen.getByText('No tasks with this tag')).toBeInTheDocument();
+    expect(screen.getByText('No tasks in this tag')).toBeInTheDocument();
   });
 
   it('renders fallback name when tag not found', () => {

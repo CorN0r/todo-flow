@@ -15,9 +15,9 @@ const { mockStats } = vi.hoisted(() => ({
       { date: '2026-05-25', completed: 1 },
       { date: '2026-05-24', completed: 2 },
     ],
-    tasks_by_list: [
-      { list_id: 'l1', list_name: 'Work', list_color: '#ff0000', count: 6 },
-      { list_id: 'l2', list_name: 'Home', list_color: '#00ff00', count: 4 },
+    tasks_by_tag: [
+      { tag_id: 't1', tag_name: 'Work', tag_color: '#ff0000', count: 6 },
+      { tag_id: 't2', tag_name: 'Home', tag_color: '#00ff00', count: 4 },
     ],
   },
 }));

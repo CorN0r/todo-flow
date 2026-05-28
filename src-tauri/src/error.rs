@@ -10,6 +10,8 @@ pub enum AppError {
     NotFound(String),
     #[error("Validation error: {0}")]
     Validation(String),
+    #[error("Lock error: {0}")]
+    Lock(String),
     #[error("{0}")]
     Generic(String),
 }

@@ -10,24 +10,14 @@ pub struct Task {
     pub priority: i32,
     pub due_date: Option<String>,
     pub reminder: Option<String>,
-    pub list_id: Option<String>,
+    pub tag_id: Option<String>,
     pub parent_task_id: Option<String>,
     pub sort_order: i32,
     pub recurrence: Option<String>,
     pub my_day_date: Option<String>,
     pub children_count: Option<i32>,
-    pub tags: Vec<Tag>,
     pub created_at: String,
     pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Tag {
-    pub id: String,
-    pub name: String,
-    pub color: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub task_count: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,13 +30,12 @@ pub struct TaskDetail {
 pub struct CreateTaskRequest {
     pub title: String,
     pub description: Option<String>,
-    pub list_id: Option<String>,
+    pub tag_id: Option<String>,
     pub parent_task_id: Option<String>,
     pub due_date: Option<String>,
     pub priority: Option<i32>,
     pub reminder: Option<String>,
     pub recurrence: Option<String>,
-    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,24 +45,23 @@ pub struct UpdateTaskRequest {
     pub is_completed: Option<bool>,
     pub priority: Option<i32>,
     pub due_date: Option<String>,
-    pub list_id: Option<String>,
+    pub tag_id: Option<String>,
     pub parent_task_id: Option<Option<String>>,
     pub reminder: Option<String>,
     pub recurrence: Option<String>,
     pub my_day_date: Option<Option<String>>,
-    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TaskFilter {
-    pub list_id: Option<String>,
+    pub tag_id: Option<String>,
     pub is_completed: Option<bool>,
     pub due_date_from: Option<String>,
     pub due_date_to: Option<String>,
     pub search_query: Option<String>,
     pub parent_task_id: Option<String>,
     pub my_day_date: Option<String>,
-    pub tag_id: Option<String>,
+    pub include_children: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,53 +1,228 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Light theme — warm & friendly */
+    --background: 240 20% 97%;          /* #F6F6FA — soft lavender white */
+    --foreground: 220 30% 12%;          /* #151A25 — soft charcoal */
+    --card: 0 0% 100%;                  /* #FFFFFF */
+    --card-foreground: 220 30% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 239 84% 67%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 239 84% 67%;
+    --popover-foreground: 220 30% 12%;
+    --primary: 245 82% 68%;             /* #6C63F6 — vibrant purple */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 94%;           /* #EEEEF4 — soft gray */
+    --secondary-foreground: 220 30% 12%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 8% 55%;     /* #878A93 — readable gray */
+    --accent: 245 82% 68% / 0.10;
+    --accent-foreground: 245 82% 55%;
+    --destructive: 0 70% 50%;           /* #D93030 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 14% 90%;              /* #E4E4EC */
+    --input: 220 14% 92%;               /* #EAEAF0 */
+    --ring: 245 82% 68%;
     --radius: 0.5rem;
-    --sidebar: 0 0% 98%;
-    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar: 235 32% 14%;             /* #181A34 — deep indigo sidebar */
+    --sidebar-foreground: 235 8% 76%;
+    --sidebar-accent: 245 82% 68% / 0.15;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 100% / 0.06;
+    --card-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.04);
+    --card-shadow-expanded: 0px 2px 8px 0px rgba(0, 0, 0, 0.06);
+    --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 239 84% 75%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 230 20% 8%;           /* #101117 — deep navy */
+    --foreground: 220 20% 94%;           /* #EDEEF2 — soft white */
+    --card: 230 18% 13%;                 /* #1C1D2A — subtle navy card */
+    --card-foreground: 220 20% 94%;
+    --popover: 230 18% 15%;
+    --popover-foreground: 220 20% 94%;
+    --primary: 245 82% 70%;              /* #7972F8 — bright purple */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 15% 18%;
+    --secondary-foreground: 220 20% 94%;
+    --muted: 230 15% 18%;
+    --muted-foreground: 220 12% 60%;     /* #90929C */
+    --accent: 245 82% 68% / 0.14;
+    --accent-foreground: 245 82% 78%;
+    --destructive: 0 58% 48%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 239 84% 75%;
-    --sidebar: 222.2 84% 5%;
-    --sidebar-foreground: 210 40% 98%;
+    --border: 230 15% 18%;
+    --input: 230 15% 20%;
+    --ring: 245 82% 70%;
+    --sidebar: 230 25% 10%;
+    --sidebar-foreground: 235 8% 76%;
+    --sidebar-accent: 245 82% 68% / 0.15;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 100% / 0.06;
+    --card-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.2);
+    --card-shadow-expanded: 0px 2px 8px 0px rgba(0, 0, 0, 0.25);
+  }
+
+  /* ===== Glassmorphism Theme ===== */
+  .glass {
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    --glass-blur: 16px;
+    --glass-highlight: rgba(255, 255, 255, 0.04);
+
+    /* Dark base for glass */
+    --background: 240 30% 8%;
+    --foreground: 210 40% 98%;
+    --card: 240 24% 12% / 0.5;
+    --card-foreground: 210 40% 98%;
+    --popover: 240 30% 12% / 0.85;
+    --popover-foreground: 210 40% 98%;
+    --primary: 244 88% 75%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 15% 18% / 0.5;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 240 15% 18% / 0.4;
+    --muted-foreground: 215 20% 65%;
+    --accent: 244 88% 71% / 0.15;
+    --accent-foreground: 244 88% 80%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 255 255 255 / 0.07;
+    --input: 255 255 255 / 0.08;
+    --ring: 244 88% 75%;
+    --sidebar: 240 30% 8% / 0.75;
+    --sidebar-foreground: 240 6% 78%;
+    --sidebar-accent: 244 88% 71% / 0.15;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 255 255 255 / 0.06;
+    --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    --card-shadow-expanded: 0 8px 40px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Glass morphism utility classes */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  }
+
+  .glass-panel-strong {
+    background: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: all 0.2s ease;
+  }
+
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .glass-highlight {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* ===== Glass mode auto-applied backdrop blur ===== */
+  /* Cards: bg-white dark:bg-[#1e1e32] or dark:bg-[#1E1E32] */
+  .glass body {
+    background: transparent;
+  }
+
+  .glass .bg-white {
+    background-color: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .glass .dark\:bg-\[\#1e1e32\] {
+    background-color: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .glass .dark\:bg-\[\#1E1E32\] {
+    background-color: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .glass .dark\:bg-\[\#16161F\] {
+    background-color: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Inputs and textareas */
+  .glass .dark\:bg-white\/\[0\.03\] {
+    background-color: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .glass .bg-\[\#F9FAFB\],
+  .glass .dark\:bg-\[\#F9FAFB\] {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Muted / secondary backgrounds */
+  .glass .bg-\[\#F3F4F6\],
+  .glass .dark\:bg-white\/\[0\.06\] {
+    background-color: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Hover states */
+  .glass .dark\:hover\:bg-white\/\[0\.04\]:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .glass .dark\:hover\:bg-white\/\[0\.1\]:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+
+  /* Sidebar in glass mode */
+  .glass aside,
+  .glass .bg-\[\#16162A\] {
+    background-color: rgba(10, 10, 30, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  /* Popover / dropdown in glass */
+  .glass .dark\:bg-\[\#1e1e32\] {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* Header in glass mode — match sidebar glass tone */
+  .glass header {
+    background-color: rgba(10, 10, 30, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
   }
 
   * {
@@ -56,7 +231,7 @@
 
   body {
     margin: 0;
-    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
@@ -82,5 +257,14 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Shared utility: section label */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6B7280;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
 }

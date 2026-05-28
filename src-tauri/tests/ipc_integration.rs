@@ -1,8 +1,8 @@
 use rusqlite::Connection;
 use std::collections::HashMap;
 
-use todo_flow_lib::db::{self, list_repo, tag_repo, task_repo};
-use todo_flow_lib::models::list::CreateListRequest;
+use todo_flow_lib::db::{self, tag_repo, task_repo};
+use todo_flow_lib::models::tag::CreateTagRequest;
 use todo_flow_lib::models::task::{CreateTaskRequest, ReorderItem, TaskFilter, UpdateTaskRequest};
 
 fn setup() -> Connection {
@@ -14,14 +14,14 @@ fn setup() -> Connection {
 
 fn empty_filter() -> TaskFilter {
     TaskFilter {
-        list_id: None,
+        tag_id: None,
         is_completed: None,
         due_date_from: None,
         due_date_to: None,
         search_query: None,
         parent_task_id: None,
         my_day_date: None,
-        tag_id: None,
+        include_children: None,
     }
 }
 
@@ -68,13 +68,12 @@ fn full_task_lifecycle() {
         CreateTaskRequest {
             title: "Integration test".into(),
             description: Some("Testing full flow".into()),
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             due_date: Some("2026-06-01".into()),
             priority: Some(2),
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -99,12 +98,11 @@ fn full_task_lifecycle() {
             is_completed: Some(true),
             priority: Some(3),
             due_date: Some("2026-07-01".into()),
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -127,13 +125,12 @@ fn subtask_cascade_and_depth_limit() {
         CreateTaskRequest {
             title: "Parent".into(),
             description: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -143,13 +140,12 @@ fn subtask_cascade_and_depth_limit() {
         CreateTaskRequest {
             title: "Child".into(),
             description: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: Some(parent.id.clone()),
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -166,13 +162,12 @@ fn subtask_cascade_and_depth_limit() {
         CreateTaskRequest {
             title: "Grandchild".into(),
             description: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: Some(child.id.clone()),
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     );
     assert!(result.is_err());
@@ -182,18 +177,19 @@ fn subtask_cascade_and_depth_limit() {
     assert!(task_repo::get_detail(&conn, &child.id).unwrap().is_none());
 }
 
-// ─── Task with list ─────────────────────────────────────────
+// ─── Task with tag ──────────────────────────────────────────
 
 #[test]
-fn task_with_list_integration() {
+fn task_with_tag_integration() {
     let conn = setup();
 
-    let list = list_repo::create(
+    let tag = tag_repo::create(
         &conn,
-        CreateListRequest {
+        CreateTagRequest {
             name: "Work".into(),
             color: Some("#ff0000".into()),
             icon: None,
+            parent_tag_id: None,
         },
     )
     .unwrap();
@@ -203,13 +199,12 @@ fn task_with_list_integration() {
         CreateTaskRequest {
             title: "Work task".into(),
             description: None,
-            list_id: Some(list.id.clone()),
+            tag_id: Some(tag.id.clone()),
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -217,12 +212,12 @@ fn task_with_list_integration() {
     let detail = task_repo::get_detail(&conn, &task.id)
         .unwrap()
         .expect("task should exist");
-    assert_eq!(detail.task.list_id, Some(list.id.clone()));
+    assert_eq!(detail.task.tag_id, Some(tag.id.clone()));
 
     let results = task_repo::get_all(
         &conn,
         TaskFilter {
-            list_id: Some(list.id.clone()),
+            tag_id: Some(tag.id.clone()),
             ..empty_filter()
         },
     )
@@ -231,11 +226,11 @@ fn task_with_list_integration() {
     assert_eq!(results[0].title, "Work task");
 
     // ON DELETE SET NULL
-    list_repo::delete(&conn, &list.id).unwrap();
+    tag_repo::delete(&conn, &tag.id).unwrap();
     let after = task_repo::get_detail(&conn, &task.id)
         .unwrap()
         .expect("task should still exist");
-    assert_eq!(after.task.list_id, None);
+    assert_eq!(after.task.tag_id, None);
 }
 
 // ─── Settings ────────────────────────────────────────────────
@@ -257,48 +252,6 @@ fn settings_read_write() {
     assert_eq!(settings_get(&conn, "theme"), Some("light".to_string()));
 }
 
-// ─── Tag operations ─────────────────────────────────────────
-
-#[test]
-fn tag_crud_and_task_association() {
-    let conn = setup();
-
-    let tag = tag_repo::create(&conn, "urgent".to_string(), "#ef4444".to_string()).unwrap();
-    assert_eq!(tag.name, "urgent");
-
-    let task = task_repo::create(
-        &conn,
-        CreateTaskRequest {
-            title: "Tagged task".into(),
-            description: None,
-            list_id: None,
-            parent_task_id: None,
-            due_date: None,
-            priority: None,
-            reminder: None,
-            recurrence: None,
-            tags: Some(vec![tag.id.clone()]),
-        },
-    )
-    .unwrap();
-
-    let detail = task_repo::get_detail(&conn, &task.id)
-        .unwrap()
-        .expect("task should exist");
-    assert_eq!(detail.task.tags.len(), 1);
-    assert_eq!(detail.task.tags[0].name, "urgent");
-
-    assert_eq!(tag_repo::get_all(&conn).unwrap().len(), 1);
-
-    tag_repo::delete(&conn, &tag.id).unwrap();
-    assert_eq!(tag_repo::get_all(&conn).unwrap().len(), 0);
-
-    let after = task_repo::get_detail(&conn, &task.id)
-        .unwrap()
-        .expect("task should still exist");
-    assert_eq!(after.task.tags.len(), 0);
-}
-
 // ─── Reorder ─────────────────────────────────────────────────
 
 #[test]
@@ -310,13 +263,12 @@ fn task_reorder_preserves_order() {
         CreateTaskRequest {
             title: "First".into(),
             description: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -326,13 +278,12 @@ fn task_reorder_preserves_order() {
         CreateTaskRequest {
             title: "Second".into(),
             description: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -361,13 +312,12 @@ fn empty_title_is_rejected() {
         CreateTaskRequest {
             title: "  ".into(),
             description: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     );
     assert!(result.is_err());
@@ -385,13 +335,12 @@ fn duplicate_task_deep_copies() {
         CreateTaskRequest {
             title: "Original".into(),
             description: Some("desc".into()),
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             due_date: Some("2026-08-01".into()),
             priority: Some(4),
             reminder: None,
             recurrence: None,
-            tags: None,
         },
     )
     .unwrap();
@@ -403,77 +352,48 @@ fn duplicate_task_deep_copies() {
     assert_eq!(dup.priority, 4);
 }
 
-// ─── List filtering ──────────────────────────────────────────
-
-#[test]
-fn filter_by_list_id_only_returns_matching_tasks() {
-    let conn = setup();
-
-    let list_a = list_repo::create(&conn, CreateListRequest {
-        name: "List A".into(), color: Some("#ff0000".into()), icon: None,
-    }).unwrap();
-
-    let list_b = list_repo::create(&conn, CreateListRequest {
-        name: "List B".into(), color: Some("#0000ff".into()), icon: None,
-    }).unwrap();
-
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Task A".into(), description: None,
-        list_id: Some(list_a.id.clone()), parent_task_id: None,
-        due_date: None, priority: None, reminder: None, recurrence: None, tags: None,
-    }).unwrap();
-
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Task B".into(), description: None,
-        list_id: Some(list_b.id.clone()), parent_task_id: None,
-        due_date: None, priority: None, reminder: None, recurrence: None, tags: None,
-    }).unwrap();
-
-    // Unassigned task (no list)
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Unassigned".into(), description: None,
-        list_id: None, parent_task_id: None,
-        due_date: None, priority: None, reminder: None, recurrence: None, tags: None,
-    }).unwrap();
-
-    let filter_a = TaskFilter { list_id: Some(list_a.id.clone()), ..empty_filter() };
-    let results_a = task_repo::get_all(&conn, filter_a).unwrap();
-    assert_eq!(results_a.len(), 1, "List A should have exactly 1 task");
-    assert_eq!(results_a[0].title, "Task A");
-
-    let filter_b = TaskFilter { list_id: Some(list_b.id.clone()), ..empty_filter() };
-    let results_b = task_repo::get_all(&conn, filter_b).unwrap();
-    assert_eq!(results_b.len(), 1, "List B should have exactly 1 task");
-    assert_eq!(results_b[0].title, "Task B");
-}
-
 // ─── Tag filtering ───────────────────────────────────────────
 
 #[test]
 fn filter_by_tag_id_only_returns_matching_tasks() {
     let conn = setup();
 
-    let tag = tag_repo::create(&conn, "urgent".to_string(), "#ef4444".to_string()).unwrap();
+    let tag_a = tag_repo::create(&conn, CreateTagRequest {
+        name: "Tag A".into(), color: Some("#ff0000".into()), icon: None, parent_tag_id: None,
+    }).unwrap();
 
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Tagged task".into(), description: None,
-        list_id: None, parent_task_id: None,
-        due_date: None, priority: None, reminder: None, recurrence: None,
-        tags: Some(vec![tag.id.clone()]),
+    let tag_b = tag_repo::create(&conn, CreateTagRequest {
+        name: "Tag B".into(), color: Some("#0000ff".into()), icon: None, parent_tag_id: None,
     }).unwrap();
 
     task_repo::create(&conn, CreateTaskRequest {
-        title: "Untagged task".into(), description: None,
-        list_id: None, parent_task_id: None,
+        title: "Task A".into(), description: None,
+        tag_id: Some(tag_a.id.clone()), parent_task_id: None,
         due_date: None, priority: None, reminder: None, recurrence: None,
-        tags: None,
     }).unwrap();
 
-    let results = task_repo::get_all(&conn, TaskFilter {
-        tag_id: Some(tag.id.clone()), ..empty_filter()
+    task_repo::create(&conn, CreateTaskRequest {
+        title: "Task B".into(), description: None,
+        tag_id: Some(tag_b.id.clone()), parent_task_id: None,
+        due_date: None, priority: None, reminder: None, recurrence: None,
     }).unwrap();
-    assert_eq!(results.len(), 1, "Tag filter should return exactly 1 task");
-    assert_eq!(results[0].title, "Tagged task");
+
+    // Unassigned task (no tag)
+    task_repo::create(&conn, CreateTaskRequest {
+        title: "Unassigned".into(), description: None,
+        tag_id: None, parent_task_id: None,
+        due_date: None, priority: None, reminder: None, recurrence: None,
+    }).unwrap();
+
+    let filter_a = TaskFilter { tag_id: Some(tag_a.id.clone()), ..empty_filter() };
+    let results_a = task_repo::get_all(&conn, filter_a).unwrap();
+    assert_eq!(results_a.len(), 1, "Tag A should have exactly 1 task");
+    assert_eq!(results_a[0].title, "Task A");
+
+    let filter_b = TaskFilter { tag_id: Some(tag_b.id.clone()), ..empty_filter() };
+    let results_b = task_repo::get_all(&conn, filter_b).unwrap();
+    assert_eq!(results_b.len(), 1, "Tag B should have exactly 1 task");
+    assert_eq!(results_b[0].title, "Task B");
 }
 
 // ─── Date range filtering ────────────────────────────────────
@@ -484,23 +404,23 @@ fn filter_by_date_range_only_returns_tasks_in_range() {
 
     task_repo::create(&conn, CreateTaskRequest {
         title: "Past".into(), description: None,
-        list_id: None, parent_task_id: None,
+        tag_id: None, parent_task_id: None,
         due_date: Some("2026-01-01".into()), priority: None,
-        reminder: None, recurrence: None, tags: None,
+        reminder: None, recurrence: None,
     }).unwrap();
 
     task_repo::create(&conn, CreateTaskRequest {
         title: "This week".into(), description: None,
-        list_id: None, parent_task_id: None,
+        tag_id: None, parent_task_id: None,
         due_date: Some("2026-06-15".into()), priority: None,
-        reminder: None, recurrence: None, tags: None,
+        reminder: None, recurrence: None,
     }).unwrap();
 
     task_repo::create(&conn, CreateTaskRequest {
         title: "Future".into(), description: None,
-        list_id: None, parent_task_id: None,
+        tag_id: None, parent_task_id: None,
         due_date: Some("2026-12-31".into()), priority: None,
-        reminder: None, recurrence: None, tags: None,
+        reminder: None, recurrence: None,
     }).unwrap();
 
     let results = task_repo::get_all(&conn, TaskFilter {

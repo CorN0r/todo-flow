@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react';
 import { MyDayPage } from '../../pages/MyDayPage';
 import { renderWithProviders, buildTask } from '../test-utils';
 
-const mockState = { data: null as any, isLoading: false };
+const mockState = { data: null as any, isLoading: false, isError: false };
 
 vi.mock('../../hooks/useTasks', () => ({
   useTasks: () => mockState,
@@ -14,14 +14,15 @@ vi.mock('../../hooks/useTasks', () => ({
   useReorderTasks: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: [], isLoading: false }),
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({ data: [], isLoading: false }),
 }));
 
 describe('MyDayPage', () => {
   beforeEach(() => {
     mockState.data = null;
     mockState.isLoading = false;
+    mockState.isError = false;
   });
 
   it('shows loading skeleton when isLoading', () => {
@@ -34,7 +35,7 @@ describe('MyDayPage', () => {
   it('renders header with My Day text', () => {
     mockState.data = [];
     renderWithProviders(<MyDayPage />);
-    expect(screen.getByText('My Day')).toBeInTheDocument();
+    expect(screen.getByText('我的一天')).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', () => {
@@ -46,6 +47,6 @@ describe('MyDayPage', () => {
   it('shows task count when tasks exist', () => {
     mockState.data = [buildTask({ id: 't1', title: 'T1' })];
     renderWithProviders(<MyDayPage />);
-    expect(screen.getByText('1 task focused today')).toBeInTheDocument();
+    expect(screen.getByText('0/1 项')).toBeInTheDocument();
   });
 });

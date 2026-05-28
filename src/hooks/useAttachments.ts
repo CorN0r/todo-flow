@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { getAttachments, uploadAttachment, deleteAttachment } from '../lib/db';
+import { getAttachments, uploadAttachment, uploadLinkAttachment, deleteAttachment } from '../lib/db';
 
 export function useAttachments(taskId: string | null) {
   return useQuery({
@@ -14,11 +14,11 @@ export function useAttachments(taskId: string | null) {
 export function useUploadAttachment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ taskId, sourcePath }: { taskId: string; sourcePath: string }) =>
-      uploadAttachment(taskId, sourcePath),
+    mutationFn: ({ taskId, sourcePath, isLink, linkTitle }: { taskId: string; sourcePath: string; isLink?: boolean; linkTitle?: string }) =>
+      isLink ? uploadLinkAttachment(taskId, sourcePath, linkTitle) : uploadAttachment(taskId, sourcePath),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['attachments', variables.taskId] });
-      toast.success('Image attached');
+      toast.success(variables.isLink ? 'Link added' : 'File attached');
     },
     onError: (err: string) => toast.error(err),
   });

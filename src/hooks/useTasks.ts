@@ -16,7 +16,11 @@ const TASKS_KEY = ['tasks'] as const;
 export function useTasks(filters?: Parameters<typeof getTasks>[0]) {
   return useQuery({
     queryKey: [...TASKS_KEY, filters],
-    queryFn: () => getTasks(filters),
+    queryFn: () =>
+      getTasks({
+        include_children: true,
+        ...filters,
+      }),
     staleTime: 30_000,
   });
 }

@@ -71,10 +71,10 @@ export function DatePicker({ value, onChange, dateCounts }: DatePickerProps) {
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-2 px-2 py-1 rounded-md text-sm transition-colors border',
+          'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors border font-medium',
           value
-            ? 'border-primary bg-muted text-foreground'
-            : 'border-border text-muted-foreground hover:border-border',
+            ? 'border-[#7C72F6] bg-[#7C72F6]/[0.06] text-[#7C72F6]'
+            : 'border-[#E5E7EB] dark:border-white/[0.07] text-[#9CA3AF] hover:border-[#D1D5DB] hover:text-[#6B7280]',
         )}
       >
         <CalendarIcon size={14} />
@@ -91,25 +91,25 @@ export function DatePicker({ value, onChange, dateCounts }: DatePickerProps) {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 z-50 bg-background border rounded-xl shadow-xl p-3 min-w-[260px]">
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="absolute top-full mt-1 left-0 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-3 min-w-[260px]">
             {/* Month nav */}
             <div className="flex items-center justify-between mb-3">
-              <button onClick={prevMonth} className="p-1 rounded hover:bg-accent">
-                <ChevronLeft size={14} />
+              <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" aria-label="上个月">
+                <ChevronLeft size={14} className="text-[#6B7280]" />
               </button>
-              <span className="text-sm font-medium">
+              <span className="text-[13px] font-semibold text-[#111827] dark:text-white/90">
                 {monthNames[viewMonth]} {viewYear}
               </span>
-              <button onClick={nextMonth} className="p-1 rounded hover:bg-accent">
-                <ChevronRight size={14} />
+              <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" aria-label="下个月">
+                <ChevronRight size={14} className="text-[#6B7280]" />
               </button>
             </div>
 
             {/* Day headers */}
             <div className="grid grid-cols-7 mb-1">
               {dayNames.map((n) => (
-                <div key={n} className="text-center text-[10px] text-muted-foreground py-1 font-medium">
+                <div key={n} className="text-center text-[10px] text-[#9CA3AF] py-1 font-semibold uppercase tracking-wide">
                   {n}
                 </div>
               ))}
@@ -133,10 +133,10 @@ export function DatePicker({ value, onChange, dateCounts }: DatePickerProps) {
                         disabled={!isCurrentMonth}
                         className={cn(
                           'w-8 h-8 text-xs rounded-full flex items-center justify-center relative transition-colors',
-                          isCurrentMonth && 'hover:bg-accent cursor-pointer',
-                          !isCurrentMonth && 'text-muted-foreground cursor-default',
-                          isTodayDate && 'font-bold text-primary',
-                          isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+                          isCurrentMonth && 'hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] cursor-pointer text-[#111827] dark:text-white/90',
+                          !isCurrentMonth && 'text-[#D1D5DB] dark:text-white/[0.15] cursor-default',
+                          isTodayDate && !isSelected && 'font-bold text-[#7C72F6]',
+                          isSelected && 'bg-[#7C72F6] text-white hover:bg-[#7C72F6]',
                         )}
                       >
                         {d.getDate()}
@@ -144,7 +144,7 @@ export function DatePicker({ value, onChange, dateCounts }: DatePickerProps) {
                           <span
                             className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
                             style={{
-                              backgroundColor: count > 2 ? '#ef4444' : count > 0 ? '#6366f1' : undefined,
+                              backgroundColor: count > 2 ? '#EF4444' : '#7C72F6',
                               opacity: 0.2 + (count / Math.max(maxCount, 1)) * 0.8,
                             }}
                           />
@@ -157,23 +157,23 @@ export function DatePicker({ value, onChange, dateCounts }: DatePickerProps) {
             </div>
 
             {/* Quick actions */}
-            <div className="mt-2 pt-2 border-t flex gap-1">
+            <div className="mt-2 pt-2 border-t border-[#F3F4F6] dark:border-white/[0.06] flex gap-1">
               <button
                 onClick={() => { onChange(format(today, 'yyyy-MM-dd')); setOpen(false); }}
-                className="text-xs px-2 py-1 rounded-md hover:bg-accent transition-colors"
+                className="text-[12px] px-2.5 py-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-[#6B7280] font-medium"
               >
                 Today
               </button>
               <button
                 onClick={() => { onChange(format(addDays(today, 1), 'yyyy-MM-dd')); setOpen(false); }}
-                className="text-xs px-2 py-1 rounded-md hover:bg-accent transition-colors"
+                className="text-[12px] px-2.5 py-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-[#6B7280] font-medium"
               >
                 Tomorrow
               </button>
               {value && (
                 <button
                   onClick={() => { onChange(''); setOpen(false); }}
-                  className="text-xs px-2 py-1 rounded-md hover:bg-red-50 text-red-500 transition-colors ml-auto"
+                  className="text-[12px] px-2.5 py-1.5 rounded-lg hover:bg-[#FEF2F2] dark:hover:bg-red-950/30 text-[#EF4444] transition-colors font-medium ml-auto"
                 >
                   Clear
                 </button>

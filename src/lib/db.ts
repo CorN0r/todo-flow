@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Task, TaskDetail, CreateTaskInput, UpdateTaskInput, ReorderItem, Tag } from '../types/task';
-import type { TodoList, ListWithCount, CreateListInput } from '../types/list';
+import type { Task, TaskDetail, CreateTaskInput, UpdateTaskInput, ReorderItem } from '../types/task';
+import type { Tag, TagWithCount, CreateTagInput } from '../types/tag';
 import type { Attachment } from '../types/attachment';
 
 // Task commands
@@ -25,14 +25,14 @@ export async function reorderTasks(items: ReorderItem[]): Promise<void> {
 }
 
 export async function getTasks(filters?: {
-  list_id?: string;
+  tag_id?: string;
   is_completed?: boolean;
   due_date_from?: string;
   due_date_to?: string;
   search_query?: string;
   parent_task_id?: string;
   my_day_date?: string;
-  tag_id?: string;
+  include_children?: boolean;
 }): Promise<Task[]> {
   return invoke('get_tasks', { ...filters });
 }
@@ -50,49 +50,36 @@ export async function removeTaskFromMyDay(id: string): Promise<Task> {
 }
 
 // Tag commands
-export async function getTags(): Promise<Tag[]> {
+export async function createTag(input: CreateTagInput): Promise<Tag> {
+  return invoke('create_tag', { ...input });
+}
+
+export async function getTags(): Promise<TagWithCount[]> {
   return invoke('get_tags');
 }
 
-export async function createTag(name: string, color: string): Promise<Tag> {
-  return invoke('create_tag', { name, color });
-}
-
-export async function updateTag(id: string, name?: string, color?: string): Promise<Tag> {
-  return invoke('update_tag', { id, name, color });
+export async function updateTag(
+  id: string,
+  input: { name?: string; color?: string; parent_tag_id?: string | null }
+): Promise<Tag> {
+  return invoke('update_tag', { id, ...input });
 }
 
 export async function deleteTag(id: string): Promise<void> {
   return invoke('delete_tag', { id });
 }
 
-// List commands
-export async function createList(input: CreateListInput): Promise<TodoList> {
-  return invoke('create_list', { ...input });
-}
-
-export async function getLists(): Promise<ListWithCount[]> {
-  return invoke('get_lists');
-}
-
-export async function updateList(
-  id: string,
-  input: Partial<Pick<TodoList, 'name' | 'color' | 'icon'>>
-): Promise<TodoList> {
-  return invoke('update_list', { id, ...input });
-}
-
-export async function deleteList(id: string): Promise<void> {
-  return invoke('delete_list', { id });
-}
-
-export async function reorderLists(items: { id: string; sort_order: number }[]): Promise<void> {
-  return invoke('reorder_lists', { items });
+export async function reorderTags(items: { id: string; sort_order: number }[]): Promise<void> {
+  return invoke('reorder_tags', { items });
 }
 
 // Attachment commands
 export async function uploadAttachment(taskId: string, sourcePath: string): Promise<Attachment> {
   return invoke('upload_attachment', { taskId, sourcePath });
+}
+
+export async function uploadLinkAttachment(taskId: string, url: string, title?: string): Promise<Attachment> {
+  return invoke('upload_link_attachment', { taskId, url, title });
 }
 
 export async function getAttachments(taskId: string): Promise<Attachment[]> {
@@ -124,11 +111,6 @@ export async function backupDatabase(destination: string): Promise<void> {
   return invoke('backup_database', { destination });
 }
 
-// Widget commands
-export async function getTodayTaskCount(): Promise<number> {
-  return invoke('get_today_task_count');
-}
-
 export async function getDashboardStats(): Promise<DashboardStats> {
   return invoke('get_dashboard_stats');
 }
@@ -142,7 +124,7 @@ export interface DashboardStats {
   today_total: number;
   streak_days: number;
   completion_by_date: { date: string; completed: number }[];
-  tasks_by_list: { list_id: string; list_name: string; list_color: string; count: number }[];
+  tasks_by_tag: { tag_id: string; tag_name: string; tag_color: string; count: number }[];
 }
 
 export async function hideToTray(): Promise<void> {
@@ -151,4 +133,31 @@ export async function hideToTray(): Promise<void> {
 
 export async function showMainFromWidget(): Promise<void> {
   return invoke('show_main_from_widget');
+}
+
+// Habit commands
+import type { Habit, HabitWithStats, HabitLog, CreateHabitInput, UpdateHabitInput, ReorderHabitsItem } from '../types/habit';
+
+export async function createHabit(input: CreateHabitInput): Promise<Habit> {
+  return invoke('create_habit', { req: input });
+}
+
+export async function getHabits(): Promise<HabitWithStats[]> {
+  return invoke('get_habits');
+}
+
+export async function updateHabit(id: string, input: UpdateHabitInput): Promise<Habit> {
+  return invoke('update_habit', { id, req: input });
+}
+
+export async function deleteHabit(id: string): Promise<void> {
+  return invoke('delete_habit', { id });
+}
+
+export async function reorderHabits(items: ReorderHabitsItem[]): Promise<void> {
+  return invoke('reorder_habits', { items });
+}
+
+export async function toggleHabitLog(habitId: string, date?: string): Promise<HabitLog> {
+  return invoke('toggle_habit_log', { habitId, date });
 }

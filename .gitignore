@@ -4,3 +4,8 @@ src-tauri/target/
 *.exe
 *.msi
 *.ico.tmp
+.env
+.env.*
+*.log
+*.tmp
+*.zip

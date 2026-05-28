@@ -5,7 +5,7 @@ import { useCalendarStore } from '../../stores/calendarStore';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { useUIStore } from '../../stores/uiStore';
 import { useUpdateTask } from '../../hooks/useTasks';
-import { useLists } from '../../hooks/useLists';
+import { useTags } from '../../hooks/useTags';
 import {
   startOfMonth,
   endOfMonth,
@@ -28,10 +28,10 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
-function DraggableTask({ ev, dateKey, listColor }: {
+function DraggableTask({ ev, dateKey, tagColor }: {
   ev: ReturnType<typeof useCalendarEvents>['eventsByDate'][string][0];
   dateKey: string;
-  listColor?: string;
+  tagColor?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `task-${ev.task.id}`,
@@ -43,7 +43,7 @@ function DraggableTask({ ev, dateKey, listColor }: {
   } : undefined;
 
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
-  const color = listColor || '#6366f1';
+  const color = tagColor || '#6366f1';
 
   return (
     <div
@@ -64,7 +64,7 @@ function DraggableTask({ ev, dateKey, listColor }: {
           color: '#ffffff',
         }}
       >
-        <span className={cn(ev.task.is_completed && 'bg-muted text-muted-foreground line-through rounded px-0.5')}>
+        <span className={cn(ev.task.is_completed && 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] line-through rounded px-0.5')}>
           {ev.title}
         </span>
       </button>
@@ -81,9 +81,9 @@ function DroppableDay({ dateKey, isCurrentMonth, children }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'min-h-[80px] border-r last:border-r-0 p-1 cursor-pointer hover:bg-muted transition-colors',
-        !isCurrentMonth && 'bg-muted',
-        isOver && 'bg-accent ring-2 ring-primary',
+        'min-h-[80px] border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-1.5 cursor-pointer hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors',
+        !isCurrentMonth && 'bg-[#F3F4F6]/50 dark:bg-white/[0.01]',
+        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6]',
       )}
     >
       {children}
@@ -96,13 +96,13 @@ export function MonthView() {
   const { currentDate, setCurrentDate, setViewMode } = useCalendarStore();
   const { eventsByDate } = useCalendarEvents(currentDate, 'month');
   const updateTask = useUpdateTask();
-  const { data: lists } = useLists();
+  const { data: tags } = useTags();
   const [activeDrag, setActiveDrag] = useState<{ id: string; title: string } | null>(null);
 
-  const listColorMap = useMemo(() => {
-    if (!lists) return new Map<string, string>();
-    return new Map(lists.map((l) => [l.id, l.color]));
-  }, [lists]);
+  const tagColorMap = useMemo(() => {
+    if (!tags) return new Map<string, string>();
+    return new Map(tags.map((t) => [t.id, t.color]));
+  }, [tags]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -164,16 +164,16 @@ export function MonthView() {
         {/* Day headers */}
         <div className="grid grid-cols-7 mb-1">
           {dayNames.map((name) => (
-            <div key={name} className="text-center text-xs text-muted-foreground py-1 font-medium">
+            <div key={name} className="text-center text-xs text-[#6B7280] py-1 font-medium">
               {name}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="border rounded-lg overflow-hidden">
+        <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl overflow-hidden bg-white dark:bg-[#1e1e32]">
           {weeks.map((week, wi) => (
-            <div key={wi} className="grid grid-cols-7 border-b last:border-b-0">
+            <div key={wi} className="grid grid-cols-7 border-b border-[#E5E7EB] dark:border-white/[0.06] last:border-b-0">
               {week.map((d, di) => {
                 const dateKey = format(d, 'yyyy-MM-dd');
                 const dayEvents = eventsByDate[dateKey] || [];
@@ -190,7 +190,7 @@ export function MonthView() {
                       <div
                         className={cn(
                           'text-xs w-6 h-6 flex items-center justify-center rounded-full',
-                          isTodayDate && 'bg-primary text-primary-foreground font-medium',
+                          isTodayDate && 'bg-[#7C72F6] text-white font-bold ring-2 ring-[#7C72F6] ring-offset-1',
                         )}
                       >
                         {d.getDate()}
@@ -198,7 +198,7 @@ export function MonthView() {
                       {dayEvents.length > 0 && (
                         <span className={cn(
                           'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                          isTodayDate ? 'bg-accent text-primary' : 'bg-muted text-muted-foreground',
+                          isTodayDate ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6]' : 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280]',
                         )}>
                           {dayEvents.length}
                         </span>
@@ -207,10 +207,10 @@ export function MonthView() {
                     <div className="space-y-0.5" onClick={(e) => e.stopPropagation()}>
                       {dayEvents.slice(0, 2).map((ev) => (
                         <DraggableTask key={ev.task.id} ev={ev} dateKey={dateKey}
-                          listColor={ev.task.list_id ? listColorMap.get(ev.task.list_id) : undefined} />
+                          tagColor={ev.task.tag_id ? tagColorMap.get(ev.task.tag_id) : undefined} />
                       ))}
                       {dayEvents.length > 2 && (
-                        <span className="text-[10px] text-muted-foreground pl-1 font-medium">
+                        <span className="text-[10px] text-[#6B7280] pl-1 font-medium">
                           +{dayEvents.length - 2} more
                         </span>
                       )}
@@ -226,7 +226,7 @@ export function MonthView() {
       {/* Drag overlay */}
       <DragOverlay>
         {activeTask ? (
-          <div className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs shadow-lg">
+          <div className="px-2 py-1 rounded bg-[#7C72F6] text-white text-xs shadow-lg">
             {activeTask.title}
           </div>
         ) : null}

@@ -19,8 +19,8 @@ vi.mock('../../hooks/useTasks', () => ({
   useReorderTasks: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: [], isLoading: false }),
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({ data: [], isLoading: false }),
 }));
 
 describe('SearchPage', () => {

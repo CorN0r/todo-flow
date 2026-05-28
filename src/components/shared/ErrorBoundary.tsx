@@ -33,12 +33,12 @@ export class ErrorBoundary extends Component<Props, State> {
             <span className="text-red-500 text-xl font-bold">!</span>
           </div>
           <h3 className="text-sm font-semibold mb-1">Something went wrong</h3>
-          <p className="text-xs text-muted-foreground mb-3 max-w-md mx-auto">
+          <p className="text-xs text-[#6B7280] mb-3 max-w-md mx-auto">
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="text-xs px-4 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
+            className="text-xs px-4 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:opacity-90"
           >
             Try again
           </button>

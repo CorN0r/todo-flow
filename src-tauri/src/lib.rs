@@ -5,7 +5,7 @@ pub mod models;
 mod reminders;
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 use tauri::Emitter;
@@ -15,8 +15,14 @@ use tauri::image::Image;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 pub struct AppState {
-    pub db: Mutex<Connection>,
+    pub db: Arc<Mutex<Connection>>,
     pub data_dir: PathBuf,
+}
+
+impl AppState {
+    pub fn db(&self) -> Result<std::sync::MutexGuard<'_, Connection>, crate::error::AppError> {
+        self.db.lock().map_err(|e| crate::error::AppError::Lock(e.to_string()))
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -71,13 +77,14 @@ pub fn run() {
                 return Err(Box::new(e));
             }
 
+            let db = Arc::new(Mutex::new(conn));
             let state = AppState {
-                db: Mutex::new(conn),
+                db: db.clone(),
                 data_dir: app_dir,
             };
 
             // Start reminder polling
-            reminders::start_polling(app.handle().clone(), &state.db);
+            reminders::start_polling(app.handle().clone(), db);
 
             app.manage(state);
 
@@ -127,8 +134,8 @@ pub fn run() {
                 tauri::WebviewUrl::App("/widget".into()),
             )
             .title("TodoFlow Widget")
-            .inner_size(200.0, 220.0)
-            .min_inner_size(180.0, 200.0)
+            .inner_size(240.0, 320.0)
+            .min_inner_size(220.0, 280.0)
             .decorations(false)
             .always_on_top(true)
             .skip_taskbar(true)
@@ -142,8 +149,8 @@ pub fn run() {
                 if let Some(monitor) = monitors.into_iter().next() {
                     let size = monitor.size();
                     let scale = monitor.scale_factor();
-                    let x = (size.width as f64 / scale) - 210.0;
-                    let y = (size.height as f64 / scale) - 250.0;
+                    let x = (size.width as f64 / scale) - 250.0;
+                    let y = (size.height as f64 / scale) - 340.0;
                     let _ = widget.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                 }
             }
@@ -166,16 +173,17 @@ pub fn run() {
             commands::task_commands::reorder_tasks,
             commands::task_commands::get_tasks,
             commands::task_commands::duplicate_task,
-            commands::task_commands::get_today_task_count,
             commands::task_commands::add_task_to_my_day,
             commands::task_commands::remove_task_from_my_day,
-            commands::list_commands::create_list,
-            commands::list_commands::get_lists,
-            commands::list_commands::update_list,
-            commands::list_commands::delete_list,
-            commands::list_commands::reorder_lists,
+            commands::task_commands::get_today_task_count,
+            commands::tag_commands::create_tag,
+            commands::tag_commands::get_tags,
+            commands::tag_commands::update_tag,
+            commands::tag_commands::delete_tag,
+            commands::tag_commands::reorder_tags,
             commands::attachment_commands::upload_attachment,
             commands::attachment_commands::upload_attachments_bulk,
+            commands::attachment_commands::upload_link_attachment,
             commands::attachment_commands::get_attachments,
             commands::attachment_commands::delete_attachment,
             commands::attachment_commands::get_attachment_file_path,
@@ -185,11 +193,13 @@ pub fn run() {
             commands::settings_commands::backup_database,
             commands::widget_commands::hide_to_tray,
             commands::widget_commands::show_main_from_widget,
-            commands::tag_commands::get_tags,
-            commands::tag_commands::create_tag,
-            commands::tag_commands::update_tag,
-            commands::tag_commands::delete_tag,
             commands::stats_commands::get_dashboard_stats,
+            commands::habit_commands::create_habit,
+            commands::habit_commands::get_habits,
+            commands::habit_commands::update_habit,
+            commands::habit_commands::delete_habit,
+            commands::habit_commands::reorder_habits,
+            commands::habit_commands::toggle_habit_log,
         ])
         .run(tauri::generate_context!());
 

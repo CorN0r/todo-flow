@@ -3,8 +3,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderWithTheme, resetTheme } from '../test-utils';
 import { TodayPage } from '../../pages/TodayPage';
 import { MyDayPage } from '../../pages/MyDayPage';
-import { ListPage } from '../../pages/ListPage';
 import { TagPage } from '../../pages/TagPage';
+
 import { DateFilterPage } from '../../pages/DateFilterPage';
 
 // Common mocks for pages that use useTasks
@@ -12,7 +12,7 @@ const mockTasks = { data: null as any, isLoading: false };
 const mockStats = {
   total_tasks: 10, completed_tasks: 4, incomplete_tasks: 6,
   overdue_tasks: 2, streak_days: 3, today_completed: 1,
-  completion_by_date: [], tasks_by_list: [],
+  completion_by_date: [], tasks_by_tag: [],
 };
 
 vi.mock('../../hooks/useTasks', () => ({
@@ -25,13 +25,8 @@ vi.mock('../../hooks/useTasks', () => ({
   useReorderTasks: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: [], isLoading: false }),
-}));
-
 vi.mock('../../hooks/useTags', () => ({
   useTags: () => ({ data: [], isLoading: false }),
-  useCreateTag: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock('../../hooks/useCalendarEvents', () => ({
@@ -100,10 +95,9 @@ describe('Page visual states', () => {
     snapshotEmpty(<TodayPage />, 'TodayPage', 'light');
     snapshotLoading(<MyDayPage />, 'MyDayPage', 'light');
     snapshotEmpty(<MyDayPage />, 'MyDayPage', 'light');
-    snapshotLoading(<ListPage />, 'ListPage', 'light');
-    snapshotEmpty(<ListPage />, 'ListPage', 'light');
     snapshotLoading(<TagPage />, 'TagPage', 'light');
     snapshotEmpty(<TagPage />, 'TagPage', 'light');
+
     snapshotLoading(<DateFilterPage />, 'DateFilterPage', 'light');
     snapshotEmpty(<DateFilterPage />, 'DateFilterPage', 'light');
   });
@@ -114,10 +108,9 @@ describe('Page visual states', () => {
     snapshotEmpty(<TodayPage />, 'TodayPage', 'dark');
     snapshotLoading(<MyDayPage />, 'MyDayPage', 'dark');
     snapshotEmpty(<MyDayPage />, 'MyDayPage', 'dark');
-    snapshotLoading(<ListPage />, 'ListPage', 'dark');
-    snapshotEmpty(<ListPage />, 'ListPage', 'dark');
     snapshotLoading(<TagPage />, 'TagPage', 'dark');
     snapshotEmpty(<TagPage />, 'TagPage', 'dark');
+
     snapshotLoading(<DateFilterPage />, 'DateFilterPage', 'dark');
     snapshotEmpty(<DateFilterPage />, 'DateFilterPage', 'dark');
   });

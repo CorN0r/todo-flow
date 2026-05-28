@@ -1,6 +1,7 @@
 use rusqlite::Connection;
 use serde::Serialize;
 
+use crate::error::AppError;
 use crate::AppState;
 
 #[derive(Debug, Serialize)]
@@ -13,7 +14,7 @@ pub struct DashboardStats {
     pub today_total: i64,
     pub streak_days: i64,
     pub completion_by_date: Vec<DayCount>,
-    pub tasks_by_list: Vec<ListCount>,
+    pub tasks_by_tag: Vec<TagCount>,
 }
 
 #[derive(Debug, Serialize)]
@@ -23,20 +24,20 @@ pub struct DayCount {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ListCount {
-    pub list_id: String,
-    pub list_name: String,
-    pub list_color: String,
+pub struct TagCount {
+    pub tag_id: String,
+    pub tag_name: String,
+    pub tag_color: String,
     pub count: i64,
 }
 
 #[tauri::command]
-pub fn get_dashboard_stats(state: tauri::State<'_, AppState>) -> Result<DashboardStats, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
+pub fn get_dashboard_stats(state: tauri::State<'_, AppState>) -> Result<DashboardStats, AppError> {
+    let conn = state.db()?;
     get_dashboard_stats_impl(&conn)
 }
 
-fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, String> {
+fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppError> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     let total_tasks: i64 = conn
@@ -44,96 +45,84 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, String>
             "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND parent_task_id IS NULL",
             [],
             |row| row.get(0),
-        )
-        .unwrap_or(0);
+        )?;
 
     let completed_tasks: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL",
             [],
             |row| row.get(0),
-        )
-        .unwrap_or(0);
+        )?;
 
     let incomplete_tasks: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND parent_task_id IS NULL",
             [],
             |row| row.get(0),
-        )
-        .unwrap_or(0);
+        )?;
 
     let overdue_tasks: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND due_date IS NOT NULL AND due_date < ?1 AND parent_task_id IS NULL",
             [&today],
             |row| row.get(0),
-        )
-        .unwrap_or(0);
+        )?;
 
     let today_completed: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 1 AND date(updated_at) = ?1 AND parent_task_id IS NULL",
             [&today],
             |row| row.get(0),
-        )
-        .unwrap_or(0);
+        )?;
 
     let today_total: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND parent_task_id IS NULL AND (due_date = ?1 OR date(updated_at) = ?1)",
             [&today],
             |row| row.get(0),
-        )
-        .unwrap_or(0);
+        )?;
 
     // Completion by date (last 7 days)
-    let mut completion_by_date: Vec<DayCount> = Vec::new();
-    if let Ok(mut stmt) = conn.prepare(
-        "SELECT date(updated_at) as d, COUNT(*) as c
-         FROM tasks
-         WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL
-           AND date(updated_at) >= date(?1, '-6 days')
-         GROUP BY d
-         ORDER BY d",
-    ) {
-        if let Ok(rows) = stmt.query_map([&today], |row| {
+    let completion_by_date: Vec<DayCount> = {
+        let mut stmt = conn.prepare(
+            "SELECT date(updated_at) as d, COUNT(*) as c
+             FROM tasks
+             WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL
+               AND date(updated_at) >= date(?1, '-6 days')
+             GROUP BY d
+             ORDER BY d",
+        )?;
+        let rows = stmt.query_map([&today], |row| {
             Ok(DayCount {
                 date: row.get(0)?,
                 completed: row.get(1)?,
             })
-        }) {
-            for row in rows.flatten() {
-                completion_by_date.push(row);
-            }
-        }
-    }
+        })?;
+        rows.flatten().collect()
+    };
 
     // Streak (consecutive days completing at least 1 task)
-    let streak_days = compute_streak(conn, &today);
+    let streak_days = compute_streak(conn, &today)?;
 
-    // Tasks by list
-    let mut tasks_by_list: Vec<ListCount> = Vec::new();
-    if let Ok(mut stmt) = conn.prepare(
-        "SELECT l.id, l.name, l.color, COUNT(t.id)
-         FROM lists l
-         LEFT JOIN tasks t ON t.list_id = l.id AND t.is_archived = 0 AND t.parent_task_id IS NULL
-         GROUP BY l.id
-         ORDER BY COUNT(t.id) DESC",
-    ) {
-        if let Ok(rows) = stmt.query_map([], |row| {
-            Ok(ListCount {
-                list_id: row.get(0)?,
-                list_name: row.get(1)?,
-                list_color: row.get(2)?,
+    // Tasks by tag
+    let tasks_by_tag: Vec<TagCount> = {
+        let mut stmt = conn.prepare(
+            "SELECT t.id, t.name, t.color, COUNT(tk.id)
+             FROM tags t
+             LEFT JOIN tasks tk ON tk.tag_id = t.id AND tk.is_archived = 0 AND tk.parent_task_id IS NULL
+             GROUP BY t.id
+             ORDER BY COUNT(tk.id) DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(TagCount {
+                tag_id: row.get(0)?,
+                tag_name: row.get(1)?,
+                tag_color: row.get(2)?,
                 count: row.get(3)?,
             })
-        }) {
-            for row in rows.flatten() {
-                tasks_by_list.push(row);
-            }
-        }
-    }
+        })?;
+        rows.flatten().collect()
+    };
 
     Ok(DashboardStats {
         total_tasks,
@@ -144,7 +133,7 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, String>
         today_total,
         streak_days,
         completion_by_date,
-        tasks_by_list,
+        tasks_by_tag,
     })
 }
 
@@ -170,7 +159,7 @@ mod tests {
         assert_eq!(stats.incomplete_tasks, 0);
         assert_eq!(stats.overdue_tasks, 0);
         assert_eq!(stats.streak_days, 0);
-        assert!(stats.tasks_by_list.is_empty());
+        assert!(stats.tasks_by_tag.is_empty());
     }
 
     #[test]
@@ -208,32 +197,32 @@ mod tests {
     }
 
     #[test]
-    fn test_tasks_by_list() {
+    fn test_tasks_by_tag() {
         let conn = setup();
         conn.execute(
-            "INSERT INTO lists (id, name, color) VALUES ('l1', 'Work', '#ff0000')",
+            "INSERT INTO tags (id, name, color) VALUES ('l1', 'Work', '#ff0000')",
             [],
         ).unwrap();
         conn.execute(
-            "INSERT INTO lists (id, name, color) VALUES ('l2', 'Home', '#00ff00')",
+            "INSERT INTO tags (id, name, color) VALUES ('l2', 'Home', '#00ff00')",
             [],
         ).unwrap();
         conn.execute(
-            "INSERT INTO tasks (id, title, list_id) VALUES ('t1', 'Work task', 'l1')",
+            "INSERT INTO tasks (id, title, tag_id) VALUES ('t1', 'Work task', 'l1')",
             [],
         ).unwrap();
         conn.execute(
-            "INSERT INTO tasks (id, title, list_id) VALUES ('t2', 'Work task 2', 'l1')",
+            "INSERT INTO tasks (id, title, tag_id) VALUES ('t2', 'Work task 2', 'l1')",
             [],
         ).unwrap();
         conn.execute(
-            "INSERT INTO tasks (id, title, list_id) VALUES ('t3', 'Home task', 'l2')",
+            "INSERT INTO tasks (id, title, tag_id) VALUES ('t3', 'Home task', 'l2')",
             [],
         ).unwrap();
 
         let stats = get_dashboard_stats_impl(&conn).unwrap();
-        assert_eq!(stats.tasks_by_list.len(), 2);
-        let work = stats.tasks_by_list.iter().find(|l| l.list_id == "l1").unwrap();
+        assert_eq!(stats.tasks_by_tag.len(), 2);
+        let work = stats.tasks_by_tag.iter().find(|t| t.tag_id == "l1").unwrap();
         assert_eq!(work.count, 2);
     }
 
@@ -257,52 +246,42 @@ mod tests {
     #[test]
     fn test_streak_with_no_completions() {
         let conn = setup();
-        let streak = compute_streak(&conn, "2026-05-25");
+        let streak = compute_streak(&conn, "2026-05-25").unwrap();
         assert_eq!(streak, 0);
     }
 }
 
-fn compute_streak(conn: &Connection, today: &str) -> i64 {
-    let mut streak: i64 = 0;
-    if let Ok(mut stmt) = conn.prepare(
-        "SELECT COUNT(*) FROM tasks
+fn compute_streak(conn: &Connection, today: &str) -> Result<i64, AppError> {
+    // Fetch all completion dates in descending order, up to 366 days back.
+    // Then count consecutive days from today backwards.
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT date(updated_at)
+         FROM tasks
          WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL
-           AND date(updated_at) = date(?1)",
-    ) {
-        if let Ok(count) = stmt.query_row([today], |row| row.get::<_, i64>(0)) {
-            if count == 0 {
-                // Check yesterday
-                if let Ok(mut stmt2) = conn.prepare(
-                    "SELECT COUNT(*) FROM tasks
-                     WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL
-                       AND date(updated_at) = date(?1, '-1 day')",
-                ) {
-                    if let Ok(c) = stmt2.query_row([today], |row| row.get::<_, i64>(0)) {
-                        if c > 0 { streak = 1; }
-                    }
-                }
-                return streak;
-            }
+           AND date(updated_at) BETWEEN date(?1, '-366 days') AND date(?1)
+         ORDER BY 1 DESC",
+    )?;
+    let dates: Vec<String> = stmt
+        .query_map(rusqlite::params![today], |row| row.get(0))?
+        .flatten()
+        .collect();
+
+    use std::collections::HashSet;
+    let set: HashSet<&str> = dates.iter().map(|s| s.as_str()).collect();
+
+    let today_dt = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .map_err(|e| AppError::Generic(format!("Invalid date format: {}", e)))?;
+
+    let mut streak: i64 = 0;
+    for offset in 0i64..366 {
+        let day = today_dt - chrono::Duration::days(offset);
+        let key = day.format("%Y-%m-%d").to_string();
+        if set.contains(key.as_str()) {
+            streak += 1;
+        } else {
+            break;
         }
     }
 
-    // Count consecutive days going backwards
-    let mut day = 0;
-    loop {
-        let count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM tasks
-                 WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL
-                   AND date(updated_at) = date(?1, '-' || ?2 || ' days')",
-                rusqlite::params![today, day],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
-
-        if count == 0 { break; }
-        streak += 1;
-        day += 1;
-    }
-
-    streak
+    Ok(streak)
 }

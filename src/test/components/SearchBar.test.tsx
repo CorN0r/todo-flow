@@ -19,25 +19,25 @@ vi.mock('../../lib/db', () => ({
 describe('SearchBar', () => {
   it('renders search trigger button', () => {
     renderWithProviders(<SearchBar />);
-    expect(screen.getByText('Search tasks...')).toBeInTheDocument();
+    expect(screen.getByText('搜索任务...')).toBeInTheDocument();
   });
 
   it('shows keyboard shortcut hint', () => {
     renderWithProviders(<SearchBar />);
-    expect(screen.getByText('Ctrl+K')).toBeInTheDocument();
+    expect(screen.getByText('/')).toBeInTheDocument();
   });
 
   it('opens search overlay on click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<SearchBar />);
-    await user.click(screen.getByText('Search tasks...'));
-    expect(screen.getByPlaceholderText(/Search tasks by title/)).toBeInTheDocument();
+    await user.click(screen.getByText('搜索任务...'));
+    expect(screen.getByPlaceholderText('Search tasks...')).toBeInTheDocument();
   });
 
   it('shows type prompt when query is empty', async () => {
     const user = userEvent.setup();
     renderWithProviders(<SearchBar />);
-    await user.click(screen.getByText('Search tasks...'));
+    await user.click(screen.getByText('搜索任务...'));
     expect(screen.getByText(/Type at least 2 characters/)).toBeInTheDocument();
   });
 });

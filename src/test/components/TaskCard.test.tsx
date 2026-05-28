@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { TaskCard } from '../../components/tasks/TaskCard';
 import { renderWithProviders } from '../test-utils';
 
@@ -24,10 +23,11 @@ vi.mock('../../hooks/useTasks', () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
   useDeleteTask: () => ({ mutate: vi.fn() }),
   useDuplicateTask: () => ({ mutate: vi.fn() }),
+  useCreateTask: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: null, isLoading: false }),
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({ data: null, isLoading: false }),
 }));
 
 const baseTask = {
@@ -38,7 +38,7 @@ const baseTask = {
   is_archived: false,
   priority: 0,
   due_date: null,
-  list_id: null,
+  tag_id: null,
   parent_task_id: null,
   sort_order: 0,
   recurrence: null,
@@ -46,7 +46,6 @@ const baseTask = {
   created_at: '2026-05-25',
   updated_at: '2026-05-25',
   children_count: 0,
-  tags: [],
   my_day_date: null,
 };
 
@@ -77,7 +76,7 @@ describe('TaskCard', () => {
   it('renders priority indicator for priority > 0', () => {
     const highPriority = { ...baseTask, priority: 4 };
     renderWithProviders(<TaskCard task={highPriority} />);
-    expect(screen.getByTitle('Urgent')).toBeInTheDocument();
+    expect(screen.getByTitle('紧急')).toBeInTheDocument();
   });
 
   it('renders due date badge when set', () => {
@@ -94,39 +93,16 @@ describe('TaskCard', () => {
   });
 
   it('shows child count badge when has children', () => {
-    const withChildren = { ...baseTask, children_count: 3 };
-    renderWithProviders(<TaskCard task={withChildren} />);
-    expect(screen.getByText('3')).toBeInTheDocument();
-  });
-
-  it('opens context menu on right click', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<TaskCard task={baseTask} />);
-    const card = screen.getByRole('button', { name: /Test Task/i });
-    await user.pointer({ target: card, keys: '[MouseRight]' });
-    expect(screen.getByText('Mark complete')).toBeInTheDocument();
-  });
-
-  it('renders tag badges when task has tags', () => {
-    const withTags = {
+    const withChildren = {
       ...baseTask,
-      tags: [{ id: 'tag-1', name: 'important', color: '#ef4444', task_count: 1 }],
-    };
-    renderWithProviders(<TaskCard task={withTags} />);
-    expect(screen.getByText('important')).toBeInTheDocument();
-  });
-
-  it('renders overflow badge when more than 2 tags', () => {
-    const manyTags = {
-      ...baseTask,
-      tags: [
-        { id: 'tag-1', name: 'a', color: '#111', task_count: 1 },
-        { id: 'tag-2', name: 'b', color: '#222', task_count: 1 },
-        { id: 'tag-3', name: 'c', color: '#333', task_count: 1 },
+      children: [
+        { id: 'c1', title: 'Child 1', is_completed: false, parent_task_id: 'task-1' },
+        { id: 'c2', title: 'Child 2', is_completed: true, parent_task_id: 'task-1' },
+        { id: 'c3', title: 'Child 3', is_completed: false, parent_task_id: 'task-1' },
       ],
-    };
-    renderWithProviders(<TaskCard task={manyTags} />);
-    expect(screen.getByText('+1')).toBeInTheDocument();
+    } as any;
+    renderWithProviders(<TaskCard task={withChildren} />);
+    expect(screen.getByText('1/3')).toBeInTheDocument();
   });
 
   it('shows selection checkbox in selection mode', () => {
@@ -138,16 +114,16 @@ describe('TaskCard', () => {
 
   it('does not show priority when priority is 0', () => {
     renderWithProviders(<TaskCard task={baseTask} />);
-    const flagIcons = screen.queryAllByTitle('Low').length +
-      screen.queryAllByTitle('Medium').length +
-      screen.queryAllByTitle('High').length +
-      screen.queryAllByTitle('Urgent').length;
+    const flagIcons = screen.queryAllByTitle('低').length +
+      screen.queryAllByTitle('中').length +
+      screen.queryAllByTitle('高').length +
+      screen.queryAllByTitle('紧急').length;
     expect(flagIcons).toBe(0);
   });
 
   it('renders priority colors for low priority', () => {
     const low = { ...baseTask, priority: 1 };
     renderWithProviders(<TaskCard task={low} />);
-    expect(screen.getByTitle('Low')).toBeInTheDocument();
+    expect(screen.getByTitle('低')).toBeInTheDocument();
   });
 });

@@ -1,21 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { List, CheckSquare, Keyboard, ArrowRight, X } from 'lucide-react';
+import { Tag, CheckSquare, Keyboard, ArrowRight, X } from 'lucide-react';
 
 const STORAGE_KEY = 'todoflow-onboarding-done';
 
 const steps = [
   {
-    icon: <List size={32} />,
-    title: 'Create your first list',
-    description: 'Lists help you organize tasks by project or category. Click the + button in the sidebar to get started.',
+    icon: <Tag size={32} />,
+    title: 'Create your first tag',
+    description: 'Tags help you organize tasks by project or category. Click the + button in the sidebar to get started.',
     color: 'from-indigo-500 to-blue-500',
   },
   {
     icon: <CheckSquare size={32} />,
     title: 'Add your first task',
     description: 'Use the quick-add bar at the bottom of any page. Press Enter to create, or click a task to open its details.',
-    color: 'from-emerald-500 to-teal-500',
+    color: 'from-[#7C72F6] to-[#A78BFA]',
   },
   {
     icon: <Keyboard size={32} />,
@@ -26,13 +26,8 @@ const steps = [
 ];
 
 export function OnboardingOverlay() {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(() => !localStorage.getItem(STORAGE_KEY));
   const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    const done = localStorage.getItem(STORAGE_KEY);
-    if (!done) setVisible(true);
-  }, []);
 
   const dismiss = () => {
     setVisible(false);
@@ -55,7 +50,7 @@ export function OnboardingOverlay() {
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
-          className="bg-background rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 text-center"
+          className="bg-white dark:bg-[#1e1e32] rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 text-center"
         >
           {/* Accent bar */}
           <div className={`h-1 rounded-full bg-gradient-to-r ${current.color} mb-6`} />
@@ -66,7 +61,7 @@ export function OnboardingOverlay() {
               <div
                 key={i}
                 className={`w-2 h-2 rounded-full transition-colors ${
-                  i === step ? 'bg-primary' : 'bg-muted'
+                  i === step ? 'bg-[#7C72F6]' : 'bg-[#F3F4F6] dark:bg-white/[0.06]'
                 }`}
               />
             ))}
@@ -79,7 +74,7 @@ export function OnboardingOverlay() {
 
           {/* Content */}
           <h2 className="text-xl font-bold mb-2">{current.title}</h2>
-          <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
+          <p className="text-sm text-[#6B7280] mb-8 leading-relaxed">
             {current.description}
           </p>
 
@@ -87,7 +82,7 @@ export function OnboardingOverlay() {
           <div className="flex items-center justify-between">
             <button
               onClick={dismiss}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              className="text-xs text-[#6B7280] hover:text-[#111827] dark:hover:text-white/90 transition-colors flex items-center gap-1"
             >
               <X size={14} />
               Skip all
@@ -101,7 +96,7 @@ export function OnboardingOverlay() {
                   dismiss();
                 }
               }}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7C72F6] text-white text-sm font-medium hover:opacity-90 transition-opacity"
             >
               {step < steps.length - 1 ? (
                 <>

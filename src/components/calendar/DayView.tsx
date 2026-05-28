@@ -55,14 +55,15 @@ function SortableDayTask({ event, onClick }: {
       <button
         {...attributes}
         {...listeners}
-        className="p-0.5 text-muted-foreground opacity-0 group-hover/daytask:opacity-100 hover:text-foreground cursor-grab active:cursor-grabbing transition-opacity"
+        className="p-0.5 text-[#6B7280] opacity-0 group-hover/daytask:opacity-100 hover:text-[#111827] dark:hover:text-white/90 cursor-grab active:cursor-grabbing transition-opacity"
+        aria-label="Drag to reorder"
       >
         <GripVertical size={14} />
       </button>
       <button
         onClick={onClick}
         className={cn(
-          'flex-1 text-left p-3 rounded-lg border bg-card hover:bg-accent transition-colors',
+          'flex-1 text-left p-3 rounded-lg border border-[#F3F4F6] dark:border-white/[0.06] bg-white dark:bg-[#1e1e32] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors',
           task.is_completed && 'opacity-80',
         )}
       >
@@ -70,8 +71,8 @@ function SortableDayTask({ event, onClick }: {
           <div className={cn(
             'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
             task.is_completed
-              ? 'bg-primary border-primary text-primary-foreground'
-              : 'border-muted-foreground',
+              ? 'bg-[#7C72F6] border-[#7C72F6] text-white'
+              : 'border-[#D1D5DB]',
           )}>
             {task.is_completed && (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -81,7 +82,7 @@ function SortableDayTask({ event, onClick }: {
           </div>
           <span className={cn(
             'text-sm',
-            task.is_completed && 'line-through text-muted-foreground',
+            task.is_completed && 'line-through text-[#6B7280]',
           )}>
             {task.title}
           </span>
@@ -118,7 +119,7 @@ export function DayView() {
     reorderTasks.mutate(reordered.map((e, i) => ({
       id: e.task.id,
       sort_order: i,
-      parent_task_id: null,
+      parent_task_id: e.task.parent_task_id,
     })));
   };
 
@@ -128,12 +129,12 @@ export function DayView() {
         <div className="flex items-center justify-center gap-2">
           <div className={cn(
             'text-sm inline-flex items-center justify-center px-3 py-1 rounded-full',
-            isTodayDate && 'bg-primary text-primary-foreground',
+            isTodayDate && 'bg-[#7C72F6] text-white',
           )}>
             {format(currentDate, 'EEEE, MMMM d, yyyy')}
           </div>
           {dayEvents.length > 0 && (
-            <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground font-medium">
+            <span className="text-xs px-2 py-1 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] font-medium">
               {dayEvents.length} task{dayEvents.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -141,7 +142,7 @@ export function DayView() {
       </div>
 
       {dayEvents.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground py-8">
+        <p className="text-center text-sm text-[#6B7280] py-8">
           No tasks scheduled for this day.
         </p>
       )}

@@ -14,43 +14,37 @@ export function SearchBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
+  const theme = useUIStore((s) => s.theme);
+  const isGlass = theme === 'glass';
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     if (query.length < 2) {
-      setResults([]);
+      setResults([]); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     const timer = setTimeout(async () => {
       try {
         const tasks = await getTasks({ search_query: query });
-        setResults(tasks.slice(0, 8));
+        if (mountedRef.current) setResults(tasks.slice(0, 8));
       } catch {
-        setResults([]);
+        if (mountedRef.current) setResults([]);
       }
     }, 200);
     return () => clearTimeout(timer);
   }, [query]);
-
-  // Global Ctrl+K shortcut
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsOpen(true);
-        inputRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
 
   const handleSelect = (task: Task) => {
     setSelectedTaskId(task.id);
     setIsOpen(false);
     setQuery('');
     // Navigate to the appropriate page
-    if (task.list_id) {
-      navigate(`/list/${task.list_id}`);
+    if (task.tag_id) {
+      navigate(`/tag/${task.tag_id}`);
     }
   };
 
@@ -73,70 +67,83 @@ export function SearchBar() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md border bg-muted hover:bg-muted transition-colors min-w-[200px]"
+        className="flex items-center gap-2 text-[13px] text-[#9CA3AF] hover:text-[#6B7280] h-8 px-3 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] hover:bg-[#E5E7EB] transition-colors min-w-[180px] dark:bg-white/[0.06] dark:border-white/[0.07] dark:hover:bg-white/[0.1]"
       >
         <Search size={14} />
-        <span>Search tasks...</span>
-        <kbd className="ml-auto text-[10px] px-1 py-0.5 rounded bg-muted-foreground/10 border">
-          Ctrl+K
+        <span className="flex-1 text-left">搜索任务...</span>
+        <kbd className="text-[10px] px-1 py-0.5 rounded bg-white dark:bg-white/10 border text-[#D1D5DB] flex-shrink-0">
+          /
         </kbd>
       </button>
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setIsOpen(false)} />
-          <div className="fixed top-[20%] left-1/2 -translate-x-1/2 w-[480px] max-w-[90vw] bg-background border rounded-xl shadow-2xl z-50 overflow-hidden">
-            <div className="flex items-center gap-2 p-3 border-b">
-              <Search size={16} className="text-muted-foreground" />
+          <div className={`fixed inset-0 z-50 ${isGlass ? 'bg-black/50 backdrop-blur-sm' : 'bg-black/40'}`} onClick={() => setIsOpen(false)} aria-hidden="true" />
+          <div className={`fixed top-[20%] left-1/2 -translate-x-1/2 w-[480px] max-w-[90vw] rounded-2xl shadow-2xl z-50 overflow-hidden ${isGlass ? 'glass-panel-strong' : 'bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07]'}`}>
+            {/* Accent bar */}
+            <div className="h-0.5 bg-gradient-to-r from-[#7C72F6] to-[#A78BFA]" />
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#F3F4F6] dark:border-white/[0.06]">
+              <Search size={16} className="text-[#9CA3AF]" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
                 onKeyDown={handleKeyDown}
-                placeholder="Search tasks by title or description..."
-                className="flex-1 bg-transparent text-sm outline-none"
+                placeholder="Search tasks..."
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#9CA3AF]"
                 autoFocus
+                role="combobox"
+                aria-expanded={isOpen}
+                aria-autocomplete="list"
+                aria-controls="search-results-list"
               />
               {query && (
-                <button onClick={() => setQuery('')} className="text-muted-foreground hover:text-foreground">
-                  <X size={14} />
+                <button onClick={() => setQuery('')} className="p-1 rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors">
+                  <X size={14} className="text-[#9CA3AF]" />
                 </button>
               )}
-              <kbd className="text-[10px] px-1 py-0.5 rounded bg-muted border text-muted-foreground">
+              <kbd className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F3F4F6] dark:bg-white/[0.06] text-[#9CA3AF] font-mono">
                 ESC
               </kbd>
             </div>
-            <div className="max-h-[300px] overflow-y-auto">
+            <div className="max-h-[300px] overflow-y-auto p-1">
               {results.length === 0 && query.length >= 2 && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No tasks found.
+                <p className="text-sm text-[#9CA3AF] text-center py-10">
+                  No tasks found for "{query}"
                 </p>
               )}
               {results.length > 0 && (
-                <div className="px-3 py-1.5 text-xs text-muted-foreground border-b">
-                  {results.length} result{results.length !== 1 ? 's' : ''} — top matches
+                <div role="listbox" id="search-results-list" className="px-3 py-2 section-label">
+                  Tasks — {results.length} result{results.length !== 1 ? 's' : ''}
                 </div>
               )}
               {results.map((task, i) => (
                 <button
                   key={task.id}
                   onClick={() => handleSelect(task)}
+                  role="option"
+                  aria-selected={i === selectedIndex}
                   className={cn(
-                    'w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors',
-                    i === selectedIndex ? 'bg-accent' : 'hover:bg-muted'
+                    'w-full text-left px-3 py-2.5 flex items-center gap-3 text-sm rounded-lg transition-colors',
+                    i === selectedIndex
+                      ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6]'
+                      : 'hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]'
                   )}
                 >
                   <span
                     className={cn(
-                      'w-3 h-3 rounded-full flex-shrink-0',
-                      task.is_completed ? 'bg-muted' : 'bg-primary'
+                      'w-2.5 h-2.5 rounded-full flex-shrink-0',
+                      task.is_completed ? 'bg-[#D1D5DB]' : 'bg-[#7C72F6]'
                     )}
                   />
-                  <span className={cn(task.is_completed && 'line-through text-muted-foreground')}>
+                  <span className={cn(
+                    'flex-1 truncate',
+                    task.is_completed && 'line-through text-[#9CA3AF]'
+                  )}>
                     {task.title}
                   </span>
                   {task.due_date && (
-                    <span className="ml-auto text-xs text-muted-foreground">{task.due_date}</span>
+                    <span className="text-[11px] text-[#9CA3AF] flex-shrink-0">{task.due_date}</span>
                   )}
                 </button>
               ))}
@@ -148,16 +155,18 @@ export function SearchBar() {
                   setIsOpen(false);
                   setQuery('');
                 }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-primary hover:bg-accent border-t transition-colors font-medium"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-[#7C72F6] hover:bg-[#7C72F6]/[0.04] border-t border-[#F3F4F6] dark:border-white/[0.06] transition-colors font-medium"
               >
                 Show all results
                 <ArrowRight size={14} />
               </button>
             )}
             {query.length < 2 && (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                <Search size={24} className="mx-auto mb-2 opacity-30" />
-                Type at least 2 characters to search tasks.
+              <div className="py-12 text-center">
+                <Search size={28} className="mx-auto mb-3 text-[#D1D5DB]" />
+                <p className="text-sm text-[#9CA3AF]">
+                  Type at least 2 characters to search
+                </p>
               </div>
             )}
           </div>

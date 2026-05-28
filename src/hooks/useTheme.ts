@@ -2,14 +2,16 @@ import { useEffect } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { getSetting, setSetting } from '../lib/db';
 
+const VALID_THEMES = ['light', 'dark', 'system', 'glass'] as const;
+
 export function useTheme() {
   const { theme, setTheme, resolvedTheme } = useUIStore();
 
   // Load saved theme
   useEffect(() => {
     getSetting('theme').then((saved) => {
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        setTheme(saved);
+      if (saved && (VALID_THEMES as readonly string[]).includes(saved)) {
+        setTheme(saved as 'light' | 'dark' | 'system' | 'glass');
       }
     });
   }, [setTheme]);
@@ -17,7 +19,9 @@ export function useTheme() {
   // Apply theme to document
   useEffect(() => {
     const root = document.documentElement;
+    const isGlass = theme === 'glass';
     root.classList.toggle('dark', resolvedTheme === 'dark');
+    root.classList.toggle('glass', isGlass);
 
     // Listen for system preference changes
     if (theme === 'system') {
@@ -30,7 +34,7 @@ export function useTheme() {
     }
   }, [resolvedTheme, theme]);
 
-  const changeTheme = (newTheme: 'light' | 'dark' | 'system') => {
+  const changeTheme = (newTheme: 'light' | 'dark' | 'system' | 'glass') => {
     setTheme(newTheme);
     setSetting('theme', newTheme);
   };

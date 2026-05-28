@@ -12,34 +12,32 @@ pub fn create_task(
     state: State<AppState>,
     title: String,
     description: Option<String>,
-    list_id: Option<String>,
+    tag_id: Option<String>,
     parent_task_id: Option<String>,
     due_date: Option<String>,
     priority: Option<i32>,
     reminder: Option<String>,
     recurrence: Option<String>,
-    tags: Option<Vec<String>>,
 ) -> Result<Task, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::create(
         &conn,
         CreateTaskRequest {
             title,
             description,
-            list_id,
+            tag_id,
             parent_task_id,
             due_date,
             priority,
             reminder,
             recurrence,
-            tags,
         },
     )
 }
 
 #[tauri::command]
 pub fn get_task(state: State<AppState>, id: String) -> Result<TaskDetail, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::get_detail(&conn, &id)?
         .ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))
 }
@@ -53,14 +51,13 @@ pub fn update_task(
     is_completed: Option<bool>,
     priority: Option<i32>,
     due_date: Option<String>,
-    list_id: Option<String>,
+    tag_id: Option<String>,
     parent_task_id: Option<Option<String>>,
     reminder: Option<String>,
     recurrence: Option<String>,
     my_day_date: Option<Option<String>>,
-    tags: Option<Vec<String>>,
 ) -> Result<Task, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::update(
         &conn,
         &id,
@@ -70,72 +67,71 @@ pub fn update_task(
             is_completed,
             priority,
             due_date,
-            list_id,
+            tag_id,
             parent_task_id,
             reminder,
             recurrence,
             my_day_date,
-            tags,
         },
     )
 }
 
 #[tauri::command]
 pub fn delete_task(state: State<AppState>, id: String) -> Result<(), AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::delete(&conn, &id)
 }
 
 #[tauri::command]
 pub fn reorder_tasks(state: State<AppState>, items: Vec<ReorderItem>) -> Result<(), AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::reorder(&conn, items)
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn get_tasks(
     state: State<AppState>,
-    list_id: Option<String>,
+    tag_id: Option<String>,
     is_completed: Option<bool>,
     due_date_from: Option<String>,
     due_date_to: Option<String>,
     search_query: Option<String>,
     parent_task_id: Option<String>,
     my_day_date: Option<String>,
-    tag_id: Option<String>,
+    include_children: Option<bool>,
 ) -> Result<Vec<Task>, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::get_all(
         &conn,
         TaskFilter {
-            list_id,
+            tag_id,
             is_completed,
             due_date_from,
             due_date_to,
             search_query,
             parent_task_id,
             my_day_date,
-            tag_id,
+            include_children,
         },
     )
 }
 
 #[tauri::command]
 pub fn get_today_task_count(state: State<AppState>) -> Result<i64, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     task_repo::get_today_count(&conn, &today)
 }
 
 #[tauri::command]
 pub fn duplicate_task(state: State<AppState>, id: String) -> Result<Task, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::duplicate(&conn, &id)
 }
 
 #[tauri::command]
 pub fn add_task_to_my_day(state: State<AppState>, id: String) -> Result<Task, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     task_repo::update(
         &conn,
@@ -146,19 +142,18 @@ pub fn add_task_to_my_day(state: State<AppState>, id: String) -> Result<Task, Ap
             is_completed: None,
             priority: None,
             due_date: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             reminder: None,
             recurrence: None,
             my_day_date: Some(Some(today)),
-            tags: None,
         },
     )
 }
 
 #[tauri::command]
 pub fn remove_task_from_my_day(state: State<AppState>, id: String) -> Result<Task, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     task_repo::update(
         &conn,
         &id,
@@ -168,12 +163,11 @@ pub fn remove_task_from_my_day(state: State<AppState>, id: String) -> Result<Tas
             is_completed: None,
             priority: None,
             due_date: None,
-            list_id: None,
+            tag_id: None,
             parent_task_id: None,
             reminder: None,
             recurrence: None,
             my_day_date: Some(None),
-            tags: None,
         },
     )
 }

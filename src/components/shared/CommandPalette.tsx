@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   House, CalendarDays, Settings, Sun, Moon, Monitor,
-  PanelLeft, PanelLeftClose, Plus, Search,
+  PanelLeft, PanelLeftClose, Plus, Search, Sparkles,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useCreateTask } from '../../hooks/useTasks';
@@ -29,7 +29,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     if (commandPaletteOpen) {
-      setQuery('');
+      setQuery(''); // eslint-disable-line react-hooks/set-state-in-effect
       setActiveIndex(0);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
@@ -54,6 +54,7 @@ export function CommandPalette() {
     { id: 'light', label: 'Light Theme', icon: <Sun size={16} />, action: () => setTheme('light'), category: 'View' },
     { id: 'dark', label: 'Dark Theme', icon: <Moon size={16} />, action: () => setTheme('dark'), category: 'View' },
     { id: 'system-theme', label: 'System Theme', icon: <Monitor size={16} />, action: () => setTheme('system'), category: 'View' },
+    { id: 'glass', label: 'Glass Theme', icon: <Sparkles size={16} />, action: () => setTheme('glass'), category: 'View' },
     { id: 'new-task', label: 'Create New Task', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: 'New task' }); setCommandPaletteOpen(false); }, category: 'Actions' },
   ], [navigate, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen]);
 
@@ -79,74 +80,82 @@ export function CommandPalette() {
     }
   };
 
-  if (!commandPaletteOpen) return null;
-
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/40 z-[150] flex items-start justify-center pt-[15vh]"
-        onClick={() => setCommandPaletteOpen(false)}
-      >
+      {commandPaletteOpen && (
         <motion.div
-          initial={{ opacity: 0, y: -12, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -12, scale: 0.96 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md bg-background border rounded-xl shadow-2xl overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="命令面板"
+          className="fixed inset-0 bg-black/40 z-[150] flex items-start justify-center pt-[15vh]"
+          onClick={() => setCommandPaletteOpen(false)}
         >
-          {/* Search input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b">
-            <Search size={16} className="text-muted-foreground flex-shrink-0" />
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a command..."
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">esc</kbd>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.96 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-2xl overflow-hidden"
+          >
+            {/* Accent bar */}
+            <div className="h-0.5 bg-gradient-to-r from-[#7C72F6] to-[#A78BFA]" />
 
-          {/* Command list */}
-          <div className="max-h-[300px] overflow-y-auto p-2">
-            {filtered.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-6">No matching commands</p>
-            )}
-            {filtered.map((cmd, i) => (
-              <button
-                key={cmd.id}
-                onClick={() => { cmd.action(); setCommandPaletteOpen(false); }}
-                onMouseEnter={() => setActiveIndex(i)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
-                  i === activeClamped ? 'bg-accent text-primary' : 'text-foreground hover:bg-accent'
-                }`}
-              >
-                <span className={i === activeClamped ? 'text-primary' : 'text-muted-foreground'}>
-                  {cmd.icon}
-                </span>
-                <span className="flex-1">{cmd.label}</span>
-                {cmd.shortcut && (
-                  <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                    {cmd.shortcut}
-                  </kbd>
-                )}
-              </button>
-            ))}
-          </div>
+            {/* Search input */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#F3F4F6] dark:border-white/[0.06]">
+              <Search size={16} className="text-[#9CA3AF] flex-shrink-0" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a command..."
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#9CA3AF]"
+              />
+              <kbd className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F3F4F6] dark:bg-white/[0.06] text-[#9CA3AF] font-mono">esc</kbd>
+            </div>
 
-          {/* Footer */}
-          <div className="px-4 py-2 border-t flex items-center gap-3 text-[10px] text-muted-foreground">
-            <span><kbd className="px-1 py-0.5 rounded bg-muted font-mono">↑↓</kbd> Navigate</span>
-            <span><kbd className="px-1 py-0.5 rounded bg-muted font-mono">↵</kbd> Select</span>
-            <span><kbd className="px-1 py-0.5 rounded bg-muted font-mono">Esc</kbd> Close</span>
-          </div>
+            {/* Command list */}
+            <div className="max-h-[300px] overflow-y-auto p-1">
+              {filtered.length === 0 && (
+                <p className="text-sm text-[#9CA3AF] text-center py-8">No matching commands</p>
+              )}
+              {filtered.map((cmd, i) => (
+                <button
+                  key={cmd.id}
+                  onClick={() => { cmd.action(); setCommandPaletteOpen(false); }}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
+                    i === activeClamped
+                      ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6]'
+                      : 'text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <span className={i === activeClamped ? 'text-[#7C72F6]' : 'text-[#9CA3AF]'}>
+                    {cmd.icon}
+                  </span>
+                  <span className="flex-1">{cmd.label}</span>
+                  {cmd.shortcut && (
+                    <kbd className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F3F4F6] dark:bg-white/[0.06] text-[#9CA3AF] font-mono">
+                      {cmd.shortcut}
+                    </kbd>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-2.5 border-t border-[#F3F4F6] dark:border-white/[0.06] flex items-center gap-4 text-[10px] text-[#9CA3AF]">
+              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">↑↓</kbd> Navigate</span>
+              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">↵</kbd> Select</span>
+              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">Esc</kbd> Close</span>
+            </div>
+          </motion.div>
         </motion.div>
-      </motion.div>
+      )}
     </AnimatePresence>
   );
 }

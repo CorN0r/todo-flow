@@ -9,7 +9,7 @@ use crate::AppState;
 
 #[tauri::command]
 pub fn get_setting(state: State<AppState>, key: String) -> Result<Option<String>, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     let result = conn.query_row(
         "SELECT value FROM settings WHERE key = ?1",
         params![key],
@@ -24,7 +24,7 @@ pub fn get_setting(state: State<AppState>, key: String) -> Result<Option<String>
 
 #[tauri::command]
 pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(), AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
         params![key, value],
@@ -34,7 +34,7 @@ pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result
 
 #[tauri::command]
 pub fn get_all_settings(state: State<AppState>) -> Result<HashMap<String, String>, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     let mut stmt = conn.prepare("SELECT key, value FROM settings")?;
     let rows = stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))

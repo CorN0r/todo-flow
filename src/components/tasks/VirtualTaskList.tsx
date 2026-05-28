@@ -1,0 +1,46 @@
+import { useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import type { Task } from '../../types/task';
+import { TaskCard } from './TaskCard';
+
+interface VirtualTaskListProps {
+  tasks: Task[];
+  estimateSize?: number;
+}
+
+export function VirtualTaskList({ tasks, estimateSize = 82 }: VirtualTaskListProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const virtualizer = useVirtualizer({
+    count: tasks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => estimateSize,
+    overscan: 5,
+  });
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto" style={{ height: 'calc(100vh - 200px)' }}>
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const task = tasks[virtualItem.index];
+          return (
+            <div
+              key={task.id}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`,
+                paddingBottom: '6px',
+              }}
+            >
+              <TaskCard task={task} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

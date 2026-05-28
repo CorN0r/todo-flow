@@ -13,6 +13,16 @@ fn is_image(ext: &str) -> bool {
     matches!(ext.to_lowercase().as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp")
 }
 
+/// Allow common file types: images, documents, archives, text
+fn is_allowed(ext: &str) -> bool {
+    matches!(ext.to_lowercase().as_str(),
+        "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" |
+        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" |
+        "txt" | "md" | "csv" | "json" | "xml" | "html" | "css" | "js" | "ts" | "rs" | "py" |
+        "zip" | "rar" | "7z" | "tar" | "gz"
+    )
+}
+
 #[tauri::command]
 pub fn upload_attachment(
     state: State<AppState>,
@@ -25,7 +35,7 @@ pub fn upload_attachment(
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("");
-    if !is_image(ext) {
+    if !is_allowed(ext) {
         return Err(AppError::Validation(format!(
             "Unsupported file type: {}",
             ext
@@ -46,33 +56,38 @@ pub fn upload_attachment(
     fs::create_dir_all(&task_attachments_dir)?;
 
     // Read original
-    let img_bytes = fs::read(&source)?;
-    let file_size = img_bytes.len() as i64;
+    let file_bytes = fs::read(&source)?;
+    let file_size = file_bytes.len() as i64;
 
     // Get mime type
     let mime_type = mime_guess::from_path(&source)
         .first_or_octet_stream()
         .to_string();
 
-    // Generate thumbnail
-    let img = image::load_from_memory(&img_bytes)
-        .map_err(|e| AppError::Validation(format!("Failed to decode image: {}", e)))?;
-    let (w, h) = img.dimensions();
-    let thumb = if w > 256 || h > 256 {
-        img.thumbnail(256, 256)
+    // Generate thumbnail only for images
+    let thumbnail = if is_image(ext) {
+        let img = image::load_from_memory(&file_bytes)
+            .map_err(|e| AppError::Validation(format!("Failed to decode image: {}", e)))?;
+        let (w, h) = img.dimensions();
+        let thumb = if w > 256 || h > 256 {
+            img.thumbnail(256, 256)
+        } else {
+            img
+        };
+        let thumb_path = task_attachments_dir.join(&thumb_name);
+        thumb
+            .save(&thumb_path)
+            .map_err(|e| AppError::Generic(format!("Failed to save thumbnail: {}", e)))?;
+        Some(thumb_name)
     } else {
-        img
+        None
     };
-    let thumb_path = task_attachments_dir.join(&thumb_name);
-    thumb
-        .save(&thumb_path)
-        .map_err(|e| AppError::Generic(format!("Failed to save thumbnail: {}", e)))?;
 
     // Copy original
     let dest_path = task_attachments_dir.join(&storage_name);
-    fs::write(&dest_path, img_bytes)?;
+    fs::write(&dest_path, &file_bytes)?;
 
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     attachment_repo::create(
         &conn,
         &task_id,
@@ -80,7 +95,7 @@ pub fn upload_attachment(
         &storage_name,
         &mime_type,
         file_size,
-        Some(&thumb_name),
+        thumbnail.as_deref(),
     )
 }
 
@@ -103,13 +118,13 @@ pub fn get_attachments(
     state: State<AppState>,
     task_id: String,
 ) -> Result<Vec<Attachment>, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     attachment_repo::get_by_task(&conn, &task_id)
 }
 
 #[tauri::command]
 pub fn delete_attachment(state: State<AppState>, id: String) -> Result<(), AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     let attachment = attachment_repo::delete(&conn, &id)?;
 
     let task_dir = state.data_dir.join("attachments").join(&attachment.task_id);
@@ -132,10 +147,33 @@ pub fn delete_attachment(state: State<AppState>, id: String) -> Result<(), AppEr
 }
 
 #[tauri::command]
+pub fn upload_link_attachment(
+    state: State<AppState>,
+    task_id: String,
+    url: String,
+    title: Option<String>,
+) -> Result<Attachment, AppError> {
+    let _ = title;
+    if url.trim().is_empty() {
+        return Err(AppError::Validation("URL cannot be empty".to_string()));
+    }
+    let conn = state.db()?;
+    attachment_repo::create(
+        &conn,
+        &task_id,
+        &url.trim().to_string(),
+        &url.trim().to_string(),
+        "application/link",
+        0,
+        None,
+    )
+}
+
+#[tauri::command]
 pub fn get_attachment_file_path(
     state: State<AppState>,
     attachment_id: String,
 ) -> Result<String, AppError> {
-    let conn = state.db.lock().unwrap();
+    let conn = state.db()?;
     attachment_repo::get_file_path(&conn, &attachment_id, &state.data_dir)
 }

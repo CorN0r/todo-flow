@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { type ReactElement } from 'react';
 import { render, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -85,25 +86,24 @@ export function buildTask(overrides: Partial<Task> = {}): Task {
     priority: 0,
     due_date: null,
     reminder: null,
-    list_id: null,
+    tag_id: null,
     parent_task_id: null,
     sort_order: 0,
     recurrence: null,
     my_day_date: null,
     children_count: 0,
-    tags: [],
     created_at: '2026-05-25T00:00:00Z',
     updated_at: '2026-05-25T00:00:00Z',
     ...overrides,
   };
 }
 
-export function buildList(overrides: Record<string, any> = {}): Record<string, any> {
+export function buildTag(overrides: Record<string, any> = {}): Record<string, any> {
   return {
     id: fid(),
-    name: 'Test List',
+    name: 'Test Tag',
     color: '#6366f1',
-    icon: 'list',
+    icon: 'tag',
     sort_order: 0,
     created_at: '2026-05-25T00:00:00Z',
     updated_at: '2026-05-25T00:00:00Z',

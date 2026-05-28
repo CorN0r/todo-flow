@@ -15,7 +15,7 @@ vi.stubGlobal('localStorage', {
 describe('OnboardingOverlay', () => {
   it('renders the first onboarding step', () => {
     renderWithProviders(<OnboardingOverlay />);
-    expect(screen.getByText('Create your first list')).toBeInTheDocument();
+    expect(screen.getByText('Create your first tag')).toBeInTheDocument();
   });
 
   it('has navigation buttons', () => {

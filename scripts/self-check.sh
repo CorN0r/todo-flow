@@ -33,7 +33,6 @@ REQUIRED_FILES=(
   "src-tauri/src/lib.rs"
   "src-tauri/src/main.rs"
   "src-tauri/src/db/task_repo.rs"
-  "src-tauri/src/db/list_repo.rs"
   "src-tauri/src/db/tag_repo.rs"
   "src-tauri/src/db/attachment_repo.rs"
   "src-tauri/tests/ipc_integration.rs"

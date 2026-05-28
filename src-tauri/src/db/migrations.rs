@@ -66,22 +66,6 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute_batch(
             "ALTER TABLE tasks ADD COLUMN my_day_date TEXT;
 
-            CREATE TABLE IF NOT EXISTS tags (
-                id          TEXT PRIMARY KEY,
-                name        TEXT NOT NULL UNIQUE,
-                color       TEXT NOT NULL DEFAULT '#6366f1',
-                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS task_tags (
-                task_id  TEXT NOT NULL,
-                tag_id   TEXT NOT NULL,
-                PRIMARY KEY (task_id, tag_id),
-                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-                FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_task_tags_tag_id ON task_tags(tag_id);
             CREATE INDEX IF NOT EXISTS idx_tasks_my_day ON tasks(my_day_date);",
         )?;
         conn.pragma_update(None, "user_version", 2)?;
@@ -93,6 +77,65 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
              CREATE INDEX IF NOT EXISTS idx_tasks_reminder ON tasks(reminder);",
         )?;
         conn.pragma_update(None, "user_version", 3)?;
+    }
+
+    if current_version < 4 {
+        conn.execute_batch(
+            "DROP INDEX IF EXISTS idx_tasks_list_id;
+             DROP INDEX IF EXISTS idx_tasks_list_completed;
+             ALTER TABLE lists RENAME TO tags;
+             ALTER TABLE tasks RENAME COLUMN list_id TO tag_id;
+             CREATE INDEX IF NOT EXISTS idx_tasks_tag_id        ON tasks(tag_id);
+             CREATE INDEX IF NOT EXISTS idx_tasks_tag_completed ON tasks(tag_id, is_completed);",
+        )?;
+        conn.pragma_update(None, "user_version", 4)?;
+    }
+
+    if current_version < 5 {
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at);
+             CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_name_unique ON tags(name);",
+        )?;
+        conn.pragma_update(None, "user_version", 5)?;
+    }
+
+    if current_version < 6 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS habits (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                color       TEXT NOT NULL DEFAULT '#7C72F6',
+                icon        TEXT NOT NULL DEFAULT 'check-circle',
+                frequency   TEXT NOT NULL DEFAULT 'daily',
+                target_count INTEGER NOT NULL DEFAULT 1,
+                sort_order  INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS habit_logs (
+                id          TEXT PRIMARY KEY,
+                habit_id    TEXT NOT NULL,
+                log_date    TEXT NOT NULL,
+                count       INTEGER NOT NULL DEFAULT 1,
+                note        TEXT NOT NULL DEFAULT '',
+                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (habit_id) REFERENCES habits(id) ON DELETE CASCADE,
+                UNIQUE(habit_id, log_date)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_habit_logs_habit ON habit_logs(habit_id);
+            CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(log_date);",
+        )?;
+        conn.pragma_update(None, "user_version", 6)?;
+    }
+
+    if current_version < 7 {
+        conn.execute_batch(
+            "ALTER TABLE tags ADD COLUMN parent_tag_id TEXT REFERENCES tags(id) ON DELETE SET NULL;
+             CREATE INDEX IF NOT EXISTS idx_tags_parent ON tags(parent_tag_id);",
+        )?;
+        conn.pragma_update(None, "user_version", 7)?;
     }
 
     Ok(())

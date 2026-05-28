@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import type { SortMode } from '../components/shared/PageTitle';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark' | 'system' | 'glass';
 
 interface UIState {
   sidebarOpen: boolean;
@@ -22,6 +23,9 @@ interface UIState {
   setTheme: (theme: Theme) => void;
   resolvedTheme: 'light' | 'dark';
 
+  sortMode: SortMode;
+  setSortMode: (mode: SortMode) => void;
+
   selectionMode: boolean;
   selectedTaskIds: Set<string>;
   enterSelectionMode: (taskId?: string) => void;
@@ -34,6 +38,7 @@ function getResolvedTheme(theme: Theme): 'light' | 'dark' {
   if (theme === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+  if (theme === 'glass') return 'dark';
   return theme;
 }
 
@@ -57,6 +62,9 @@ export const useUIStore = create<UIState>((set) => ({
   theme: 'system',
   setTheme: (theme) => set({ theme, resolvedTheme: getResolvedTheme(theme) }),
   resolvedTheme: 'light',
+
+  sortMode: 'manual',
+  setSortMode: (sortMode) => set({ sortMode }),
 
   selectionMode: false,
   selectedTaskIds: new Set<string>(),

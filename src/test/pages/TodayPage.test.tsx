@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react';
 import { TodayPage } from '../../pages/TodayPage';
 import { renderWithProviders, buildTask } from '../test-utils';
 
-const mockState = { data: null as any, isLoading: false };
+const mockState = { data: null as any, isLoading: false, isError: false };
 
 vi.mock('../../hooks/useTasks', () => ({
   useTasks: () => mockState,
@@ -14,14 +14,15 @@ vi.mock('../../hooks/useTasks', () => ({
   useReorderTasks: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: [], isLoading: false }),
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({ data: [], isLoading: false }),
 }));
 
 describe('TodayPage', () => {
   beforeEach(() => {
     mockState.data = null;
     mockState.isLoading = false;
+    mockState.isError = false;
   });
 
   it('shows loading skeleton when isLoading', () => {
@@ -31,16 +32,16 @@ describe('TodayPage', () => {
     expect(document.querySelector('.animate-pulse')).toBeTruthy();
   });
 
-  it('renders header with Today text', () => {
+  it('renders header with 今天 text', () => {
     mockState.data = [];
     renderWithProviders(<TodayPage />);
-    expect(screen.getByText('Today')).toBeInTheDocument();
+    expect(screen.getByText('今天')).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', () => {
     mockState.data = [];
     renderWithProviders(<TodayPage />);
-    expect(screen.getByText('No tasks due today')).toBeInTheDocument();
+    expect(screen.getByText('今天没有到期任务')).toBeInTheDocument();
   });
 
   it('shows task count when tasks exist', () => {
@@ -48,7 +49,7 @@ describe('TodayPage', () => {
       buildTask({ id: 't1', title: 'Task 1', due_date: '2026-05-25' }),
     ];
     renderWithProviders(<TodayPage />);
-    expect(screen.getByText('1 task due today')).toBeInTheDocument();
+    expect(screen.getByText('0/1 项')).toBeInTheDocument();
   });
 
   it('shows plural task count', () => {
@@ -57,6 +58,6 @@ describe('TodayPage', () => {
       buildTask({ id: 't2', title: 'T2', due_date: '2026-05-25' }),
     ];
     renderWithProviders(<TodayPage />);
-    expect(screen.getByText('2 tasks due today')).toBeInTheDocument();
+    expect(screen.getByText('0/2 项')).toBeInTheDocument();
   });
 });

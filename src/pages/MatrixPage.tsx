@@ -1,0 +1,232 @@
+import { useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Zap, ArrowRight, LayoutGrid } from 'lucide-react';
+import { useTasks, useUpdateTask } from '../hooks/useTasks';
+import { useUIStore } from '../stores/uiStore';
+import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
+import { EmptyState } from '../components/shared/EmptyState';
+import { TaskCard } from '../components/tasks/TaskCard';
+import { todayISO, isOverdue } from '../lib/date';
+import type { Task } from '../types/task';
+import { cn } from '../lib/cn';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+
+interface QuadrantDef {
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  color: string;
+  bgClass: string;
+  urgent: boolean;
+  important: boolean;
+}
+
+const QUADRANTS: QuadrantDef[] = [
+  {
+    title: '立即处理',
+    subtitle: '紧急且重要',
+    icon: <Zap size={16} />,
+    color: '#EF4444',
+    bgClass: 'bg-red-50 dark:bg-red-950/15',
+    urgent: true,
+    important: true,
+  },
+  {
+    title: '计划安排',
+    subtitle: '不紧急但重要',
+    icon: <CheckCircle2 size={16} />,
+    color: '#3B82F6',
+    bgClass: 'bg-blue-50 dark:bg-blue-950/15',
+    urgent: false,
+    important: true,
+  },
+  {
+    title: '委派他人',
+    subtitle: '紧急但不重要',
+    icon: <AlertTriangle size={16} />,
+    color: '#F59E0B',
+    bgClass: 'bg-amber-50 dark:bg-amber-950/15',
+    urgent: true,
+    important: false,
+  },
+  {
+    title: '可删除',
+    subtitle: '不紧急不重要',
+    icon: <ArrowRight size={16} />,
+    color: '#9CA3AF',
+    bgClass: 'bg-gray-50 dark:bg-gray-950/15',
+    urgent: false,
+    important: false,
+  },
+];
+
+function bucketTask(task: Task): number {
+  const overdue = task.due_date && isOverdue(task.due_date);
+  const dueToday = task.due_date === todayISO();
+  const urgent = !!(overdue || dueToday);
+  const important = task.priority >= 3;
+
+  if (important && urgent) return 0;
+  if (important && !urgent) return 1;
+  if (!important && urgent) return 2;
+  return 3;
+}
+
+function DraggableMatrixCard({ task }: { task: Task }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+    data: { task },
+  });
+
+  const style = transform ? {
+    transform: CSS.Translate.toString(transform),
+  } : undefined;
+
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} style={style} className={cn(isDragging && 'opacity-0')}>
+      <TaskCard task={task} />
+    </div>
+  );
+}
+
+function QuadrantColumn({ index, q, tasks, isGlass }: {
+  index: number;
+  q: QuadrantDef;
+  tasks: Task[];
+  isGlass: boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `quadrant-${index}` });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-xl border flex flex-col overflow-hidden h-full transition-shadow',
+        isGlass ? 'glass-card border-white/[0.06]' : q.bgClass + ' border-[#F3F4F6] dark:border-white/[0.06]',
+        isOver && 'ring-2 ring-[#7C72F6] shadow-lg',
+      )}
+    >
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#F3F4F6] dark:border-white/[0.06] shrink-0">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: q.color + '20', color: q.color }}>
+          {q.icon}
+        </div>
+        <div>
+          <div className="text-[13px] font-semibold text-[#111827] dark:text-white/90">{q.title}</div>
+          <div className="text-[11px] text-[#9CA3AF]">{q.subtitle}</div>
+        </div>
+        <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: q.color + '15', color: q.color }}>
+          {tasks.length}
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {tasks.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-[12px] text-[#D1D5DB]">
+            拖拽任务到此处
+          </div>
+        ) : (
+          tasks.map((task) => (
+            <DraggableMatrixCard key={task.id} task={task} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function MatrixPage() {
+  const { data: tasks, isLoading } = useTasks({ include_children: false });
+  const updateTask = useUpdateTask();
+  const theme = useUIStore((s) => s.theme);
+  const isGlass = theme === 'glass';
+  const [activeDrag, setActiveDrag] = useState<Task | null>(null);
+
+  const buckets = useMemo(() => {
+    const result: Task[][] = [[], [], [], []];
+    if (!tasks) return result;
+    for (const t of tasks) {
+      if (t.is_completed) continue;
+      result[bucketTask(t)].push(t);
+    }
+    return result;
+  }, [tasks]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = event.active.data.current?.task as Task | undefined;
+    if (task) setActiveDrag(task);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDrag(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const taskId = active.id as string;
+    const toQuadrant = parseInt(String(over.id).replace('quadrant-', ''), 10);
+    const target = QUADRANTS[toQuadrant];
+
+    updateTask.mutate({
+      id: taskId,
+      due_date: target.urgent ? todayISO() : '',
+      priority: target.important ? 3 : 0,
+    });
+  };
+
+  if (isLoading) return <LoadingSkeleton count={8} />;
+
+  const allEmpty = buckets.every((b) => b.length === 0);
+  if (allEmpty) {
+    return (
+      <EmptyState
+        icon={<Zap size={40} />}
+        title="暂无任务"
+        description="创建任务后将自动显示在对应象限中"
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+            <LayoutGrid size={18} className="text-amber-500" />
+          </div>
+          <div>
+            <h1 className="text-[20px] font-bold text-[#111827] dark:text-white/90">Eisenhower 矩阵</h1>
+            <p className="text-[13px] text-[#9CA3AF] mt-0.5">按紧急性和重要性四象限管理任务</p>
+          </div>
+        </div>
+      </div>
+
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="grid grid-cols-2 gap-4" style={{ height: 'calc(100vh - 180px)' }}>
+          {QUADRANTS.map((q, i) => (
+            <QuadrantColumn key={i} index={i} q={q} tasks={buckets[i]} isGlass={isGlass} />
+          ))}
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {activeDrag ? (
+            <div className="opacity-90 scale-105 rotate-1 shadow-2xl">
+              <TaskCard task={activeDrag} />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
+  );
+}

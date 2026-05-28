@@ -22,10 +22,11 @@ vi.mock('../../hooks/useTasks', () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
   useDeleteTask: () => ({ mutate: vi.fn() }),
   useDuplicateTask: () => ({ mutate: vi.fn() }),
+  useCreateTask: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: [{ id: 'l1', name: 'Work', color: '#ff0000', icon: 'list', sort_order: 0 }], isLoading: false }),
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({ data: [{ id: 't1', name: 'Work', color: '#ff0000', icon: 'tag', sort_order: 0 }], isLoading: false }),
 }));
 
 describe('TaskCard visual matrix', () => {
@@ -62,14 +63,6 @@ describe('TaskCard visual matrix', () => {
 
   it('light: high priority', () => {
     const { container } = renderWithTheme(<TaskCard task={buildTask({ title: 'Urgent report', priority: 3 })} />, 'light');
-    expect(snapshot(container)).toMatchSnapshot();
-  });
-
-  it('light: with tags', () => {
-    const { container } = renderWithTheme(<TaskCard task={buildTask({
-      title: 'Design review',
-      tags: [{ id: 't1', name: 'design', color: '#8b5cf6' }, { id: 't2', name: 'review', color: '#06b6d4' }],
-    })} />, 'light');
     expect(snapshot(container)).toMatchSnapshot();
   });
 
@@ -121,14 +114,6 @@ describe('TaskCard visual matrix', () => {
 
   it('dark: high priority', () => {
     const { container } = renderWithTheme(<TaskCard task={buildTask({ title: 'Urgent report', priority: 3 })} />, 'dark');
-    expect(snapshot(container)).toMatchSnapshot();
-  });
-
-  it('dark: with tags', () => {
-    const { container } = renderWithTheme(<TaskCard task={buildTask({
-      title: 'Design review',
-      tags: [{ id: 't1', name: 'design', color: '#8b5cf6' }, { id: 't2', name: 'review', color: '#06b6d4' }],
-    })} />, 'dark');
     expect(snapshot(container)).toMatchSnapshot();
   });
 

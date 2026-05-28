@@ -8,10 +8,11 @@ vi.mock('../../hooks/useTasks', () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
   useDeleteTask: () => ({ mutate: vi.fn() }),
   useDuplicateTask: () => ({ mutate: vi.fn() }),
+  useCreateTask: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({ data: null, isLoading: false }),
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({ data: null, isLoading: false }),
 }));
 
 vi.mock('../../stores/uiStore', () => ({
@@ -42,8 +43,8 @@ describe('TaskList', () => {
 
   it('renders empty container when no tasks', () => {
     const { container } = renderWithProviders(<TaskList tasks={[]} />);
-    const space = container.querySelector('.space-y-1');
-    expect(space).toBeInTheDocument();
-    expect(space?.children.length).toBe(0);
+    const dnd = container.querySelector('.flex.flex-col');
+    expect(dnd).toBeInTheDocument();
+    expect(dnd?.children.length).toBe(0);
   });
 });

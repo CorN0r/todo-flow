@@ -1,7 +1,7 @@
 import { X, CheckCheck, Trash2, FolderInput } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useUpdateTask, useDeleteTask } from '../../hooks/useTasks';
-import { useLists } from '../../hooks/useLists';
+import { useTags } from '../../hooks/useTags';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -10,8 +10,8 @@ export function BulkActionBar() {
   const { selectionMode, selectedTaskIds, exitSelectionMode } = useUIStore();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
-  const { data: lists } = useLists();
-  const [showListPicker, setShowListPicker] = useState(false);
+  const { data: tags } = useTags();
+  const [showTagPicker, setShowTagPicker] = useState(false);
 
   const count = selectedTaskIds.size;
 
@@ -28,10 +28,10 @@ export function BulkActionBar() {
     exitSelectionMode();
   };
 
-  const handleMoveToList = (listId: string) => {
-    selectedTaskIds.forEach((id) => updateTask.mutate({ id, list_id: listId || undefined }));
+  const handleMoveToTag = (tagId: string) => {
+    selectedTaskIds.forEach((id) => updateTask.mutate({ id, tag_id: tagId || undefined }));
     toast.success(`Moved ${count} task${count > 1 ? 's' : ''}`);
-    setShowListPicker(false);
+    setShowTagPicker(false);
     exitSelectionMode();
   };
 
@@ -43,42 +43,42 @@ export function BulkActionBar() {
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 80, opacity: 0 }}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-background border rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2"
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2"
       >
         <span className="text-sm font-semibold mr-2 tabular-nums">{count} selected</span>
 
         <button
           onClick={handleCompleteAll}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[#7C72F6]/[0.08] dark:hover:bg-[#7C72F6]/[0.12] transition-colors"
         >
-          <CheckCheck size={16} className="text-emerald-500" />
+          <CheckCheck size={16} className="text-[#7C72F6]" />
           Complete
         </button>
 
         <button
-          onClick={() => setShowListPicker(!showListPicker)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-accent transition-colors"
+          onClick={() => setShowTagPicker(!showTagPicker)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
         >
           <FolderInput size={16} />
-          Move to list
+          Move to tag
         </button>
 
-        {showListPicker && (
-          <div className="absolute bottom-full mb-2 bg-background border rounded-xl shadow-xl p-1 min-w-[160px]">
+        {showTagPicker && (
+          <div className="absolute bottom-full mb-2 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-xl shadow-xl p-1 min-w-[160px]">
             <button
-              onClick={() => handleMoveToList('')}
-              className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-accent transition-colors"
+              onClick={() => handleMoveToTag('')}
+              className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
             >
-              No list
+              No tag
             </button>
-            {lists?.map((l) => (
+            {tags?.map((t) => (
               <button
-                key={l.id}
-                onClick={() => handleMoveToList(l.id)}
-                className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-accent transition-colors flex items-center gap-2"
+                key={t.id}
+                onClick={() => handleMoveToTag(t.id)}
+                className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors flex items-center gap-2"
               >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: l.color }} />
-                {l.name}
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                {t.name}
               </button>
             ))}
           </div>
@@ -92,11 +92,12 @@ export function BulkActionBar() {
           Delete
         </button>
 
-        <div className="w-px h-6 bg-border mx-1" />
+        <div className="w-px h-6 bg-[#F3F4F6] dark:bg-white/[0.06] mx-1" />
 
         <button
           onClick={exitSelectionMode}
-          className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+          className="p-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
+          aria-label="Close selection mode"
         >
           <X size={16} />
         </button>

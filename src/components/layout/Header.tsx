@@ -1,95 +1,55 @@
-import { useLocation, useParams } from 'react-router-dom';
-import { Sun, Moon, Minimize2 } from 'lucide-react';
+import { Minus, Square, X, Sun, Moon, Monitor, Sparkles, PanelBottom } from 'lucide-react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useTheme } from '../../hooks/useTheme';
-import { useTasks } from '../../hooks/useTasks';
+import { useUIStore } from '../../stores/uiStore';
 import { SearchBar } from '../shared/SearchBar';
 import { hideToTray } from '../../lib/db';
-import { todayISO } from '../../lib/date';
-import { useMemo } from 'react';
+
+const themes: { key: 'light' | 'dark' | 'system' | 'glass'; icon: typeof Sun; label: string }[] = [
+  { key: 'light', icon: Sun, label: 'Light' },
+  { key: 'dark', icon: Moon, label: 'Dark' },
+  { key: 'glass', icon: Sparkles, label: 'Glass' },
+  { key: 'system', icon: Monitor, label: 'System' },
+];
 
 export function Header() {
-  const location = useLocation();
-  const params = useParams<{ listId?: string; tagId?: string; filter?: string }>();
-  const { resolvedTheme, setTheme } = useTheme();
-  const today = todayISO();
-
-  const { data: todayTasks } = useTasks({
-    due_date_from: today,
-    due_date_to: today,
-  });
-  const { data: overdueTasks } = useTasks({
-    due_date_to: today,
-    is_completed: false,
-  });
-
-  const incompleteToday = todayTasks?.filter((t) => !t.is_completed).length ?? 0;
-  const overdueCount = overdueTasks?.filter((t) => t.due_date && t.due_date < today).length ?? 0;
-
-  const contextLabel = useMemo(() => {
-    const path = location.pathname;
-    if (path === '/' || path === '') return null; // Today — use task counts
-    if (path === '/myday') return null;
-    if (path.startsWith('/calendar')) return 'Calendar';
-    if (path === '/settings') return 'Settings';
-    if (path === '/dashboard') return 'Dashboard';
-    if (path.startsWith('/list/') && params.listId) return null; // uses list name from hook
-    if (path.startsWith('/tag/') && params.tagId) return null;
-    if (path.startsWith('/date/')) {
-      const labels: Record<string, string> = {
-        all: 'All Tasks',
-        tomorrow: 'Tomorrow',
-        '3days': 'Next 3 Days',
-        week: 'Next 7 Days',
-        year: 'This Year',
-      };
-      return labels[params.filter || ''] || 'Tasks';
-    }
-    return null;
-  }, [location.pathname, params]);
-
-  // For task/list counts on the main pages
-  const showTaskCounts = location.pathname === '/' || location.pathname === '' || location.pathname === '/myday';
+  const { setTheme } = useTheme();
+  const theme = useUIStore((s) => s.theme);
+  const isGlass = theme === 'glass';
+  const currentIdx = themes.findIndex((t) => t.key === theme);
+  const nextTheme = themes[(currentIdx + 1) % themes.length];
 
   return (
-    <header className="h-14 border-b flex items-center justify-between px-6 flex-shrink-0">
-      <div className="flex items-center gap-4 text-sm min-w-0">
-        {showTaskCounts ? (
-          <span className="text-muted-foreground truncate">
-            <span className="font-semibold text-foreground">{incompleteToday}</span>
-            {' '}due today
-            {overdueCount > 0 && (
-              <span className="text-red-500 ml-1.5">({overdueCount} overdue)</span>
-            )}
-          </span>
-        ) : contextLabel ? (
-          <span className="text-muted-foreground font-medium">{contextLabel}</span>
-        ) : (
-          <span className="text-muted-foreground truncate">{getDetailLabel(location.pathname, params)}</span>
-        )}
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+    <header
+      className={`h-10 flex items-center shrink-0 select-none border-b ${
+        isGlass
+          ? 'bg-[rgba(10,10,30,0.55)] backdrop-blur-[20px] border-white/[0.06]'
+          : 'bg-white dark:bg-[#1e1e32] border-[#F3F4F6] dark:border-white/[0.06]'
+      }`}
+      data-tauri-drag-region
+      onDoubleClick={() => { getCurrentWindow().toggleMaximize().catch(() => {}); }}
+    >
+      <div className="flex-1" />
+      <div className="flex items-center gap-1.5">
         <SearchBar />
-        <button
-          onClick={() => hideToTray()}
-          className="p-2 rounded-md hover:bg-accent transition-colors"
-          title="Minimize to tray"
-        >
-          <Minimize2 size={16} />
+        <div className="flex items-center gap-0.5">
+        <button onClick={() => setTheme(nextTheme.key)} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title={`主题: ${theme}`} aria-label={`切换主题: ${theme}`}>
+          {(() => { const Icon = themes.find((t) => t.key === theme)?.icon || Sun; return <Icon size={15} className="text-[#9CA3AF]" />; })()}
         </button>
-        <button
-          onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-          className="p-2 rounded-md hover:bg-accent transition-colors"
-          title="Toggle theme"
-        >
-          {resolvedTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        <button onClick={() => hideToTray()} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title="隐藏到浮窗" aria-label="隐藏到浮窗">
+          <PanelBottom size={16} className="text-[#9CA3AF]" />
         </button>
+        <button onClick={() => { getCurrentWindow().minimize().catch(() => {}); }} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title="最小化" aria-label="最小化">
+          <Minus size={14} className="text-[#9CA3AF]" />
+        </button>
+        <button onClick={() => { getCurrentWindow().toggleMaximize().catch(() => {}); }} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title="最大化" aria-label="最大化">
+          <Square size={12} className="text-[#9CA3AF]" />
+        </button>
+        <button onClick={() => { getCurrentWindow().close().catch(() => {}); }} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-red-500 hover:text-white transition-colors" title="关闭" aria-label="关闭">
+          <X size={16} className="text-[#9CA3AF]" />
+        </button>
+        </div>
       </div>
     </header>
   );
-}
-
-function getDetailLabel(pathname: string, params: { listId?: string; tagId?: string }): string {
-  if (pathname.startsWith('/list/') && params.listId) return 'List details';
-  if (pathname.startsWith('/tag/') && params.tagId) return 'Tag details';
-  return 'TodoFlow';
 }

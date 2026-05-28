@@ -5,7 +5,7 @@ import { useCalendarStore } from '../../stores/calendarStore';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { useUIStore } from '../../stores/uiStore';
 import { useUpdateTask } from '../../hooks/useTasks';
-import { useLists } from '../../hooks/useLists';
+import { useTags } from '../../hooks/useTags';
 import { startOfWeek, addDays, isToday, format } from '../../lib/date';
 import {
   DndContext,
@@ -20,10 +20,10 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
-function DraggableWeekTask({ ev, dateKey, listColor }: {
+function DraggableWeekTask({ ev, dateKey, tagColor }: {
   ev: ReturnType<typeof useCalendarEvents>['eventsByDate'][string][0];
   dateKey: string;
-  listColor?: string;
+  tagColor?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `task-${ev.task.id}`,
@@ -32,7 +32,7 @@ function DraggableWeekTask({ ev, dateKey, listColor }: {
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
-  const color = listColor || '#6366f1';
+  const color = tagColor || '#6366f1';
 
   return (
     <div ref={setNodeRef} style={style} className={cn(isDragging && 'opacity-40')}>
@@ -49,7 +49,7 @@ function DraggableWeekTask({ ev, dateKey, listColor }: {
           color: '#ffffff',
         }}
       >
-        <span className={cn(ev.task.is_completed && 'bg-muted text-muted-foreground line-through rounded px-0.5')}>
+        <span className={cn(ev.task.is_completed && 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] line-through rounded px-0.5')}>
           {ev.title}
         </span>
       </button>
@@ -66,9 +66,9 @@ function DroppableWeekDay({ dateKey, isTodayDate, children }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'min-h-[200px] border-r last:border-r-0 p-2 cursor-pointer hover:bg-muted transition-colors',
-        isTodayDate && 'bg-muted',
-        isOver && 'bg-accent ring-2 ring-primary',
+        'min-h-[200px] border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-2 cursor-pointer hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors',
+        isTodayDate && 'bg-[#F3F4F6] dark:bg-white/[0.02]',
+        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6]',
       )}
     >
       {children}
@@ -81,13 +81,13 @@ export function WeekView() {
   const { currentDate, setCurrentDate, setViewMode } = useCalendarStore();
   const { eventsByDate } = useCalendarEvents(currentDate, 'week');
   const updateTask = useUpdateTask();
-  const { data: lists } = useLists();
+  const { data: tags } = useTags();
   const [activeDrag, setActiveDrag] = useState<{ id: string; title: string } | null>(null);
 
-  const listColorMap = useMemo(() => {
-    if (!lists) return new Map<string, string>();
-    return new Map(lists.map((l) => [l.id, l.color]));
-  }, [lists]);
+  const tagColorMap = useMemo(() => {
+    if (!tags) return new Map<string, string>();
+    return new Map(tags.map((t) => [t.id, t.color]));
+  }, [tags]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -130,23 +130,23 @@ export function WeekView() {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl overflow-hidden bg-white dark:bg-[#1e1e32]">
         <div className="grid grid-cols-7">
-          {days.map((d, i) => {
+          {days.map((d) => {
             const dateKey = format(d, 'yyyy-MM-dd');
             const dayEvents = eventsByDate[dateKey] || [];
             const isTodayDate = isToday(d);
 
             return (
-              <DroppableWeekDay key={i} dateKey={dateKey} isTodayDate={isTodayDate}>
+              <DroppableWeekDay key={dateKey} dateKey={dateKey} isTodayDate={isTodayDate}>
                 <div onClick={() => goToDay(d)}>
                   <div className="text-center mb-2">
-                    <div className="text-xs text-muted-foreground">{format(d, 'EEE')}</div>
+                    <div className="text-xs text-[#6B7280]">{format(d, 'EEE')}</div>
                     <div className="flex items-center justify-center gap-1">
                       <div
                         className={cn(
                           'text-sm w-7 h-7 flex items-center justify-center rounded-full',
-                          isTodayDate && 'bg-primary text-primary-foreground font-medium',
+                          isTodayDate && 'bg-[#7C72F6] text-white font-medium',
                         )}
                       >
                         {d.getDate()}
@@ -154,7 +154,7 @@ export function WeekView() {
                       {dayEvents.length > 0 && (
                         <span className={cn(
                           'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                          isTodayDate ? 'bg-accent text-primary' : 'bg-muted text-muted-foreground',
+                          isTodayDate ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6]' : 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280]',
                         )}>
                           {dayEvents.length}
                         </span>
@@ -165,10 +165,10 @@ export function WeekView() {
                 <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                   {dayEvents.slice(0, 5).map((ev) => (
                     <DraggableWeekTask key={ev.task.id} ev={ev} dateKey={dateKey}
-                      listColor={ev.task.list_id ? listColorMap.get(ev.task.list_id) : undefined} />
+                      tagColor={ev.task.tag_id ? tagColorMap.get(ev.task.tag_id) : undefined} />
                   ))}
                   {dayEvents.length > 5 && (
-                    <span className="text-[10px] text-muted-foreground pl-2 font-medium">
+                    <span className="text-[10px] text-[#6B7280] pl-2 font-medium">
                       +{dayEvents.length - 5} more
                     </span>
                   )}
@@ -181,7 +181,7 @@ export function WeekView() {
 
       <DragOverlay>
         {activeDrag ? (
-          <div className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs shadow-lg">
+          <div className="px-2 py-1 rounded bg-[#7C72F6] text-white text-xs shadow-lg">
             {activeDrag.title}
           </div>
         ) : null}

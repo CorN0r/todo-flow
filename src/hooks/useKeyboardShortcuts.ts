@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '../stores/uiStore';
 
@@ -12,6 +12,8 @@ interface ShortcutCallbacks {
 export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
   const navigate = useNavigate();
   const { setSelectedTaskId, selectedTaskId, sidebarOpen, toggleSidebar, setCommandPaletteOpen, selectionMode, exitSelectionMode } = useUIStore();
+  const callbacksRef = useRef(callbacks);
+  useEffect(() => { callbacksRef.current = callbacks; });
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -40,25 +42,25 @@ export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
       // New task: N key
       if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        callbacks?.onNewTask?.();
+        callbacksRef.current?.onNewTask?.();
       }
 
       // Toggle complete: Ctrl+Enter
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && selectedTaskId) {
         e.preventDefault();
-        callbacks?.onToggleComplete?.();
+        callbacksRef.current?.onToggleComplete?.();
       }
 
       // Delete selected task: Delete key
       if (e.key === 'Delete' && selectedTaskId) {
         e.preventDefault();
-        callbacks?.onDeleteTask?.();
+        callbacksRef.current?.onDeleteTask?.();
       }
 
       // Toggle My Day: D key
       if (e.key === 'd' && !e.ctrlKey && !e.metaKey && selectedTaskId) {
         e.preventDefault();
-        callbacks?.onToggleMyDay?.();
+        callbacksRef.current?.onToggleMyDay?.();
       }
 
       // Escape: exit selection mode first, then close panel
@@ -101,5 +103,5 @@ export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, selectedTaskId, sidebarOpen, toggleSidebar, setCommandPaletteOpen, selectionMode, exitSelectionMode, callbacks]);
+  }, [navigate, selectedTaskId, sidebarOpen, toggleSidebar, setCommandPaletteOpen, setSelectedTaskId, selectionMode, exitSelectionMode]);
 }

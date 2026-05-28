@@ -1,4 +1,3 @@
-import { AnimatePresence } from 'motion/react';
 import {
   DndContext,
   closestCenter,
@@ -16,15 +15,15 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import type { Task } from '../../types/task';
 import { TaskCard } from './TaskCard';
 import { useReorderTasks } from '../../hooks/useTasks';
 
-function SortableTaskCard({ task }: { task: Task }) {
+function SortableTaskRow({ task }: { task: Task }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
+    disabled: task.parent_task_id !== null,
   });
 
   const style = {
@@ -35,46 +34,35 @@ function SortableTaskCard({ task }: { task: Task }) {
   return (
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       style={style}
-      className={cn(
-        'flex items-center gap-1 group/task',
-        isDragging && 'opacity-50 z-50'
-      )}
+      className={cn('cursor-grab active:cursor-grabbing', isDragging && 'opacity-50 z-50')}
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="p-0.5 text-muted-foreground opacity-0 group-hover/task:opacity-100 hover:text-foreground cursor-grab active:cursor-grabbing transition-opacity"
-      >
-        <GripVertical size={14} />
-      </button>
-      <div className="flex-1">
-        <TaskCard task={task} />
-      </div>
+      <TaskCard task={task} />
     </div>
   );
 }
 
-interface TaskListProps {
-  tasks: Task[];
-}
-
-export function TaskList({ tasks }: TaskListProps) {
+export function TaskList({ tasks }: { tasks: Task[]; treeMode?: boolean }) {
   const reorderTasks = useReorderTasks();
+
+  const topLevelTasks = tasks;
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = tasks.findIndex((t) => t.id === active.id);
-    const newIndex = tasks.findIndex((t) => t.id === over.id);
+    const oldIndex = topLevelTasks.findIndex((t) => t.id === active.id);
+    const newIndex = topLevelTasks.findIndex((t) => t.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(tasks, oldIndex, newIndex);
+    const reordered = arrayMove(topLevelTasks, oldIndex, newIndex);
     const items = reordered.map((t, i) => ({
       id: t.id,
       sort_order: i,
@@ -85,13 +73,11 @@ export function TaskList({ tasks }: TaskListProps) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-1">
-          <AnimatePresence>
-            {tasks.map((task) => (
-              <SortableTaskCard key={task.id} task={task} />
-            ))}
-          </AnimatePresence>
+      <SortableContext items={topLevelTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <div className="flex flex-col" style={{ gap: '6px' }}>
+          {topLevelTasks.map((task) => (
+            <SortableTaskRow key={task.id} task={task} />
+          ))}
         </div>
       </SortableContext>
     </DndContext>

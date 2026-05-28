@@ -27,7 +27,7 @@ export function ImageLightbox({ attachments, initialIndex, onClose }: Props) {
   }, [attachments]);
 
   useEffect(() => {
-    loadImage(index);
+    loadImage(index); // eslint-disable-line react-hooks/set-state-in-effect
   }, [index, loadImage]);
 
   // Preload adjacent images

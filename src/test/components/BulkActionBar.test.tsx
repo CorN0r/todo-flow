@@ -23,9 +23,9 @@ vi.mock('../../hooks/useTasks', () => ({
   useDeleteTask: () => ({ mutate: mockMutate }),
 }));
 
-vi.mock('../../hooks/useLists', () => ({
-  useLists: () => ({
-    data: [{ id: 'l1', name: 'Work', color: '#ff0000', icon: 'list', sort_order: 0, created_at: '', updated_at: '' }],
+vi.mock('../../hooks/useTags', () => ({
+  useTags: () => ({
+    data: [{ id: 't1', name: 'Work', color: '#ff0000', icon: 'tag', sort_order: 0, created_at: '', updated_at: '' }],
     isLoading: false,
   }),
 }));
@@ -52,9 +52,9 @@ describe('BulkActionBar', () => {
     expect(screen.getByText('Delete')).toBeInTheDocument();
   });
 
-  it('renders Move to list button', () => {
+  it('renders Move to tag button', () => {
     renderWithProviders(<BulkActionBar />);
-    expect(screen.getByText('Move to list')).toBeInTheDocument();
+    expect(screen.getByText('Move to tag')).toBeInTheDocument();
   });
 
   it('does not render when selectionMode is false', () => {
