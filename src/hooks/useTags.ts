@@ -41,11 +41,30 @@ export function useDeleteTag() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteTag(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TAGS_KEY });
-      toast.success('Tag deleted');
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: TAGS_KEY });
+      const previous = queryClient.getQueryData(TAGS_KEY);
+      queryClient.setQueryData(TAGS_KEY, (old: Tag[] | undefined) => {
+        if (!old) return old;
+        const removeFromTree = (tags: Tag[]): Tag[] =>
+          tags.filter((t) => t.id !== id).map((t) => ({
+            ...t,
+            children: t.children ? removeFromTree(t.children) : [],
+          }));
+        return removeFromTree(old);
+      });
+      return { previous };
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err, _id, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(TAGS_KEY, ctx.previous);
+      toast.error(`删除标签失败: ${err instanceof Error ? err.message : String(err)}`);
+    },
+    onSuccess: () => {
+      toast.success('已删除标签');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: TAGS_KEY });
+    },
   });
 }
 

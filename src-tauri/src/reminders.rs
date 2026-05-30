@@ -62,7 +62,7 @@ pub fn start_polling(app_handle: AppHandle, db: Arc<Mutex<Connection>>) {
                     .show();
 
                 // Also emit event for in-app handling
-                let _ = app_handle.emit("reminder-triggered", serde_json::json!({
+                let _ = app_handle.emit_to("main", "reminder-triggered", serde_json::json!({
                     "task_id": task_id,
                     "title": title,
                 }));

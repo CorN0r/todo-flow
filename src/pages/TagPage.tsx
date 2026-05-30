@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTasks } from '../hooks/useTasks';
 import { useTags } from '../hooks/useTags';
@@ -27,6 +27,9 @@ export function TagPage() {
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
   const completedCount = useMemo(() => topLevel.filter((t) => t.is_completed).length, [topLevel]);
+
+  const setSelectableIds = useUIStore((s) => s.setSelectableIds);
+  useEffect(() => { setSelectableIds(topLevel.map((t) => t.id)); }, [topLevel, setSelectableIds]);
 
   const handleToggleSelection = useCallback(() => {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }

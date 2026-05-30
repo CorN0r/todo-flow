@@ -182,6 +182,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
   };
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
     if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit(); }
     if (e.key === 'Escape') setEditingTitle(false);
   };
@@ -295,7 +296,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
                   <div className="w-[18px] h-[18px] rounded-full border-2 border-[#7C72F6] flex-shrink-0" />
                   <input ref={subtaskInputRef} autoFocus value={newSubtaskTitle}
                     onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && newSubtaskTitle.trim()) { createTask.mutate({ title: newSubtaskTitle.trim(), parent_task_id: task.id }); setNewSubtaskTitle(''); setAddingSubtask(false); } if (e.key === 'Escape') { setNewSubtaskTitle(''); setAddingSubtask(false); } }}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && newSubtaskTitle.trim()) { createTask.mutate({ title: newSubtaskTitle.trim(), parent_task_id: task.id }); setNewSubtaskTitle(''); setAddingSubtask(false); } if (e.key === 'Escape') { setNewSubtaskTitle(''); setAddingSubtask(false); } }}
                     placeholder="子任务标题..." className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-[#9CA3AF] text-[#111827] dark:text-white/90" />
                   <button onClick={() => { if (!newSubtaskTitle.trim()) return; createTask.mutate({ title: newSubtaskTitle.trim(), parent_task_id: task.id }); setNewSubtaskTitle(''); setAddingSubtask(false); }}
                     disabled={!newSubtaskTitle.trim()}

@@ -28,6 +28,8 @@ interface UIState {
 
   selectionMode: boolean;
   selectedTaskIds: Set<string>;
+  selectableIds: string[];
+  setSelectableIds: (ids: string[]) => void;
   enterSelectionMode: (taskId?: string) => void;
   exitSelectionMode: () => void;
   toggleTaskSelection: (id: string) => void;
@@ -68,6 +70,8 @@ export const useUIStore = create<UIState>((set) => ({
 
   selectionMode: false,
   selectedTaskIds: new Set<string>(),
+  selectableIds: [] as string[],
+  setSelectableIds: (selectableIds) => set({ selectableIds }),
   enterSelectionMode: (taskId) => set((s) => {
     const next = new Set(s.selectedTaskIds);
     if (taskId) next.add(taskId);

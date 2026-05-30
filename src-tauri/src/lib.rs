@@ -42,7 +42,7 @@ pub fn run() {
                     if let Some(widget) = app.get_webview_window("widget") {
                         let _ = widget.hide();
                     }
-                    let _ = app.emit("global-shortcut-new-task", ());
+                    let _ = app.emit_to("main", "global-shortcut-new-task", ());
                 }
             })
             .build())

@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { todayISO } from '../lib/date';
 import { useTasks } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
@@ -30,6 +30,9 @@ export function MyDayPage() {
   }, [topLevel, filterMode, today]);
   const completedCount = topLevel.filter((t) => t.is_completed).length;
   const overdueCount = topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today).length;
+
+  const setSelectableIds = useUIStore((s) => s.setSelectableIds);
+  useEffect(() => { setSelectableIds(filtered.map((t) => t.id)); }, [filtered, setSelectableIds]);
 
   const handleToggleSelection = useCallback(() => {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }

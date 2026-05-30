@@ -94,12 +94,15 @@ export function DatePicker({ value, onChange, dateCounts, showTime }: DatePicker
         <CalendarIcon size={14} />
         <span>{displayValue || (showTime ? '选择日期时间' : '选择日期')}</span>
         {value && (
-          <button
+          <span
+            role="button"
+            tabIndex={0}
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
-            className="hover:text-red-500 transition-colors"
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onChange(''); } }}
+            className="hover:text-red-500 transition-colors cursor-pointer"
           >
             <X size={12} />
-          </button>
+          </span>
         )}
       </button>
 
