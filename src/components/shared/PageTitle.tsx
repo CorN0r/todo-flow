@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ArrowUpDown, Plus, CheckSquare } from 'lucide-react';
+import { Portal } from './Portal';
 
 export type SortMode = 'manual' | 'date-asc' | 'date-desc' | 'priority' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc';
 
@@ -44,6 +45,7 @@ export function PageTitle({
   onToggleSelection,
 }: PageTitleProps) {
   const [sortOpen, setSortOpen] = useState(false);
+  const sortBtnRef = useRef<HTMLButtonElement>(null);
   const showCompletion = completedCount !== undefined && taskCount > 0;
 
   const filterBtn = (mode: FilterMode, label: string) => {
@@ -99,6 +101,7 @@ export function PageTitle({
       {onSortChange && (
         <div className="relative">
           <button
+            ref={sortBtnRef}
             onClick={() => setSortOpen(!sortOpen)}
             className="h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md bg-white dark:bg-[#1e1e32] border border-[#E5E7EB] dark:border-white/[0.07] text-[12px] font-medium text-[#374151] dark:text-white/80 hover:bg-[#F9FAFB] dark:hover:bg-white/[0.06] transition-colors"
           >
@@ -106,9 +109,15 @@ export function PageTitle({
             {sortOptions.find((o) => o.value === sortMode)?.label || '排序方式'}
           </button>
           {sortOpen && (
-            <>
+            <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[200px]">
+              <div
+                className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[200px]"
+                style={{
+                  top: (sortBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+                  left: (sortBtnRef.current?.getBoundingClientRect().right ?? 0) - 200,
+                }}
+              >
                 {sortOptions.map((opt) => (
                   <button
                     key={opt.value}
@@ -123,7 +132,7 @@ export function PageTitle({
                   </button>
                 ))}
               </div>
-            </>
+            </Portal>
           )}
         </div>
       )}

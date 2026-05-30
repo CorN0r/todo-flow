@@ -98,23 +98,23 @@ export function SearchPage() {
       ) : hasSearched && query ? (
         <EmptyState
           icon={<Search size={40} />}
-          title="No tasks found"
-          description="Try a different keyword or create a new task"
+          title="未找到任务"
+          description="尝试其他关键词或创建新任务"
         />
       ) : !query ? (
         <div className="max-w-2xl mx-auto">
           <EmptyState
             icon={<Search size={40} />}
-            title="Search your tasks"
-            description="Type a keyword to search across all task titles and descriptions"
+            title="搜索任务"
+            description="输入关键词搜索任务标题和描述"
           />
           {/* Quick actions */}
           <div className="mt-8 grid grid-cols-2 gap-3">
             {[
-              { label: 'Overdue', query: 'overdue', hint: 'find overdue items', icon: '!' },
-              { label: 'High priority', query: 'urgent', hint: 'filter by priority', icon: '!!' },
-              { label: 'Recent', query: 'meeting', hint: 'search by keyword', icon: '#' },
-              { label: 'Completed', query: 'done', hint: 'find finished tasks', icon: '✓' },
+              { label: '超期任务', query: 'overdue', hint: '查找超期项', icon: '!' },
+              { label: '高优先级', query: 'urgent', hint: '按优先级筛选', icon: '!!' },
+              { label: '最近', query: 'meeting', hint: '关键词搜索', icon: '#' },
+              { label: '已完成', query: 'done', hint: '查找已完成任务', icon: '✓' },
             ].map((item) => (
               <button
                 key={item.label}

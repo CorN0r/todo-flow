@@ -40,7 +40,7 @@ export function useCreateTask() {
     mutationFn: (input: CreateTaskInput) => createTask(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-      toast.success('Task created');
+      toast.success('任务已创建');
     },
     onError: (err: string) => toast.error(err),
   });

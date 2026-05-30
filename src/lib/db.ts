@@ -159,5 +159,5 @@ export async function reorderHabits(items: ReorderHabitsItem[]): Promise<void> {
 }
 
 export async function toggleHabitLog(habitId: string, date?: string): Promise<HabitLog> {
-  return invoke('toggle_habit_log', { habitId, date });
+  return invoke('toggle_habit_log', { habit_id: habitId, date });
 }

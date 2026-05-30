@@ -1,15 +1,16 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useTasks, useCreateTask } from '../hooks/useTasks';
+import { useTasks } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
 import { TaskList } from '../components/tasks/TaskList';
+import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
 import { VirtualTaskList } from '../components/tasks/VirtualTaskList';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageTitle, type FilterMode } from '../components/shared/PageTitle';
 import { todayISO, addDays, format } from '../lib/date';
 import { Inbox, AlertTriangle, Hash, Sunrise, CalendarRange, CalendarDays, CalendarCheck, Globe } from 'lucide-react';
-import { sortTasks } from '../lib/sortTasks';
+import { sortTasks, nestChildren } from '../lib/sortTasks';
 
 const filterConfig: Record<string, { label: string; days: number; showDates: boolean; fromOffset: number; icon: typeof Hash; iconBg: string; iconColor: string }> = {
   all: { label: '全部任务', days: 0, showDates: false, fromOffset: 0, icon: Hash, iconBg: 'bg-indigo-100 dark:bg-indigo-900/50', iconColor: 'text-indigo-500' },
@@ -36,19 +37,19 @@ export function DateFilterPage() {
     filter === 'all' ? { include_children: true } : { due_date_from: dateFrom, due_date_to: dateTo, include_children: true },
   );
 
-  const createTask = useCreateTask();
   const sortMode = useUIStore((s) => s.sortMode);
   const setSortMode = useUIStore((s) => s.setSortMode);
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
 
-  const handleToggleSelection = useCallback(() => {
+  const handleToggleSelection = () => {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }
-  }, [selectionMode, exitSelection]);
+  };
 
+  const [showNewTask, setShowNewTask] = useState(false);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
-  const topLevel = useMemo(() => sorted.filter((t) => !t.parent_task_id), [sorted]);
+  const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
   const filtered = useMemo(() => {
     if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed);
     if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed);
@@ -57,10 +58,6 @@ export function DateFilterPage() {
   }, [topLevel, filterMode, today]);
   const completedCount = topLevel.filter((t) => t.is_completed).length;
   const overdueCount = topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today).length;
-
-  const handleNewTask = useCallback(() => {
-    createTask.mutate({ title: 'New task', due_date: dateFrom || today });
-  }, [createTask, dateFrom, today]);
 
   const dateList = useMemo(() => {
     if (!config.showDates) return [];
@@ -77,8 +74,8 @@ export function DateFilterPage() {
   const IconComp = config.icon;
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-5">
+    <div className="flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
         <div className={`w-8 h-8 rounded-lg ${config.iconBg} flex items-center justify-center`}>
           <IconComp size={18} className={config.iconColor} />
         </div>
@@ -92,7 +89,7 @@ export function DateFilterPage() {
             onFilterChange={setFilterMode}
             sortMode={sortMode}
             onSortChange={setSortMode}
-            onNewTask={handleNewTask}
+            onNewTask={() => setShowNewTask(true)}
             selectionMode={selectionMode}
             onToggleSelection={handleToggleSelection}
           />
@@ -100,7 +97,7 @@ export function DateFilterPage() {
       </div>
 
       {dateList.length > 0 && (
-        <div className="flex gap-2 my-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap mb-4">
           {dateList.map((d) => {
             const dayName = format(new Date(d + 'T00:00:00'), 'EEE');
             const dayNum = new Date(d + 'T00:00:00').getDate();
@@ -124,17 +121,23 @@ export function DateFilterPage() {
         </div>
       )}
 
+      {showNewTask && (
+        <div className="mb-[6px]">
+          <TaskQuickAdd defaultDueDate={dateFrom} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />
+        </div>
+      )}
+
       {filtered.length > 50 ? (
         <VirtualTaskList tasks={filtered} />
       ) : (
         <TaskList tasks={filtered} />
       )}
 
-      {sorted.length === 0 && (
+      {sorted.length === 0 && !showNewTask && (
         <EmptyState
           icon={<Inbox size={40} />}
-          title="No tasks in this time range"
-          description="Click the new task button above to add one"
+          title="此时间段暂无任务"
+          description="点击右上角新建任务按钮添加"
         />
       )}
     </div>

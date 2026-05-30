@@ -17,9 +17,9 @@ export function SettingsPage() {
     setBackingUp(true);
     try {
       await backupDatabase(path);
-      toast.success('Database backed up successfully');
+      toast.success('数据库备份成功');
     } catch (err) {
-      toast.error('Failed to backup: ' + (err as string));
+      toast.error('备份失败: ' + (err as string));
     }
     setBackingUp(false);
   };
@@ -44,20 +44,20 @@ export function SettingsPage() {
       a.download = `todoflow-export-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Data exported as CSV');
+      toast.success('数据已导出为 CSV');
     } catch {
-      toast.error('Failed to export data');
+      toast.error('导出失败');
     }
     setExporting(false);
   };
 
   return (
     <div className="max-w-lg">
-      <h3 className="text-[20px] font-bold text-[#111827] dark:text-white mb-6">Settings</h3>
+      <h3 className="text-[20px] font-bold text-[#111827] dark:text-white mb-6">设置</h3>
 
       {/* Data */}
       <div className="mb-6">
-        <h4 className="section-label mb-3">Data</h4>
+        <h4 className="section-label mb-3">数据</h4>
         <div className="space-y-2">
           <button
             onClick={handleExportCSV}
@@ -65,7 +65,7 @@ export function SettingsPage() {
             className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] hover:bg-[#F9FAFB] dark:hover:bg-white/[0.04] transition-colors w-full text-[#111827] dark:text-white/90 font-medium"
           >
             <Download size={16} />
-            {exporting ? 'Exporting...' : 'Export tasks as CSV'}
+            {exporting ? '导出中...' : '导出任务为 CSV'}
           </button>
           <button
             onClick={handleBackup}
@@ -73,23 +73,23 @@ export function SettingsPage() {
             className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] hover:bg-[#F9FAFB] dark:hover:bg-white/[0.04] transition-colors w-full text-[#111827] dark:text-white/90 font-medium"
           >
             <Database size={16} />
-            {backingUp ? 'Backing up...' : 'Backup database'}
+            {backingUp ? '备份中...' : '备份数据库'}
           </button>
         </div>
       </div>
 
       {/* Keyboard shortcuts */}
       <div>
-        <h4 className="section-label mb-3">Keyboard Shortcuts</h4>
+        <h4 className="section-label mb-3">快捷键</h4>
         <div className="space-y-1.5">
           {[
-            { label: 'Today page', key: '1' },
-            { label: 'Calendar page', key: '2' },
-            { label: 'Settings page', key: '3' },
-            { label: 'Show all shortcuts', key: '?' },
-            { label: 'Search tasks', key: 'Ctrl+K' },
-            { label: 'Toggle sidebar', key: 'Ctrl+B' },
-            { label: 'Close detail panel', key: 'Esc' },
+            { label: '今天页面', key: '1' },
+            { label: '日历页面', key: '2' },
+            { label: '设置页面', key: '3' },
+            { label: '显示所有快捷键', key: '?' },
+            { label: '搜索任务', key: 'Ctrl+K' },
+            { label: '切换侧栏', key: 'Ctrl+B' },
+            { label: '关闭详情面板', key: 'Esc' },
           ].map(({ label, key }) => (
             <div key={label} className="flex justify-between items-center">
               <span className="text-[13px] text-[#111827] dark:text-white/80">{label}</span>

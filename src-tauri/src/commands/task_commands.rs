@@ -18,6 +18,7 @@ pub fn create_task(
     priority: Option<i32>,
     reminder: Option<String>,
     recurrence: Option<String>,
+    my_day_date: Option<String>,
 ) -> Result<Task, AppError> {
     let conn = state.db()?;
     task_repo::create(
@@ -31,6 +32,7 @@ pub fn create_task(
             priority,
             reminder,
             recurrence,
+            my_day_date,
         },
     )
 }

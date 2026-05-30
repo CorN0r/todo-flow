@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useUpdateTask } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { startOfWeek, addDays, isToday, format } from '../../lib/date';
+import { getHolidayName } from '../../lib/holidays';
 import {
   DndContext,
   DragOverlay,
@@ -57,8 +58,8 @@ function DraggableWeekTask({ ev, dateKey, tagColor }: {
   );
 }
 
-function DroppableWeekDay({ dateKey, isTodayDate, children }: {
-  dateKey: string; isTodayDate: boolean; children: React.ReactNode;
+function DroppableWeekDay({ dateKey, isTodayDate, isWeekend, children }: {
+  dateKey: string; isTodayDate: boolean; isWeekend: boolean; children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date-${dateKey}` });
 
@@ -66,9 +67,10 @@ function DroppableWeekDay({ dateKey, isTodayDate, children }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'min-h-[200px] border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-2 cursor-pointer hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors',
+        'h-full border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-2 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors flex flex-col',
         isTodayDate && 'bg-[#F3F4F6] dark:bg-white/[0.02]',
-        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6]',
+        isWeekend && !isTodayDate && 'bg-[#FAFAFA] dark:bg-white/[0.015]',
+        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6] relative z-10',
       )}
     >
       {children}
@@ -130,46 +132,49 @@ export function WeekView() {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl overflow-hidden bg-white dark:bg-[#1e1e32]">
-        <div className="grid grid-cols-7">
+      <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl bg-white dark:bg-[#1e1e32] flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
+        <div className="grid grid-cols-7 flex-1">
           {days.map((d) => {
             const dateKey = format(d, 'yyyy-MM-dd');
             const dayEvents = eventsByDate[dateKey] || [];
             const isTodayDate = isToday(d);
+            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            const holidayName = getHolidayName(dateKey);
 
             return (
-              <DroppableWeekDay key={dateKey} dateKey={dateKey} isTodayDate={isTodayDate}>
-                <div onClick={() => goToDay(d)}>
+              <DroppableWeekDay key={dateKey} dateKey={dateKey} isTodayDate={isTodayDate} isWeekend={isWeekend}>
+                <div onClick={() => goToDay(d)} className="cursor-pointer">
                   <div className="text-center mb-2">
-                    <div className="text-xs text-[#6B7280]">{format(d, 'EEE')}</div>
-                    <div className="flex items-center justify-center gap-1">
-                      <div
-                        className={cn(
-                          'text-sm w-7 h-7 flex items-center justify-center rounded-full',
-                          isTodayDate && 'bg-[#7C72F6] text-white font-medium',
-                        )}
-                      >
-                        {d.getDate()}
-                      </div>
-                      {dayEvents.length > 0 && (
-                        <span className={cn(
-                          'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
-                          isTodayDate ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6]' : 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280]',
-                        )}>
-                          {dayEvents.length}
-                        </span>
+                    <div className="text-xs text-[#6B7280]">{['周日','周一','周二','周三','周四','周五','周六'][d.getDay()]}</div>
+                    <div
+                      className={cn(
+                        'text-sm w-7 h-7 flex items-center justify-center rounded-full mx-auto',
+                        isTodayDate && 'bg-[#7C72F6] text-white font-medium',
                       )}
+                    >
+                      {d.getDate()}
                     </div>
+                    {holidayName && (
+                      <div className="text-[10px] text-[#9CA3AF] mt-0.5">{holidayName}</div>
+                    )}
+                    {dayEvents.length > 0 && (
+                      <span className={cn(
+                        'inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                        isTodayDate ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6]' : 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280]',
+                      )}>
+                        {dayEvents.length}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+                <div className="flex-1 overflow-y-auto space-y-1" onClick={(e) => e.stopPropagation()}>
                   {dayEvents.slice(0, 5).map((ev) => (
                     <DraggableWeekTask key={ev.task.id} ev={ev} dateKey={dateKey}
                       tagColor={ev.task.tag_id ? tagColorMap.get(ev.task.tag_id) : undefined} />
                   ))}
                   {dayEvents.length > 5 && (
                     <span className="text-[10px] text-[#6B7280] pl-2 font-medium">
-                      +{dayEvents.length - 5} more
+                      +{dayEvents.length - 5} 项
                     </span>
                   )}
                 </div>

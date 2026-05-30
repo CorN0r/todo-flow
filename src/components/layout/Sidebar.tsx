@@ -126,7 +126,7 @@ function TagTreeItem({ tag, depth, editingTagId, editName, setEditName, setEditi
               <SortableTagItem
                 tag={tag}
                 onEdit={() => { setEditingTagId(tag.id); setEditName(tag.name); }}
-                onDelete={() => { if (confirm(`Delete "${tag.name}"?`)) deleteTag.mutate(tag.id); }}
+                onDelete={() => { if (confirm(`确定删除"${tag.name}"？`)) deleteTag.mutate(tag.id); }}
               />
             </div>
           </div>
@@ -290,7 +290,7 @@ export function Sidebar() {
               deleteTag={deleteTag}
             />
           ))}
-          {tags?.length === 0 && !isCreating && <p className="text-xs text-[#9CA3AF] px-3 py-1 italic">No tags yet</p>}
+          {tags?.length === 0 && !isCreating && <p className="text-xs text-[#9CA3AF] px-3 py-1 italic">暂无标签</p>}
         </div>
       </div>
 

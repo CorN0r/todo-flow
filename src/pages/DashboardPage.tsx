@@ -30,7 +30,7 @@ function CompletionBar({ completed, total }: { completed: number; total: number 
   return (
     <div>
       <div className="flex justify-between text-[13px] mb-1.5">
-        <span className="text-[#6B7280] font-medium">Completion rate</span>
+        <span className="text-[#6B7280] font-medium">完成率</span>
         <span className="font-semibold tabular-nums text-[#111827] dark:text-white/90">{pct}%</span>
       </div>
       <div className="h-2.5 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] overflow-hidden">
@@ -54,10 +54,10 @@ function WeeklyChart({ data }: { data: DashboardStats['completion_by_date'] }) {
     d.setDate(d.getDate() - i);
     const key = d.toISOString().split('T')[0];
     const found = data.find((x) => x.date === key);
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
     days.push({
       date: key,
-      label: i === 0 ? 'Today' : dayNames[d.getDay()],
+      label: i === 0 ? '今天' : dayNames[d.getDay()],
       completed: found?.completed ?? 0,
     });
   }
@@ -68,7 +68,7 @@ function WeeklyChart({ data }: { data: DashboardStats['completion_by_date'] }) {
         <div className="w-7 h-7 rounded-lg bg-[#F5F3FF] dark:bg-violet-950 flex items-center justify-center">
           <TrendingUp size={14} className="text-[#7C72F6]" />
         </div>
-        <span className="text-[13px] font-semibold text-[#111827] dark:text-white/90">Last 7 Days</span>
+        <span className="text-[13px] font-semibold text-[#111827] dark:text-white/90">最近 7 天</span>
       </div>
       <div className="flex items-end gap-2 h-24">
         {days.map((d) => (
@@ -97,7 +97,7 @@ function TagDistribution({ data }: { data: DashboardStats['tasks_by_tag'] }) {
         <div className="w-7 h-7 rounded-lg bg-[#EFF6FF] dark:bg-blue-950 flex items-center justify-center">
           <BarChart3 size={14} className="text-[#3B82F6]" />
         </div>
-        <span className="text-[13px] font-semibold text-[#111827] dark:text-white/90">By Tag</span>
+        <span className="text-[13px] font-semibold text-[#111827] dark:text-white/90">按标签</span>
       </div>
       <div className="space-y-2">
         {data.map((tag) => (
@@ -117,7 +117,7 @@ function TagDistribution({ data }: { data: DashboardStats['tasks_by_tag'] }) {
           </div>
         ))}
         {data.length === 0 && (
-          <p className="text-[13px] text-[#9CA3AF] py-2">No tags yet</p>
+          <p className="text-[13px] text-[#9CA3AF] py-2">暂无标签</p>
         )}
       </div>
     </div>
@@ -133,7 +133,7 @@ export function DashboardPage() {
 
   if (isLoading) return <LoadingSkeleton count={4} />;
   if (isError || !stats) return (
-    <EmptyState icon={<AlertTriangle size={40} />} title="Failed to load stats" description="Please check your database connection and try again." />
+    <EmptyState icon={<AlertTriangle size={40} />} title="加载失败" description="请检查数据库连接后重试" />
   );
 
   return (
@@ -143,17 +143,17 @@ export function DashboardPage() {
           <BarChart3 size={18} className="text-indigo-500" />
         </div>
         <div>
-          <h3 className="text-[20px] font-bold text-[#111827] dark:text-white">Dashboard</h3>
-          <p className="text-[12px] text-[#9CA3AF]">Your productivity at a glance</p>
+          <h3 className="text-[20px] font-bold text-[#111827] dark:text-white">数据看板</h3>
+          <p className="text-[12px] text-[#9CA3AF]">效率概览</p>
         </div>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard icon={<CheckCircle2 size={18} />} label="Completed" value={stats.completed_tasks} color="#7C72F6" />
-        <StatCard icon={<Clock size={18} />} label="Incomplete" value={stats.incomplete_tasks} color="#7C72F6" />
-        <StatCard icon={<AlertTriangle size={18} />} label="Overdue" value={stats.overdue_tasks} color="#EF4444" />
-        <StatCard icon={<Flame size={18} />} label="Day streak" value={stats.streak_days} color="#F59E0B" />
+        <StatCard icon={<CheckCircle2 size={18} />} label="已完成" value={stats.completed_tasks} color="#7C72F6" />
+        <StatCard icon={<Clock size={18} />} label="未完成" value={stats.incomplete_tasks} color="#7C72F6" />
+        <StatCard icon={<AlertTriangle size={18} />} label="超期" value={stats.overdue_tasks} color="#EF4444" />
+        <StatCard icon={<Flame size={18} />} label="连续天数" value={stats.streak_days} color="#F59E0B" />
       </div>
 
       {/* Progress & Chart row */}
@@ -162,8 +162,8 @@ export function DashboardPage() {
           style={{ padding: '16px', boxShadow: 'var(--card-shadow)' }}>
           <CompletionBar completed={stats.completed_tasks} total={stats.total_tasks} />
           <div className="flex justify-between text-[11px] text-[#9CA3AF]">
-            <span>{stats.total_tasks} total tasks</span>
-            <span>{stats.today_completed} completed today</span>
+            <span>{stats.total_tasks} 总任务</span>
+            <span>今日完成 {stats.today_completed}</span>
           </div>
         </div>
         <div className="rounded-[10px] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06]"

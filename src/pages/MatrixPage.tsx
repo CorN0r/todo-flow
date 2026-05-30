@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Zap, ArrowRight, LayoutGrid } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Zap, ArrowRight, LayoutGrid, ArrowUpDown } from 'lucide-react';
 import { useTasks, useUpdateTask } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { TaskCard } from '../components/tasks/TaskCard';
+import { type SortMode } from '../components/shared/PageTitle';
+import { sortTasks } from '../lib/sortTasks';
 import { todayISO, isOverdue } from '../lib/date';
 import type { Task } from '../types/task';
 import { cn } from '../lib/cn';
@@ -30,6 +32,14 @@ interface QuadrantDef {
   urgent: boolean;
   important: boolean;
 }
+
+const sortOptions: { value: SortMode; label: string }[] = [
+  { value: 'manual', label: '手动排序' },
+  { value: 'priority', label: '优先级' },
+  { value: 'date-desc', label: '截止日期' },
+  { value: 'alpha-asc', label: '字母' },
+  { value: 'created-desc', label: '创建时间' },
+];
 
 const QUADRANTS: QuadrantDef[] = [
   {
@@ -93,7 +103,7 @@ function DraggableMatrixCard({ task }: { task: Task }) {
   } : undefined;
 
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} style={style} className={cn(isDragging && 'opacity-0')}>
+    <div ref={setNodeRef} {...listeners} {...attributes} style={style} className={cn(isDragging && 'opacity-0', 'cursor-grab [&_*]:!cursor-grab')}>
       <TaskCard task={task} />
     </div>
   );
@@ -149,17 +159,21 @@ export function MatrixPage() {
   const updateTask = useUpdateTask();
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
+  const sortMode = useUIStore((s) => s.sortMode);
+  const setSortMode = useUIStore((s) => s.setSortMode);
+  const [sortOpen, setSortOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<Task | null>(null);
+
+  const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
 
   const buckets = useMemo(() => {
     const result: Task[][] = [[], [], [], []];
-    if (!tasks) return result;
-    for (const t of tasks) {
+    for (const t of sorted) {
       if (t.is_completed) continue;
       result[bucketTask(t)].push(t);
     }
     return result;
-  }, [tasks]);
+  }, [sorted]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -176,12 +190,13 @@ export function MatrixPage() {
     if (!over) return;
 
     const taskId = active.id as string;
+    const task = (tasks || []).find((t) => t.id === taskId);
     const toQuadrant = parseInt(String(over.id).replace('quadrant-', ''), 10);
     const target = QUADRANTS[toQuadrant];
 
     updateTask.mutate({
       id: taskId,
-      due_date: target.urgent ? todayISO() : '',
+      due_date: target.urgent ? (task?.due_date || todayISO()) : '',
       priority: target.important ? 3 : 0,
     });
   };
@@ -189,29 +204,67 @@ export function MatrixPage() {
   if (isLoading) return <LoadingSkeleton count={8} />;
 
   const allEmpty = buckets.every((b) => b.length === 0);
+
+  const header = (
+    <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+          <LayoutGrid size={18} className="text-amber-500" />
+        </div>
+        <div>
+          <h1 className="text-[20px] font-bold text-[#111827] dark:text-white/90">Eisenhower 矩阵</h1>
+          <p className="text-[13px] text-[#9CA3AF] mt-0.5">按紧急性和重要性四象限管理任务</p>
+        </div>
+      </div>
+
+      <div className="relative">
+        <button
+          onClick={() => setSortOpen(!sortOpen)}
+          className="h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md bg-white dark:bg-[#1e1e32] border border-[#E5E7EB] dark:border-white/[0.07] text-[12px] font-medium text-[#374151] dark:text-white/80 hover:bg-[#F9FAFB] dark:hover:bg-white/[0.06] transition-colors shrink-0"
+        >
+          <ArrowUpDown size={13} className="text-[#6B7280]" />
+          {sortOptions.find((o) => o.value === sortMode)?.label || '排序'}
+        </button>
+        {sortOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />
+            <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]">
+              {sortOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setSortMode(opt.value); setSortOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-[13px] transition-colors ${
+                    sortMode === opt.value
+                      ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6] font-medium'
+                      : 'text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   if (allEmpty) {
     return (
-      <EmptyState
-        icon={<Zap size={40} />}
-        title="暂无任务"
-        description="创建任务后将自动显示在对应象限中"
-      />
+      <div>
+        {header}
+        <EmptyState
+          icon={<Zap size={40} />}
+          title="暂无任务"
+          description="创建任务后将自动显示在对应象限中"
+        />
+      </div>
     );
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
-            <LayoutGrid size={18} className="text-amber-500" />
-          </div>
-          <div>
-            <h1 className="text-[20px] font-bold text-[#111827] dark:text-white/90">Eisenhower 矩阵</h1>
-            <p className="text-[13px] text-[#9CA3AF] mt-0.5">按紧急性和重要性四象限管理任务</p>
-          </div>
-        </div>
-      </div>
+      {header}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-2 gap-4" style={{ height: 'calc(100vh - 180px)' }}>

@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { Portal } from '../shared/Portal';
 import { Plus, Tag, Flag, X, ChevronDown } from 'lucide-react';
 import { useCreateTask } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
+
 import { DatePicker } from '../shared/DatePicker';
 import { priorityColors, priorityLabels, PRIORITY_HEX } from '../../lib/priority';
 import { parseTaskTitle, matchTagName } from '../../lib/nlp';
@@ -12,11 +14,12 @@ interface TaskQuickAddProps {
   parentTaskId?: string;
   placeholder?: string;
   defaultDueDate?: string;
+  defaultMyDay?: string;
   onCancel?: () => void;
   onCreated?: () => void;
 }
 
-export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务...', defaultDueDate, onCancel, onCreated }: TaskQuickAddProps) {
+export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务...', defaultDueDate, defaultMyDay, onCancel, onCreated }: TaskQuickAddProps) {
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState(defaultDueDate || '');
   const [selectedTagId, setSelectedTagId] = useState(tagId || '');
@@ -24,6 +27,8 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const createTask = useCreateTask();
+  const tagBtnRef = useRef<HTMLButtonElement>(null);
+  const priorityBtnRef = useRef<HTMLButtonElement>(null);
   const { data: tags } = useTags();
 
   const nlp = useMemo(() => parseTaskTitle(title), [title]);
@@ -53,10 +58,14 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
       priority: effectivePriority > 0 ? effectivePriority : undefined,
       recurrence: nlp.recurrence || undefined,
       reminder: nlp.reminder || undefined,
+      my_day_date: defaultMyDay,
+    }, {
+      onSuccess: () => {
+        setTitle('');
+        setDueDate('');
+        onCreated?.();
+      },
     });
-    setTitle('');
-    setDueDate('');
-    onCreated?.();
   };
 
   const handleCancel = () => {
@@ -69,10 +78,6 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
     <div className="flex flex-col rounded-xl bg-white dark:bg-[#1e1e32] shadow-[0px_2px_8px_0px_rgba(124,114,246,0.08)]"
       style={{ border: '1.5px solid rgba(124, 114, 246, 0.25)' }}>
       <div className="flex items-center" style={{ height: '56px', padding: '0px 16px', gap: '10px' }}>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#EEF2FF' }}>
-          <Plus size={14} className="text-[#6366F1]" style={{ strokeWidth: 2.5 }} />
-        </div>
-
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -89,6 +94,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
       {tags && tags.length > 0 && (
         <div className="relative">
           <button
+            ref={tagBtnRef}
             onClick={() => { setShowTagPicker(!showTagPicker); setShowPriorityPicker(false); }}
             className={`flex items-center shrink-0 rounded-md transition-colors relative ${effectiveTagId ? 'bg-[#7C72F6]/[0.06] text-[#7C72F6]' : 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1]'}`}
             style={{ height: '28px', padding: '0px 8px', gap: '4px' }}
@@ -100,9 +106,15 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
             <ChevronDown size={10} />
           </button>
           {showTagPicker && (
-            <>
+            <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} aria-hidden="true" />
-              <div className="absolute top-full mt-1 right-0 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[150px]">
+              <div
+                className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[150px]"
+                style={{
+                  top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+                  left: tagBtnRef.current?.getBoundingClientRect().left ?? 0,
+                }}
+              >
                 <button onClick={() => { setSelectedTagId(''); setShowTagPicker(false); }}
                   className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] ${!effectiveTagId ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
                   无标签
@@ -115,7 +127,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
                   </button>
                 ))}
               </div>
-            </>
+            </Portal>
           )}
         </div>
       )}
@@ -123,6 +135,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
       {/* Priority button + picker */}
       <div className="relative">
         <button
+          ref={priorityBtnRef}
           onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowTagPicker(false); }}
           className={`flex items-center shrink-0 rounded-md transition-colors ${effectivePriority > 0 ? 'bg-[#7C72F6]/[0.06]' : 'bg-[#F3F4F6] dark:bg-white/[0.06] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1]'}`}
           style={{ height: '28px', padding: '0px 8px', gap: '4px' }}
@@ -132,9 +145,15 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
           <ChevronDown size={10} />
         </button>
         {showPriorityPicker && (
-          <>
+          <Portal>
             <div className="fixed inset-0 z-40" onClick={() => setShowPriorityPicker(false)} aria-hidden="true" />
-            <div className="absolute top-full mt-1 right-0 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[120px]">
+            <div
+              className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[120px]"
+              style={{
+                top: (priorityBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+                left: (priorityBtnRef.current?.getBoundingClientRect().left ?? 0),
+              }}
+            >
               {Object.entries(priorityLabels).map(([k, v]) => (
                 <button key={k} onClick={() => { setPriority(Number(k)); setShowPriorityPicker(false); }}
                   className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${effectivePriority === Number(k) ? 'font-medium' : 'text-[#111827] dark:text-white/90'}`}>
@@ -143,9 +162,16 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
                 </button>
               ))}
             </div>
-          </>
+          </Portal>
         )}
       </div>
+
+      {/* Submit button */}
+      <button onClick={handleSubmit} disabled={!effectiveTitle.trim()}
+        className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        aria-label="创建任务">
+        <Plus size={14} style={{ strokeWidth: 2.5 }} />
+      </button>
 
       {/* Cancel button */}
       {onCancel && (

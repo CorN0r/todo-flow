@@ -89,8 +89,16 @@ function MainLayout() {
       });
       const u2 = await listen<{ task_id: string; title: string }>('reminder-triggered', (event) => {
         toast(event.payload.title, {
-          description: 'Reminder due',
-          duration: 8000,
+          description: '提醒时间到',
+          duration: 10000,
+          icon: (
+            <div className="w-8 h-8 rounded-full bg-[#7C72F6]/10 flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C72F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </div>
+          ),
         });
       });
       if (cancelled) {
@@ -114,19 +122,19 @@ function MainLayout() {
       {/* Glass theme background gradient */}
       {isGlass && (
         <>
-          <div className="fixed inset-0 z-0 pointer-events-none"
+          <div className="fixed inset-0 z-[-1] pointer-events-none"
             style={{
               background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 30%, #0f3460 60%, #1a1a2e 100%)',
             }}
           />
-          <div className="fixed inset-0 z-0 pointer-events-none opacity-30"
+          <div className="fixed inset-0 z-[-1] pointer-events-none opacity-30"
             style={{
               background: 'radial-gradient(ellipse at 20% 50%, rgba(124,114,246,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(167,139,250,0.1) 0%, transparent 50%), radial-gradient(ellipse at 50% 80%, rgba(99,102,241,0.08) 0%, transparent 50%)',
             }}
           />
         </>
       )}
-      <div className={`${isGlass ? 'relative z-10' : ''} flex h-full w-full`}>
+      <div className="flex h-full w-full">
         <ErrorBoundary>
           <Sidebar />
         </ErrorBoundary>
@@ -134,8 +142,9 @@ function MainLayout() {
           <ErrorBoundary>
             <Header />
           </ErrorBoundary>
-          <main className={`flex-1 overflow-y-auto ${isGlass ? 'bg-transparent' : 'bg-white dark:bg-[#1e1e32]'}`}
+          <main className={`flex-1 min-h-0 ${isGlass ? 'bg-transparent' : 'bg-white dark:bg-[#1e1e32]'}`}
             style={{ padding: '34px 32px 0 32px' }}>
+            <div className="h-full overflow-y-auto">
             <ErrorBoundary>
             <Routes>
               <Route path="/" element={<TodayPage />} />
@@ -152,6 +161,7 @@ function MainLayout() {
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
             </ErrorBoundary>
+            </div>
           </main>
         </div>
         <TaskDetailPanel />

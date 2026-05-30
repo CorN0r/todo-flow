@@ -141,7 +141,9 @@
     );
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
+}
 
+@layer utilities {
   /* ===== Glass mode auto-applied backdrop blur ===== */
   /* Cards: bg-white dark:bg-[#1e1e32] or dark:bg-[#1E1E32] */
   .glass body {
@@ -194,6 +196,26 @@
     -webkit-backdrop-filter: blur(8px);
   }
 
+  /* Other translucent white variants */
+  .glass .dark\:bg-white\/\[0\.01\],
+  .glass .dark\:bg-white\/\[0\.02\] {
+    background-color: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .glass .dark\:bg-white\/\[0\.04\] {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .glass .dark\:bg-white\/\[0\.08\] {
+    background-color: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
   /* Hover states */
   .glass .dark\:hover\:bg-white\/\[0\.04\]:hover {
     background-color: rgba(255, 255, 255, 0.08);
@@ -224,7 +246,9 @@
     -webkit-backdrop-filter: blur(20px);
     border-bottom-color: rgba(255, 255, 255, 0.06);
   }
+}
 
+@layer base {
   * {
     border-color: hsl(var(--border));
   }

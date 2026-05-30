@@ -130,7 +130,7 @@ export function ImageLightbox({ attachments, initialIndex, onClose }: Props) {
               />
             )}
             {!src && !loading && (
-              <p className="text-white/40 text-sm">Failed to load image</p>
+              <p className="text-white/40 text-sm">图片加载失败</p>
             )}
           </div>
 

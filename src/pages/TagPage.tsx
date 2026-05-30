@@ -9,7 +9,7 @@ import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageTitle } from '../components/shared/PageTitle';
 import { Tag, AlertTriangle } from 'lucide-react';
-import { sortTasks } from '../lib/sortTasks';
+import { sortTasks, nestChildren } from '../lib/sortTasks';
 
 export function TagPage() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -25,7 +25,7 @@ export function TagPage() {
   const [showNewTask, setShowNewTask] = useState(false);
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
-  const topLevel = useMemo(() => sorted.filter((t) => !t.parent_task_id), [sorted]);
+  const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
   const completedCount = useMemo(() => topLevel.filter((t) => t.is_completed).length, [topLevel]);
 
   const handleToggleSelection = useCallback(() => {
@@ -36,8 +36,8 @@ export function TagPage() {
   if (isError) return <EmptyState icon={<AlertTriangle size={40} />} title="加载失败" description="请检查数据库连接后重试" />;
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-5">
+    <div className="flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
         {tag ? (
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: tag.color + '20' }}>
             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
@@ -55,12 +55,16 @@ export function TagPage() {
         </div>
       </div>
 
-      {showNewTask && <TaskQuickAdd tagId={tagId} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />}
+      {showNewTask && (
+        <div className="mb-[6px]">
+          <TaskQuickAdd tagId={tagId} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />
+        </div>
+      )}
 
       <TaskList tasks={topLevel} />
       {sorted.length === 0 && !showNewTask && (
-        <EmptyState icon={<Tag size={40} />} title="No tasks in this tag"
-          description="Click the new task button above to add one" />
+        <EmptyState icon={<Tag size={40} />} title="此标签下暂无任务"
+          description="点击右上角新建任务按钮添加" />
       )}
     </div>
   );

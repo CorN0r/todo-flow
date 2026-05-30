@@ -170,7 +170,7 @@ export function HabitPage() {
                     <Pencil size={14} />
                   </button>
                   <button
-                    onClick={() => { if (confirm(`Delete "${habit.name}"?`)) deleteHabit.mutate(habit.id); }}
+                    onClick={() => { if (confirm(`确定删除"${habit.name}"？`)) deleteHabit.mutate(habit.id); }}
                     className="p-1.5 rounded-lg text-[#9CA3AF] hover:text-[#EF4444] hover:bg-[#FEF2F2] dark:hover:bg-red-950/20 transition-colors"
                   >
                     <Trash2 size={14} />

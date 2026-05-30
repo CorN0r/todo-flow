@@ -81,15 +81,24 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
         }
     }
 
-    let max_order: i32 = conn.query_row(
-        "SELECT COALESCE(MAX(sort_order), -1) FROM tasks WHERE parent_task_id IS ?1 AND tag_id IS ?2",
-        rusqlite::params![req.parent_task_id, req.tag_id],
-        |row| row.get(0),
-    )?;
+    let sort_order: i32 = if req.parent_task_id.is_some() {
+        let max: i32 = conn.query_row(
+            "SELECT COALESCE(MAX(sort_order), -1) FROM tasks WHERE parent_task_id = ?1",
+            rusqlite::params![req.parent_task_id],
+            |row| row.get(0),
+        )?;
+        max + 1
+    } else {
+        conn.execute(
+            "UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS NULL AND tag_id IS ?1",
+            rusqlite::params![req.tag_id],
+        )?;
+        0
+    };
 
     conn.execute(
-        "INSERT INTO tasks (id, title, description, tag_id, parent_task_id, due_date, priority, reminder, recurrence, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO tasks (id, title, description, tag_id, parent_task_id, due_date, priority, reminder, recurrence, my_day_date, sort_order)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         rusqlite::params![
             id,
             title,
@@ -100,7 +109,8 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
             req.priority.unwrap_or(0),
             req.reminder,
             req.recurrence,
-            max_order + 1,
+            req.my_day_date,
+            sort_order,
         ],
     )?;
 
@@ -147,16 +157,21 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
          FROM tasks t WHERE t.is_archived = 0",
     );
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let inc_children = filter.include_children.unwrap_or(false);
 
     if let Some(ref parent_id) = filter.parent_task_id {
         sql.push_str(" AND t.parent_task_id = ?");
         params.push(Box::new(parent_id.clone()));
-    } else if !filter.include_children.unwrap_or(false) {
+    } else if !inc_children {
         sql.push_str(" AND t.parent_task_id IS NULL");
     }
 
     if let Some(ref tag_id) = filter.tag_id {
-        sql.push_str(" AND t.tag_id = ?");
+        if inc_children {
+            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.tag_id = ?)");
+        } else {
+            sql.push_str(" AND t.tag_id = ?");
+        }
         params.push(Box::new(tag_id.clone()));
     }
 
@@ -166,12 +181,20 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
     }
 
     if let Some(ref from) = filter.due_date_from {
-        sql.push_str(" AND t.due_date >= ?");
+        if inc_children {
+            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.due_date >= ?)");
+        } else {
+            sql.push_str(" AND t.due_date >= ?");
+        }
         params.push(Box::new(from.clone()));
     }
 
     if let Some(ref to) = filter.due_date_to {
-        sql.push_str(" AND t.due_date <= ?");
+        if inc_children {
+            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.due_date <= ?)");
+        } else {
+            sql.push_str(" AND t.due_date <= ?");
+        }
         params.push(Box::new(to.clone()));
     }
 
@@ -183,7 +206,11 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
     }
 
     if let Some(ref my_day) = filter.my_day_date {
-        sql.push_str(" AND t.my_day_date = ?");
+        if inc_children {
+            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.my_day_date = ?)");
+        } else {
+            sql.push_str(" AND t.my_day_date = ?");
+        }
         params.push(Box::new(my_day.clone()));
     }
 
@@ -280,6 +307,7 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
                                 priority: Some(priority),
                                 reminder: next_reminder,
                                 recurrence: Some(rec.clone()),
+                                my_day_date: None,
                             },
                         );
                     }
@@ -351,16 +379,15 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
     let new_id = Uuid::new_v4().to_string();
     let new_title = format!("{} (copy)", original.title);
 
-    let max_order: i32 = conn.query_row(
-        "SELECT COALESCE(MAX(sort_order), -1) FROM tasks WHERE parent_task_id IS ?1 AND tag_id IS ?2",
+    conn.execute(
+        "UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS ?1 AND tag_id IS ?2",
         rusqlite::params![original.parent_task_id, original.tag_id],
-        |row| row.get(0),
     )?;
 
     conn.execute(
         "INSERT INTO tasks (id, title, description, is_completed, priority, due_date, tag_id,
          parent_task_id, sort_order, recurrence)
-         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, ?8, ?9)",
+         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, 0, ?8)",
         rusqlite::params![
             new_id,
             new_title,
@@ -369,7 +396,6 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
             original.due_date,
             original.tag_id,
             original.parent_task_id,
-            max_order + 1,
             original.recurrence,
         ],
     )?;
@@ -419,6 +445,7 @@ mod tests {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         }
     }
 

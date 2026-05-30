@@ -36,6 +36,7 @@ pub struct CreateTaskRequest {
     pub priority: Option<i32>,
     pub reminder: Option<String>,
     pub recurrence: Option<String>,
+    pub my_day_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

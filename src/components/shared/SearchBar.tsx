@@ -4,6 +4,7 @@ import { Search, X, ArrowRight } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { getTasks } from '../../lib/db';
 import { useUIStore } from '../../stores/uiStore';
+import { Portal } from './Portal';
 import type { Task } from '../../types/task';
 
 export function SearchBar() {
@@ -71,17 +72,15 @@ export function SearchBar() {
       >
         <Search size={14} />
         <span className="flex-1 text-left">搜索任务...</span>
-        <kbd className="text-[10px] px-1 py-0.5 rounded bg-white dark:bg-white/10 border text-[#D1D5DB] flex-shrink-0">
+        <kbd className="text-[10px] px-1 py-0.5 rounded bg-white dark:bg-white/10 border border-[#E5E7EB] dark:border-white/10 text-[#D1D5DB] flex-shrink-0">
           /
         </kbd>
       </button>
 
       {isOpen && (
-        <>
-          <div className={`fixed inset-0 z-50 ${isGlass ? 'bg-black/50 backdrop-blur-sm' : 'bg-black/40'}`} onClick={() => setIsOpen(false)} aria-hidden="true" />
-          <div className={`fixed top-[20%] left-1/2 -translate-x-1/2 w-[480px] max-w-[90vw] rounded-2xl shadow-2xl z-50 overflow-hidden ${isGlass ? 'glass-panel-strong' : 'bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07]'}`}>
-            {/* Accent bar */}
-            <div className="h-0.5 bg-gradient-to-r from-[#7C72F6] to-[#A78BFA]" />
+        <Portal>
+          <div className={`fixed inset-0 z-[200] ${isGlass ? 'bg-black/50 backdrop-blur-sm' : 'bg-black/40'}`} onClick={() => setIsOpen(false)} aria-hidden="true" />
+          <div className={`fixed top-[20%] left-1/2 -translate-x-1/2 w-[480px] max-w-[90vw] rounded-2xl shadow-2xl z-[200] overflow-hidden ${isGlass ? 'glass-panel-strong' : 'bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07]'}`}>
             <div className="flex items-center gap-3 px-4 py-3 border-b border-[#F3F4F6] dark:border-white/[0.06]">
               <Search size={16} className="text-[#9CA3AF]" />
               <input
@@ -89,7 +88,7 @@ export function SearchBar() {
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
                 onKeyDown={handleKeyDown}
-                placeholder="Search tasks..."
+                placeholder="搜索任务..."
                 className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#9CA3AF]"
                 autoFocus
                 role="combobox"
@@ -157,7 +156,7 @@ export function SearchBar() {
                 }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-[#7C72F6] hover:bg-[#7C72F6]/[0.04] border-t border-[#F3F4F6] dark:border-white/[0.06] transition-colors font-medium"
               >
-                Show all results
+                显示全部结果
                 <ArrowRight size={14} />
               </button>
             )}
@@ -165,12 +164,12 @@ export function SearchBar() {
               <div className="py-12 text-center">
                 <Search size={28} className="mx-auto mb-3 text-[#D1D5DB]" />
                 <p className="text-sm text-[#9CA3AF]">
-                  Type at least 2 characters to search
+                  输入至少 2 个字符进行搜索
                 </p>
               </div>
             )}
           </div>
-        </>
+        </Portal>
       )}
     </>
   );

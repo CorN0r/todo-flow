@@ -47,15 +47,15 @@ export function CommandPalette() {
   }, [commandPaletteOpen, setCommandPaletteOpen]);
 
   const commands = useMemo<Command[]>(() => [
-    { id: 'today', label: 'Go to Today', icon: <House size={16} />, shortcut: '1', action: () => navigate('/'), category: 'Navigation' },
-    { id: 'calendar', label: 'Go to Calendar', icon: <CalendarDays size={16} />, shortcut: '2', action: () => navigate('/calendar'), category: 'Navigation' },
-    { id: 'settings', label: 'Go to Settings', icon: <Settings size={16} />, shortcut: '3', action: () => navigate('/settings'), category: 'Navigation' },
-    { id: 'toggle-sidebar', label: sidebarOpen ? 'Collapse Sidebar' : 'Expand Sidebar', icon: sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />, shortcut: '⌘B', action: toggleSidebar, category: 'View' },
-    { id: 'light', label: 'Light Theme', icon: <Sun size={16} />, action: () => setTheme('light'), category: 'View' },
-    { id: 'dark', label: 'Dark Theme', icon: <Moon size={16} />, action: () => setTheme('dark'), category: 'View' },
-    { id: 'system-theme', label: 'System Theme', icon: <Monitor size={16} />, action: () => setTheme('system'), category: 'View' },
-    { id: 'glass', label: 'Glass Theme', icon: <Sparkles size={16} />, action: () => setTheme('glass'), category: 'View' },
-    { id: 'new-task', label: 'Create New Task', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: 'New task' }); setCommandPaletteOpen(false); }, category: 'Actions' },
+    { id: 'today', label: '今天', icon: <House size={16} />, shortcut: '1', action: () => navigate('/'), category: '导航' },
+    { id: 'calendar', label: '日历', icon: <CalendarDays size={16} />, shortcut: '2', action: () => navigate('/calendar'), category: '导航' },
+    { id: 'settings', label: '设置', icon: <Settings size={16} />, shortcut: '3', action: () => navigate('/settings'), category: '导航' },
+    { id: 'toggle-sidebar', label: sidebarOpen ? '收起侧栏' : '展开侧栏', icon: sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />, shortcut: '⌘B', action: toggleSidebar, category: '视图' },
+    { id: 'light', label: '浅色主题', icon: <Sun size={16} />, action: () => setTheme('light'), category: '视图' },
+    { id: 'dark', label: '深色主题', icon: <Moon size={16} />, action: () => setTheme('dark'), category: '视图' },
+    { id: 'system-theme', label: '系统主题', icon: <Monitor size={16} />, action: () => setTheme('system'), category: '视图' },
+    { id: 'glass', label: '玻璃主题', icon: <Sparkles size={16} />, action: () => setTheme('glass'), category: '视图' },
+    { id: 'new-task', label: '新建任务', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: '新建任务' }); setCommandPaletteOpen(false); }, category: '操作' },
   ], [navigate, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen]);
 
   const filtered = useMemo(() => {
@@ -101,9 +101,6 @@ export function CommandPalette() {
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-2xl overflow-hidden"
           >
-            {/* Accent bar */}
-            <div className="h-0.5 bg-gradient-to-r from-[#7C72F6] to-[#A78BFA]" />
-
             {/* Search input */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-[#F3F4F6] dark:border-white/[0.06]">
               <Search size={16} className="text-[#9CA3AF] flex-shrink-0" />
@@ -112,7 +109,7 @@ export function CommandPalette() {
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a command..."
+                placeholder="输入命令..."
                 className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#9CA3AF]"
               />
               <kbd className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#F3F4F6] dark:bg-white/[0.06] text-[#9CA3AF] font-mono">esc</kbd>
@@ -121,7 +118,7 @@ export function CommandPalette() {
             {/* Command list */}
             <div className="max-h-[300px] overflow-y-auto p-1">
               {filtered.length === 0 && (
-                <p className="text-sm text-[#9CA3AF] text-center py-8">No matching commands</p>
+                <p className="text-sm text-[#9CA3AF] text-center py-8">无匹配命令</p>
               )}
               {filtered.map((cmd, i) => (
                 <button
@@ -149,9 +146,9 @@ export function CommandPalette() {
 
             {/* Footer */}
             <div className="px-4 py-2.5 border-t border-[#F3F4F6] dark:border-white/[0.06] flex items-center gap-4 text-[10px] text-[#9CA3AF]">
-              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">↑↓</kbd> Navigate</span>
-              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">↵</kbd> Select</span>
-              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">Esc</kbd> Close</span>
+              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">↑↓</kbd> 导航</span>
+              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">↵</kbd> 选择</span>
+              <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.06] font-mono text-[#6B7280]">Esc</kbd> 关闭</span>
             </div>
           </motion.div>
         </motion.div>

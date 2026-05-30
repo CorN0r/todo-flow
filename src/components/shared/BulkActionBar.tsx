@@ -17,20 +17,20 @@ export function BulkActionBar() {
 
   const handleCompleteAll = () => {
     selectedTaskIds.forEach((id) => updateTask.mutate({ id, is_completed: true }));
-    toast.success(`${count} task${count > 1 ? 's' : ''} completed`);
+    toast.success(`已完成 ${count} 个任务`);
     exitSelectionMode();
   };
 
   const handleDeleteAll = () => {
-    if (!confirm(`Delete ${count} task${count > 1 ? 's' : ''}?`)) return;
+    if (!confirm(`确定删除 ${count} 个任务？`)) return;
     selectedTaskIds.forEach((id) => deleteTask.mutate(id));
-    toast.success(`${count} task${count > 1 ? 's' : ''} deleted`);
+    toast.success(`已删除 ${count} 个任务`);
     exitSelectionMode();
   };
 
   const handleMoveToTag = (tagId: string) => {
     selectedTaskIds.forEach((id) => updateTask.mutate({ id, tag_id: tagId || undefined }));
-    toast.success(`Moved ${count} task${count > 1 ? 's' : ''}`);
+    toast.success(`已移动 ${count} 个任务`);
     setShowTagPicker(false);
     exitSelectionMode();
   };
@@ -45,14 +45,14 @@ export function BulkActionBar() {
         exit={{ y: 80, opacity: 0 }}
         className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2"
       >
-        <span className="text-sm font-semibold mr-2 tabular-nums">{count} selected</span>
+        <span className="text-sm font-semibold mr-2 tabular-nums">已选 {count} 项</span>
 
         <button
           onClick={handleCompleteAll}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[#7C72F6]/[0.08] dark:hover:bg-[#7C72F6]/[0.12] transition-colors"
         >
           <CheckCheck size={16} className="text-[#7C72F6]" />
-          Complete
+          完成
         </button>
 
         <button
@@ -60,7 +60,7 @@ export function BulkActionBar() {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
         >
           <FolderInput size={16} />
-          Move to tag
+          移动到标签
         </button>
 
         {showTagPicker && (
@@ -69,7 +69,7 @@ export function BulkActionBar() {
               onClick={() => handleMoveToTag('')}
               className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
             >
-              No tag
+              无标签
             </button>
             {tags?.map((t) => (
               <button
@@ -89,7 +89,7 @@ export function BulkActionBar() {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-950 text-red-500 transition-colors"
         >
           <Trash2 size={16} />
-          Delete
+          删除
         </button>
 
         <div className="w-px h-6 bg-[#F3F4F6] dark:bg-white/[0.06] mx-1" />
@@ -97,7 +97,7 @@ export function BulkActionBar() {
         <button
           onClick={exitSelectionMode}
           className="p-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
-          aria-label="Close selection mode"
+          aria-label="关闭多选"
         >
           <X size={16} />
         </button>

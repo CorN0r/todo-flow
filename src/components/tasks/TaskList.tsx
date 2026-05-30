@@ -37,7 +37,7 @@ function SortableTaskRow({ task }: { task: Task }) {
       {...attributes}
       {...listeners}
       style={style}
-      className={cn('cursor-grab active:cursor-grabbing', isDragging && 'opacity-50 z-50')}
+      className={cn('cursor-grab active:cursor-grabbing [&_button]:cursor-pointer', isDragging && 'opacity-50 z-50')}
     >
       <TaskCard task={task} />
     </div>

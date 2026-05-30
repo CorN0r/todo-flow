@@ -6,6 +6,7 @@ import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { useUIStore } from '../../stores/uiStore';
 import { useUpdateTask } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
+import { getHolidayName } from '../../lib/holidays';
 import {
   startOfMonth,
   endOfMonth,
@@ -72,8 +73,8 @@ function DraggableTask({ ev, dateKey, tagColor }: {
   );
 }
 
-function DroppableDay({ dateKey, isCurrentMonth, children }: {
-  dateKey: string; isCurrentMonth: boolean; children: React.ReactNode;
+function DroppableDay({ dateKey, isCurrentMonth, isWeekend, children }: {
+  dateKey: string; isCurrentMonth: boolean; isWeekend: boolean; children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date-${dateKey}` });
 
@@ -81,9 +82,10 @@ function DroppableDay({ dateKey, isCurrentMonth, children }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'min-h-[80px] border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-1.5 cursor-pointer hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors',
+        'min-h-[80px] border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-1.5 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors',
         !isCurrentMonth && 'bg-[#F3F4F6]/50 dark:bg-white/[0.01]',
-        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6]',
+        isCurrentMonth && isWeekend && 'bg-[#FAFAFA] dark:bg-white/[0.015]',
+        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6] relative z-10',
       )}
     >
       {children}
@@ -144,7 +146,7 @@ export function MonthView() {
   const calStart = startOfWeek(monthStart);
   const calEnd = endOfWeek(endOfMonth(currentDate));
 
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
   const weeks: Date[][] = [];
   let day = calStart;
   while (day <= calEnd) {
@@ -171,7 +173,7 @@ export function MonthView() {
         </div>
 
         {/* Calendar grid */}
-        <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl overflow-hidden bg-white dark:bg-[#1e1e32]">
+        <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl bg-white dark:bg-[#1e1e32]">
           {weeks.map((week, wi) => (
             <div key={wi} className="grid grid-cols-7 border-b border-[#E5E7EB] dark:border-white/[0.06] last:border-b-0">
               {week.map((d, di) => {
@@ -179,18 +181,21 @@ export function MonthView() {
                 const dayEvents = eventsByDate[dateKey] || [];
                 const isCurrentMonth = d.getMonth() === currentDate.getMonth();
                 const isTodayDate = isToday(d);
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const holidayName = getHolidayName(dateKey);
 
                 return (
                   <DroppableDay
                     key={di}
                     dateKey={dateKey}
                     isCurrentMonth={isCurrentMonth}
+                    isWeekend={isWeekend}
                   >
-                    <div onClick={() => goToDay(d)} className="flex items-center justify-between mb-1">
+                    <div onClick={() => goToDay(d)} className="flex items-center justify-between mb-1 cursor-pointer">
                       <div
                         className={cn(
                           'text-xs w-6 h-6 flex items-center justify-center rounded-full',
-                          isTodayDate && 'bg-[#7C72F6] text-white font-bold ring-2 ring-[#7C72F6] ring-offset-1',
+                          isTodayDate && 'bg-[#7C72F6] text-white font-bold',
                         )}
                       >
                         {d.getDate()}
@@ -211,10 +216,13 @@ export function MonthView() {
                       ))}
                       {dayEvents.length > 2 && (
                         <span className="text-[10px] text-[#6B7280] pl-1 font-medium">
-                          +{dayEvents.length - 2} more
+                          +{dayEvents.length - 2} 项
                         </span>
                       )}
                     </div>
+                    {holidayName && (
+                      <div className="text-[10px] text-[#9CA3AF] mt-1 truncate">{holidayName}</div>
+                    )}
                   </DroppableDay>
                 );
               })}

@@ -8,7 +8,7 @@ import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageTitle, type FilterMode } from '../components/shared/PageTitle';
 import { Sun, AlertTriangle } from 'lucide-react';
-import { sortTasks } from '../lib/sortTasks';
+import { sortTasks, nestChildren } from '../lib/sortTasks';
 
 export function MyDayPage() {
   const today = todayISO();
@@ -21,7 +21,7 @@ export function MyDayPage() {
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
-  const topLevel = useMemo(() => sorted.filter((t) => !t.parent_task_id), [sorted]);
+  const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
   const filtered = useMemo(() => {
     if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed);
     if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed);
@@ -39,8 +39,8 @@ export function MyDayPage() {
   if (isError) return <EmptyState icon={<AlertTriangle size={40} />} title="加载失败" description="请检查数据库连接后重试" />;
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-1">
+    <div className="flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
         <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
           <Sun size={18} className="text-amber-500" />
         </div>
@@ -54,12 +54,16 @@ export function MyDayPage() {
         </div>
       </div>
 
-      {showNewTask && <TaskQuickAdd defaultDueDate={today} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />}
+      {showNewTask && (
+        <div className="mb-[6px]">
+          <TaskQuickAdd defaultDueDate={today} defaultMyDay={today} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />
+        </div>
+      )}
 
       <TaskList tasks={filtered} />
       {sorted.length === 0 && !showNewTask && (
-        <EmptyState icon={<Sun size={40} />} title="Focus on what matters today"
-          description='Open a task and click "Add to My Day" or create one above' />
+        <EmptyState icon={<Sun size={40} />} title="今天没有任务"
+          description='右键任务选择"加入我的一天"，或点击上方新建任务' />
       )}
     </div>
   );
