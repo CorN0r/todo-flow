@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster, toast } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
@@ -61,6 +61,7 @@ function MainLayout() {
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
+  const navigate = useNavigate();
 
   useKeyboardShortcuts({
     onNewTask: () => createTaskRef.current.mutate({ title: 'New task' }),
@@ -81,6 +82,7 @@ function MainLayout() {
   useEffect(() => {
     let unlisten1: (() => void) | null = null;
     let unlisten2: (() => void) | null = null;
+    let unlisten3: (() => void) | null = null;
     let cancelled = false;
 
     (async () => {
@@ -101,21 +103,40 @@ function MainLayout() {
           ),
         });
       });
+      const u3 = await listen('task-changed', () => {
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      });
       if (cancelled) {
         u1();
         u2();
+        u3();
         return;
       }
       unlisten1 = u1;
       unlisten2 = u2;
+      unlisten3 = u3;
     })();
 
     return () => {
       cancelled = true;
       unlisten1?.();
       unlisten2?.();
+      unlisten3?.();
     };
   }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+    (async () => {
+      const u = await listen('navigate-to-settings', () => {
+        navigate('/settings');
+      });
+      if (cancelled) { u(); return; }
+      unlisten = u;
+    })();
+    return () => { cancelled = true; unlisten?.(); };
+  }, [navigate]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-white dark:bg-[#1e1e32] text-[#111827] dark:text-white/90 relative" onContextMenu={(e) => e.preventDefault()}>
@@ -177,7 +198,7 @@ function MainLayout() {
 
 function App() {
   return (
-    <MemoryRouter initialEntries={['/date/all']}>
+    <MemoryRouter initialEntries={[new URLSearchParams(window.location.search).has('widget') ? '/widget' : '/date/all']}>
       <QueryClientProvider client={queryClient}>
         <AppLayout />
       </QueryClientProvider>

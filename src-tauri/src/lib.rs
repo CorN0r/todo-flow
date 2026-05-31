@@ -33,16 +33,29 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new()
-            .with_handler(|app, _shortcut, event| {
+            .with_handler(|app, shortcut, event| {
                 if event.state == ShortcutState::Pressed {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
+                    let ctrl_shift_t = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyT);
+                    let ctrl_shift_w = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyW);
+                    if *shortcut == ctrl_shift_t {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                        if let Some(widget) = app.get_webview_window("widget") {
+                            let _ = widget.hide();
+                        }
+                        let _ = app.emit_to("main", "global-shortcut-new-task", ());
+                    } else if *shortcut == ctrl_shift_w {
+                        if let Some(widget) = app.get_webview_window("widget") {
+                            if widget.is_visible().unwrap_or(false) {
+                                let _ = widget.hide();
+                            } else {
+                                let _ = widget.show();
+                                let _ = widget.set_focus();
+                            }
+                        }
                     }
-                    if let Some(widget) = app.get_webview_window("widget") {
-                        let _ = widget.hide();
-                    }
-                    let _ = app.emit_to("main", "global-shortcut-new-task", ());
                 }
             })
             .build())
@@ -78,6 +91,7 @@ pub fn run() {
             }
 
             let db = Arc::new(Mutex::new(conn));
+            let db_for_widget = db.clone();
             let state = AppState {
                 db: db.clone(),
                 data_dir: app_dir,
@@ -94,10 +108,18 @@ pub fn run() {
 
             // Build tray context menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder};
-            let quit_item = MenuItemBuilder::with_id("quit", "Quit")
+            let show_item = MenuItemBuilder::with_id("show", "打开主界面")
+                .build(app)
+                .expect("Failed to build show menu item");
+            let settings_item = MenuItemBuilder::with_id("settings", "设置")
+                .build(app)
+                .expect("Failed to build settings menu item");
+            let quit_item = MenuItemBuilder::with_id("quit", "退出")
                 .build(app)
                 .expect("Failed to build quit menu item");
             let tray_menu = MenuBuilder::new(app)
+                .item(&show_item)
+                .item(&settings_item)
                 .item(&quit_item)
                 .build()
                 .expect("Failed to build tray menu");
@@ -107,9 +129,15 @@ pub fn run() {
             let _tray = TrayIconBuilder::with_id("todoflow-tray")
                 .icon(icon)
                 .tooltip("TodoFlow")
+                .show_menu_on_left_click(false)
                 .on_tray_icon_event(move |_tray, event| {
-                    if let tauri::tray::TrayIconEvent::Click { .. } = event {
+                    if let tauri::tray::TrayIconEvent::Click {
+                        button: tauri::tray::MouseButton::Left,
+                        ..
+                    } = event
+                    {
                         if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.unminimize();
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
@@ -119,46 +147,121 @@ pub fn run() {
                     }
                 })
                 .on_menu_event(|tray, event| {
-                    if event.id.as_ref() == "quit" {
-                        let app = tray.app_handle();
-                        let _ = app.exit(0);
+                    match event.id.as_ref() {
+                        "show" => {
+                            if let Some(window) = tray.app_handle().get_webview_window("main") {
+                                let _ = window.unminimize();
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                            if let Some(widget) = tray.app_handle().get_webview_window("widget") {
+                                let _ = widget.hide();
+                            }
+                        }
+                        "settings" => {
+                            if let Some(window) = tray.app_handle().get_webview_window("main") {
+                                let _ = window.unminimize();
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                            if let Some(widget) = tray.app_handle().get_webview_window("widget") {
+                                let _ = widget.hide();
+                            }
+                            let _ = tray.app_handle().emit_to("main", "navigate-to-settings", ());
+                        }
+                        "quit" => {
+                            let app = tray.app_handle();
+                            let _ = app.exit(0);
+                        }
+                        _ => {}
                     }
                 })
                 .menu(&tray_menu)
                 .build(app)?;
 
+            // Intercept main window close → hide + maybe show widget
+            if let Some(window) = app.get_webview_window("main") {
+                let win_clone = window.clone();
+                let db_close = db_for_widget.clone();
+                let app_close = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = win_clone.hide();
+                        let enabled = db_close.lock().ok().and_then(|db| {
+                            db.query_row("SELECT value FROM settings WHERE key = 'widget_enabled'", rusqlite::params![], |row| row.get::<_, String>(0)).ok()
+                        }).map(|v| v != "0").unwrap_or(true);
+                        if enabled {
+                            if let Some(widget) = app_close.get_webview_window("widget") {
+                                let _ = widget.show();
+                            }
+                        }
+                    }
+                });
+            }
+
             // ---- Desktop widget window ----
             let widget = tauri::WebviewWindowBuilder::new(
                 app,
                 "widget",
-                tauri::WebviewUrl::App("/widget".into()),
+                tauri::WebviewUrl::App("/?widget=1".into()),
             )
             .title("TodoFlow Widget")
-            .inner_size(240.0, 320.0)
-            .min_inner_size(220.0, 280.0)
+            .inner_size(300.0, 420.0)
+            .min_inner_size(80.0, 80.0)
             .decorations(false)
             .always_on_top(true)
             .skip_taskbar(true)
             .resizable(false)
             .visible(false)
             .transparent(true)
+            .shadow(false)
             .build()?;
 
-            // Position widget at bottom-right corner of primary monitor
-            if let Ok(monitors) = widget.available_monitors() {
-                if let Some(monitor) = monitors.into_iter().next() {
-                    let size = monitor.size();
-                    let scale = monitor.scale_factor();
-                    let x = (size.width as f64 / scale) - 250.0;
-                    let y = (size.height as f64 / scale) - 340.0;
-                    let _ = widget.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+            // Try to restore saved widget position from settings
+            let mut positioned = false;
+            if let Ok(db) = db_for_widget.lock() {
+                let x_str: Option<String> = db
+                    .query_row(
+                        "SELECT value FROM settings WHERE key = 'widget_x'",
+                        rusqlite::params![],
+                        |row| row.get(0),
+                    )
+                    .ok();
+                let y_str: Option<String> = db
+                    .query_row(
+                        "SELECT value FROM settings WHERE key = 'widget_y'",
+                        rusqlite::params![],
+                        |row| row.get(0),
+                    )
+                    .ok();
+                if let (Some(x_str), Some(y_str)) = (x_str, y_str) {
+                    if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
+                        let _ = widget.set_position(tauri::PhysicalPosition::new(x, y));
+                        positioned = true;
+                    }
+                }
+            }
+            // Fallback: bottom-right corner of primary monitor
+            if !positioned {
+                if let Ok(monitors) = widget.available_monitors() {
+                    if let Some(monitor) = monitors.into_iter().next() {
+                        let size = monitor.size();
+                        let scale = monitor.scale_factor();
+                        let x = (size.width as f64 / scale) - 310.0;
+                        let y = (size.height as f64 / scale) - 440.0;
+                        let _ = widget.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+                    }
                 }
             }
 
-            // ---- Global shortcut: Ctrl+Shift+T → show main + quick add ----
+            // ---- Global shortcuts ----
             app.handle().global_shortcut().register(
                 Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyT),
             ).expect("Failed to register global shortcut Ctrl+Shift+T");
+            app.handle().global_shortcut().register(
+                Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyW),
+            ).expect("Failed to register global shortcut Ctrl+Shift+W");
 
             // Clicking X closes the app; use the tray menu "Quit" or Ctrl+Shift+T to reopen
             // Hide-to-widget is available via the hide_to_tray command (called from frontend)

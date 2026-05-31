@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { Repeat, ChevronDown } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { parseRecurrence, formatRecurrence, serializeRecurrence } from '../../lib/recurrence';
@@ -22,6 +22,30 @@ export function RecurrencePicker({ value, onChange }: {
   const [type, setType] = useState<RecurrenceConfig['type']>(config?.type || 'weekly');
   const [interval, setInterval] = useState(config?.interval || 1);
   const [customOpen, setCustomOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const calc = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      let top = rect.bottom + 2;
+      let left = rect.left;
+      const menuW = 208;
+      if (left + menuW > window.innerWidth) left = Math.max(4, rect.right - menuW);
+      if (top + 280 > window.innerHeight) top = rect.top - 286;
+      const offScreen = rect.bottom < 0 || rect.top > window.innerHeight;
+      if (offScreen) { setOpen(false); return; }
+      setPos({ top, left });
+    };
+    calc();
+    window.addEventListener('scroll', calc, true);
+    window.addEventListener('resize', calc);
+    return () => {
+      window.removeEventListener('scroll', calc, true);
+      window.removeEventListener('resize', calc);
+    };
+  }, [open]);
 
   const apply = (t: RecurrenceConfig['type'], i: number) => {
     setType(t);
@@ -65,10 +89,7 @@ export function RecurrencePicker({ value, onChange }: {
           <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setCustomOpen(false); }} />
           <div
             className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-1.5 min-w-[200px]"
-            style={{
-              top: (triggerRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-              left: triggerRef.current?.getBoundingClientRect().left ?? 0,
-            }}
+            style={{ top: pos.top, left: pos.left }}
           >
             {/* Presets */}
             {presets.map((p) => (

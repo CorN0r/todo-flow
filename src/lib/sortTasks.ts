@@ -18,8 +18,18 @@ export function nestChildren(tasks: Task[]): Task[] {
 export function sortTasks(tasks: Task[], mode: SortMode): Task[] {
   const sorted = [...tasks];
   switch (mode) {
-    case 'date-asc': return sorted.sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
-    case 'date-desc': return sorted.sort((a, b) => (b.due_date || '').localeCompare(a.due_date || ''));
+    case 'date-asc': return sorted.sort((a, b) => {
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return a.due_date.localeCompare(b.due_date);
+    });
+    case 'date-desc': return sorted.sort((a, b) => {
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return b.due_date.localeCompare(a.due_date);
+    });
     case 'priority': return sorted.sort((a, b) => b.priority - a.priority);
     case 'alpha-asc': return sorted.sort((a, b) => a.title.localeCompare(b.title));
     case 'alpha-desc': return sorted.sort((a, b) => b.title.localeCompare(a.title));

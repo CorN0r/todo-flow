@@ -1,12 +1,24 @@
-﻿import { useState } from 'react';
-import { Download, Database } from 'lucide-react';
+﻿import { useState, useEffect } from 'react';
+import { Download, Database, PanelBottom } from 'lucide-react';
 import { toast } from 'sonner';
-import { getTasks, backupDatabase } from '../lib/db';
+import { getTasks, backupDatabase, getSetting, setSetting } from '../lib/db';
 import { save } from '@tauri-apps/plugin-dialog';
 
 export function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
+  const [widgetEnabled, setWidgetEnabled] = useState(true);
+
+  useEffect(() => {
+    getSetting('widget_enabled').then((v) => {
+      setWidgetEnabled(v !== '0');
+    }).catch(() => {});
+  }, []);
+
+  const toggleWidget = (enabled: boolean) => {
+    setWidgetEnabled(enabled);
+    setSetting('widget_enabled', enabled ? '1' : '0');
+  };
 
   const handleBackup = async () => {
     const path = await save({
@@ -77,6 +89,21 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {/* 悬浮窗功能暂不发布 */}
+      {/* <div className="mb-6">
+        <h4 className="section-label mb-3">悬浮窗</h4>
+        <div className="flex items-center justify-between px-4 py-3 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32]">
+          <div className="flex items-center gap-3">
+            <PanelBottom size={16} className="text-[#6B7280]" />
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">显示悬浮窗</span>
+          </div>
+          <button onClick={() => toggleWidget(!widgetEnabled)}
+            className={`relative w-9 h-5 rounded-full transition-colors ${widgetEnabled ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]'}`}>
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${widgetEnabled ? 'left-[18px]' : 'left-0.5'}`} />
+          </button>
+        </div>
+      </div> */}
 
       {/* Keyboard shortcuts */}
       <div>

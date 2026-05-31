@@ -77,8 +77,8 @@ export function DateFilterPage() {
   const IconComp = config.icon;
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 flex items-center gap-3 mb-4">
         <div className={`w-8 h-8 rounded-lg ${config.iconBg} flex items-center justify-center`}>
           <IconComp size={18} className={config.iconColor} />
         </div>
@@ -100,7 +100,7 @@ export function DateFilterPage() {
       </div>
 
       {dateList.length > 0 && (
-        <div className="flex gap-2 flex-wrap mb-4">
+        <div className="shrink-0 flex gap-2 flex-wrap mb-4">
           {dateList.map((d) => {
             const dayName = format(new Date(d + 'T00:00:00'), 'EEE');
             const dayNum = new Date(d + 'T00:00:00').getDate();
@@ -125,24 +125,26 @@ export function DateFilterPage() {
       )}
 
       {showNewTask && (
-        <div className="mb-[6px]">
+        <div className="shrink-0 mb-[6px]">
           <TaskQuickAdd defaultDueDate={dateFrom} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />
         </div>
       )}
 
-      {filtered.length > 50 ? (
-        <VirtualTaskList tasks={filtered} />
-      ) : (
-        <TaskList tasks={filtered} />
-      )}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {filtered.length > 50 ? (
+          <VirtualTaskList tasks={filtered} />
+        ) : (
+          <TaskList tasks={filtered} />
+        )}
 
-      {sorted.length === 0 && !showNewTask && (
-        <EmptyState
-          icon={<Inbox size={40} />}
-          title="此时间段暂无任务"
-          description="点击右上角新建任务按钮添加"
-        />
-      )}
+        {sorted.length === 0 && !showNewTask && (
+          <EmptyState
+            icon={<Inbox size={40} />}
+            title="此时间段暂无任务"
+            description="点击右上角新建任务按钮添加"
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -42,8 +42,8 @@ export function MyDayPage() {
   if (isError) return <EmptyState icon={<AlertTriangle size={40} />} title="加载失败" description="请检查数据库连接后重试" />;
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 flex items-center gap-3 mb-4">
         <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
           <Sun size={18} className="text-amber-500" />
         </div>
@@ -58,16 +58,18 @@ export function MyDayPage() {
       </div>
 
       {showNewTask && (
-        <div className="mb-[6px]">
+        <div className="shrink-0 mb-[6px]">
           <TaskQuickAdd defaultDueDate={today} defaultMyDay={today} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />
         </div>
       )}
 
-      <TaskList tasks={filtered} />
-      {sorted.length === 0 && !showNewTask && (
-        <EmptyState icon={<Sun size={40} />} title="今天没有任务"
-          description='右键任务选择"加入我的一天"，或点击上方新建任务' />
-      )}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <TaskList tasks={filtered} />
+        {sorted.length === 0 && !showNewTask && (
+          <EmptyState icon={<Sun size={40} />} title="今天没有任务"
+            description='右键任务选择"加入我的一天"，或点击上方新建任务' />
+        )}
+      </div>
     </div>
   );
 }

@@ -1,13 +1,14 @@
 import { useState, useRef } from 'react';
-import { ArrowUpDown, Plus, CheckSquare } from 'lucide-react';
+import { ArrowUpDown, Plus, CheckSquare, ListCollapse, ListTree } from 'lucide-react';
 import { Portal } from './Portal';
+import { useUIStore } from '../../stores/uiStore';
 
 export type SortMode = 'manual' | 'date-asc' | 'date-desc' | 'priority' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc';
 
 const sortOptions: { value: SortMode; label: string }[] = [
   { value: 'manual', label: '手动排序' },
-  { value: 'date-desc', label: '截止日期 (近→远)' },
-  { value: 'date-asc', label: '截止日期 (远→近)' },
+  { value: 'date-asc', label: '截止日期 (近→远)' },
+  { value: 'date-desc', label: '截止日期 (远→近)' },
   { value: 'priority', label: '优先级 (高→低)' },
   { value: 'alpha-asc', label: '字母 (A→Z)' },
   { value: 'alpha-desc', label: '字母 (Z→A)' },
@@ -47,6 +48,8 @@ export function PageTitle({
   const [sortOpen, setSortOpen] = useState(false);
   const sortBtnRef = useRef<HTMLButtonElement>(null);
   const showCompletion = completedCount !== undefined && taskCount > 0;
+  const globalSubtasksExpanded = useUIStore((s) => s.globalSubtasksExpanded);
+  const toggleGlobalSubtasksExpanded = useUIStore((s) => s.toggleGlobalSubtasksExpanded);
 
   const filterBtn = (mode: FilterMode, label: string) => {
     const isActive = (filterMode || 'all') === mode;
@@ -81,6 +84,16 @@ export function PageTitle({
       )}
 
       <div className="flex-1" />
+
+      {/* Expand/collapse all subtasks */}
+      {taskCount > 0 && (
+        <button onClick={toggleGlobalSubtasksExpanded}
+          className="h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md bg-white dark:bg-[#1e1e32] border border-[#E5E7EB] dark:border-white/[0.07] text-[12px] font-medium text-[#374151] dark:text-white/80 hover:bg-[#F9FAFB] dark:hover:bg-white/[0.06] transition-colors"
+          title={globalSubtasksExpanded ? '折叠全部子任务' : '展开全部子任务'}>
+          {globalSubtasksExpanded ? <ListCollapse size={13} className="text-[#6B7280]" /> : <ListTree size={13} className="text-[#6B7280]" />}
+          子任务
+        </button>
+      )}
 
       {/* Multi-select toggle */}
       {onToggleSelection && (

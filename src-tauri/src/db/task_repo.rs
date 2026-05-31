@@ -90,8 +90,8 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
         max + 1
     } else {
         conn.execute(
-            "UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS NULL AND tag_id IS ?1",
-            rusqlite::params![req.tag_id],
+            "UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS NULL",
+            rusqlite::params![],
         )?;
         0
     };

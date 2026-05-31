@@ -1,4 +1,4 @@
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::db::task_repo;
 use crate::error::AppError;
@@ -9,6 +9,7 @@ use crate::AppState;
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn create_task(
+    app: AppHandle,
     state: State<AppState>,
     title: String,
     description: Option<String>,
@@ -21,7 +22,7 @@ pub fn create_task(
     my_day_date: Option<String>,
 ) -> Result<Task, AppError> {
     let conn = state.db()?;
-    task_repo::create(
+    let task = task_repo::create(
         &conn,
         CreateTaskRequest {
             title,
@@ -34,7 +35,9 @@ pub fn create_task(
             recurrence,
             my_day_date,
         },
-    )
+    )?;
+    let _ = app.emit("task-changed", ());
+    Ok(task)
 }
 
 #[tauri::command]
@@ -46,6 +49,7 @@ pub fn get_task(state: State<AppState>, id: String) -> Result<TaskDetail, AppErr
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn update_task(
+    app: AppHandle,
     state: State<AppState>,
     id: String,
     title: Option<String>,
@@ -60,7 +64,7 @@ pub fn update_task(
     my_day_date: Option<Option<String>>,
 ) -> Result<Task, AppError> {
     let conn = state.db()?;
-    task_repo::update(
+    let task = task_repo::update(
         &conn,
         &id,
         UpdateTaskRequest {
@@ -75,13 +79,17 @@ pub fn update_task(
             recurrence,
             my_day_date,
         },
-    )
+    )?;
+    let _ = app.emit("task-changed", ());
+    Ok(task)
 }
 
 #[tauri::command]
-pub fn delete_task(state: State<AppState>, id: String) -> Result<(), AppError> {
+pub fn delete_task(app: AppHandle, state: State<AppState>, id: String) -> Result<(), AppError> {
     let conn = state.db()?;
-    task_repo::delete(&conn, &id)
+    task_repo::delete(&conn, &id)?;
+    let _ = app.emit("task-changed", ());
+    Ok(())
 }
 
 #[tauri::command]
@@ -126,16 +134,18 @@ pub fn get_today_task_count(state: State<AppState>) -> Result<i64, AppError> {
 }
 
 #[tauri::command]
-pub fn duplicate_task(state: State<AppState>, id: String) -> Result<Task, AppError> {
+pub fn duplicate_task(app: AppHandle, state: State<AppState>, id: String) -> Result<Task, AppError> {
     let conn = state.db()?;
-    task_repo::duplicate(&conn, &id)
+    let task = task_repo::duplicate(&conn, &id)?;
+    let _ = app.emit("task-changed", ());
+    Ok(task)
 }
 
 #[tauri::command]
-pub fn add_task_to_my_day(state: State<AppState>, id: String) -> Result<Task, AppError> {
+pub fn add_task_to_my_day(app: AppHandle, state: State<AppState>, id: String) -> Result<Task, AppError> {
     let conn = state.db()?;
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    task_repo::update(
+    let task = task_repo::update(
         &conn,
         &id,
         UpdateTaskRequest {
@@ -150,13 +160,15 @@ pub fn add_task_to_my_day(state: State<AppState>, id: String) -> Result<Task, Ap
             recurrence: None,
             my_day_date: Some(Some(today)),
         },
-    )
+    )?;
+    let _ = app.emit("task-changed", ());
+    Ok(task)
 }
 
 #[tauri::command]
-pub fn remove_task_from_my_day(state: State<AppState>, id: String) -> Result<Task, AppError> {
+pub fn remove_task_from_my_day(app: AppHandle, state: State<AppState>, id: String) -> Result<Task, AppError> {
     let conn = state.db()?;
-    task_repo::update(
+    let task = task_repo::update(
         &conn,
         &id,
         UpdateTaskRequest {
@@ -171,5 +183,7 @@ pub fn remove_task_from_my_day(state: State<AppState>, id: String) -> Result<Tas
             recurrence: None,
             my_day_date: Some(None),
         },
-    )
+    )?;
+    let _ = app.emit("task-changed", ());
+    Ok(task)
 }

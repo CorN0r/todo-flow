@@ -3,7 +3,7 @@ import {
   Sun, Plus, PanelLeftClose, PanelLeft,
   Settings, Pencil, Trash2,
   CalendarRange, BarChart3, LayoutGrid, Layout, Target,
-  ChevronDown, ChevronRight, CalendarCheck, Sunrise, CalendarDays, Globe,
+  ChevronDown, ChevronRight, CalendarCheck, CalendarDays, Globe,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { useTags, useCreateTag, useUpdateTag, useDeleteTag } from '../../hooks/useTags';
@@ -77,11 +77,11 @@ function SortableTagItem({ tag, onEdit, onDelete }: {
         >
           <button onClick={(e) => { e.stopPropagation(); setCtxMenu(null); onEdit(); }}
             className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#C4C4CC] hover:bg-white/10">
-            <Pencil size={13} /> Rename
+            <Pencil size={13} /> 重命名
           </button>
           <button onClick={(e) => { e.stopPropagation(); setCtxMenu(null); onDelete(); }}
             className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-[13px] text-red-400 hover:bg-white/10">
-            <Trash2 size={13} /> Delete
+            <Trash2 size={13} /> 删除
           </button>
         </div>
       )}
@@ -246,7 +246,6 @@ export function Sidebar() {
         <div className="flex flex-col gap-[2px]" style={{ padding: '0px 12px' }}>
           {[
             { to: '/', end: true, label: '今天', icon: <CalendarCheck size={14} /> },
-            { to: '/date/tomorrow', label: '明天', icon: <Sunrise size={14} /> },
             { to: '/date/next-3', label: '未来 3 天', icon: <CalendarRange size={14} /> },
             { to: '/date/next-7', label: '未来 7 天', icon: <CalendarDays size={14} /> },
             { to: '/date/next-year', label: '今年', icon: <Globe size={14} /> },
@@ -275,7 +274,7 @@ export function Sidebar() {
             <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreateTag(); if (e.key === 'Escape') setIsCreating(false); }}
               onBlur={() => { if (!newName.trim()) setIsCreating(false); }}
-              placeholder="Tag name..." className="w-full text-[13px] px-2 py-1 rounded border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.04] text-[#111827] dark:text-white outline-none focus:ring-1 focus:ring-[#7C72F6] placeholder:text-[#9CA3AF]" />
+              placeholder="标签名称..." className="w-full text-[13px] px-2 py-1 rounded border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.04] text-[#111827] dark:text-white outline-none focus:ring-1 focus:ring-[#7C72F6] placeholder:text-[#9CA3AF]" />
           )}
           {tags?.map((tag) => (
             <TagTreeItem

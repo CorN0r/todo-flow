@@ -44,8 +44,8 @@ export function TodayPage() {
   if (isError) return <EmptyState icon={<AlertTriangle size={40} />} title="加载失败" description="请检查数据库连接后重试" />;
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 flex items-center gap-3 mb-4">
         <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
           <Sun size={18} className="text-emerald-500" />
         </div>
@@ -59,15 +59,17 @@ export function TodayPage() {
       </div>
 
       {showNewTask && (
-        <div className="mb-[6px]">
+        <div className="shrink-0 mb-[6px]">
           <TaskQuickAdd defaultDueDate={today} onCreated={() => setShowNewTask(false)} onCancel={() => setShowNewTask(false)} />
         </div>
       )}
 
-      <TaskList tasks={filtered} />
-      {sorted.length === 0 && !showNewTask && (
-        <EmptyState icon={<CalendarCheck size={40} />} title="今天没有到期任务" description="点击右上角「新建任务」开始添加" />
-      )}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <TaskList tasks={filtered} />
+        {sorted.length === 0 && !showNewTask && (
+          <EmptyState icon={<CalendarCheck size={40} />} title="今天没有到期任务" description="点击右上角「新建任务」开始添加" />
+        )}
+      </div>
     </div>
   );
 }

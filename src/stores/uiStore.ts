@@ -26,6 +26,9 @@ interface UIState {
   sortMode: SortMode;
   setSortMode: (mode: SortMode) => void;
 
+  globalSubtasksExpanded: boolean;
+  toggleGlobalSubtasksExpanded: () => void;
+
   selectionMode: boolean;
   selectedTaskIds: Set<string>;
   selectableIds: string[];
@@ -67,6 +70,9 @@ export const useUIStore = create<UIState>((set) => ({
 
   sortMode: 'manual',
   setSortMode: (sortMode) => set({ sortMode }),
+
+  globalSubtasksExpanded: false,
+  toggleGlobalSubtasksExpanded: () => set((s) => ({ globalSubtasksExpanded: !s.globalSubtasksExpanded })),
 
   selectionMode: false,
   selectedTaskIds: new Set<string>(),

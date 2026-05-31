@@ -119,7 +119,12 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
   const { data: tags } = useTags();
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [subtaskExpanded, setSubtaskExpanded] = useState(true);
+  const [subtaskExpanded, setSubtaskExpanded] = useState(false);
+  const globalSubtasksExpanded = useUIStore((s) => s.globalSubtasksExpanded);
+
+  useEffect(() => {
+    setSubtaskExpanded(globalSubtasksExpanded);
+  }, [globalSubtasksExpanded]);
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
@@ -319,8 +324,8 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
         <Portal>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
           <div ref={menuRef} style={{ left: contextMenu.x, top: contextMenu.y }}
-            className="fixed z-[200] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1 min-w-[180px]">
-            <div className="px-3 py-1.5 text-xs text-[#6B7280] border-b border-[#F3F4F6] dark:border-white/[0.07] mb-1 truncate">{task.title}</div>
+            className="fixed z-[200] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1 w-[180px]">
+            <div className="px-3 py-1.5 text-xs text-[#6B7280] border-b border-[#F3F4F6] dark:border-white/[0.07] mb-1 truncate" title={task.title}>{task.title}</div>
             <button onClick={handleToggleComplete}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               {task.is_completed ? <><RotateCcw size={15} className="text-[#6B7280]" /> 标记未完成</> : <><Check size={15} className="text-[#7C72F6]" /> 标记完成</>}

@@ -108,7 +108,7 @@ export function SearchBar() {
             <div className="max-h-[300px] overflow-y-auto p-1">
               {results.length === 0 && query.length >= 2 && (
                 <p className="text-sm text-[#9CA3AF] text-center py-10">
-                  No tasks found for "{query}"
+                  未找到 "{query}" 相关任务
                 </p>
               )}
               {results.length > 0 && (
