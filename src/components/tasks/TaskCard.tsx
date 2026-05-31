@@ -3,11 +3,10 @@ import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import type { Task } from '../../types/task';
 import { formatDate, isOverdue } from '../../lib/date';
-import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, Timer, X } from 'lucide-react';
+import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X } from 'lucide-react';
 import { useUpdateTask, useDeleteTask, useDuplicateTask, useCreateTask, useReorderTasks } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { useUIStore } from '../../stores/uiStore';
-import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { todayISO } from '../../lib/date';
 import { priorityColors, priorityLabels, hexToRgba } from '../../lib/priority';
 import { Portal } from '../shared/Portal';
@@ -17,8 +16,8 @@ import {
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function SortableSubtaskRow({ child, task, onToggle, onDelete }: {
-  child: Task; task: Task; onToggle: () => void; onDelete: () => void;
+function SortableSubtaskRow({ child, onToggle, onDelete }: {
+  child: Task; onToggle: () => void; onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -288,7 +287,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
               <DndContext sensors={subtaskSensors} collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd}>
                 <SortableContext items={children.map((c) => c.id)} strategy={verticalListSortingStrategy}>
                   {children.map((child) => (
-                    <SortableSubtaskRow key={child.id} child={child} task={task}
+                    <SortableSubtaskRow key={child.id} child={child}
                       onToggle={() => updateTask.mutate({ id: child.id, is_completed: !child.is_completed })}
                       onDelete={() => deleteTask.mutate(child.id)} />
                   ))}

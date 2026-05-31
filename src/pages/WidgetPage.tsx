@@ -6,7 +6,7 @@ import { motion } from 'motion/react';
 import { getTasks, createTask, updateTask, getSetting, setSetting, showMainFromWidget } from '../lib/db';
 import { todayISO, isOverdue, subDays } from '../lib/date';
 import { cn } from '../lib/cn';
-import { ListChecks, X, Check, Plus, AlertTriangle, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
+import { ListChecks, X, Check, Plus, AlertTriangle, ExternalLink } from 'lucide-react';
 
 type TabKey = 'today' | 'myday' | 'overdue';
 

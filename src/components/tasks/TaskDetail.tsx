@@ -5,7 +5,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { isOverdue, todayISO } from '../../lib/date';
 import { cn } from '../../lib/cn';
 import type { UpdateTaskInput } from '../../types/task';
-import { Trash2, Calendar, Copy, Repeat, Tag, Flag, ChevronDown, Sun, SunDim, Check, Bell, BellOff } from 'lucide-react';
+import { Trash2, Calendar, Copy, Repeat, Tag, Flag, ChevronDown, Sun, SunDim, Bell, BellOff } from 'lucide-react';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
 import { ReminderPicker } from '../shared/ReminderPicker';

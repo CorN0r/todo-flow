@@ -1,24 +1,12 @@
-﻿import { useState, useEffect } from 'react';
-import { Download, Database, PanelBottom } from 'lucide-react';
+﻿import { useState } from 'react';
+import { Download, Database } from 'lucide-react';
 import { toast } from 'sonner';
-import { getTasks, backupDatabase, getSetting, setSetting } from '../lib/db';
+import { getTasks, backupDatabase } from '../lib/db';
 import { save } from '@tauri-apps/plugin-dialog';
 
 export function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
-  const [widgetEnabled, setWidgetEnabled] = useState(true);
-
-  useEffect(() => {
-    getSetting('widget_enabled').then((v) => {
-      setWidgetEnabled(v !== '0');
-    }).catch(() => {});
-  }, []);
-
-  const toggleWidget = (enabled: boolean) => {
-    setWidgetEnabled(enabled);
-    setSetting('widget_enabled', enabled ? '1' : '0');
-  };
 
   const handleBackup = async () => {
     const path = await save({

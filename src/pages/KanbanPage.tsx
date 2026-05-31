@@ -199,8 +199,6 @@ export function KanbanPage() {
   const setSortMode = useUIStore((s) => s.setSortMode);
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
-  const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
-
   const [groupBy, setGroupBy] = useState<GroupBy>('priority');
   const [sortOpen, setSortOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<Task | null>(null);

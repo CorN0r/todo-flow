@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Minus, Square, Copy, X, Sun, Moon, Monitor, Sparkles, PanelBottom } from 'lucide-react';
+import { Minus, Square, Copy, X, Sun, Moon, Monitor, Sparkles } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useTheme } from '../../hooks/useTheme';
 import { useUIStore } from '../../stores/uiStore';
 import { SearchBar } from '../shared/SearchBar';
-import { hideToTray } from '../../lib/db';
 
 const themes: { key: 'light' | 'dark' | 'system' | 'glass'; icon: typeof Sun; label: string }[] = [
   { key: 'light', icon: Sun, label: 'Light' },
