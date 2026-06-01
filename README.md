@@ -1,73 +1,141 @@
-# React + TypeScript + Vite
+# TodoFlow v0.2.0
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Windows 桌面待办事项管理应用，基于 Tauri v2 + React 19 构建。
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 系统要求
 
-## React Compiler
+- Windows 10 / 11 64 位
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 安装
 
-## Expanding the ESLint configuration
+运行安装包：
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `TodoFlow_0.2.0_x64-setup.exe`（NSIS）
+- `TodoFlow_0.2.0_x64_zh-CN.msi`（MSI）
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+安装后通过桌面快捷方式或开始菜单启动。
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 核心功能
+
+| 模块 | 说明 |
+|------|------|
+| 任务管理 | 创建 / 编辑 / 删除任务，设置优先级、截止日期、提醒、标签 |
+| 子任务 | 支持两级嵌套，拖拽排序 |
+| 日历视图 | 月 / 周 / 日三种视图 |
+| 标签系统 | 多级标签嵌套，颜色标记，右键重命名 / 删除 |
+| 我的一天 | 聚焦今日重点任务，右键任务可快速加入 |
+| 四象限 | Eisenhower Matrix 优先级矩阵 |
+| 看板 | 按标签分列的看板视图 |
+| 习惯追踪 | 每日打卡，可视化进度 |
+| 数据看板 | 任务统计概览 |
+| 全局搜索 | 搜索所有任务 |
+| 命令面板 | `?` 键打开，键盘导航 |
+
+---
+
+## 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+Shift+T` | 全局热键：显示主窗口 + 快速新建任务 |
+| `Ctrl+K` | 聚焦搜索栏 |
+| `Ctrl+B` | 折叠 / 展开侧边栏 |
+| `N` | 快速新建任务 |
+| `1` | 导航到"今天"页面 |
+| `2` | 导航到"日历"页面 |
+| `3` | 导航到"设置"页面 |
+| `Esc` | 关闭详情面板 / 弹窗 |
+| `?` | 显示快捷键帮助 |
+
+---
+
+## 系统托盘
+
+| 操作 | 行为 |
+|------|------|
+| 左键点击托盘图标 | 打开主界面 |
+| 右键托盘图标 | 弹出菜单：打开主界面 / 设置 / 退出 |
+| 关闭主窗口 | 隐藏到托盘，程序不退出 |
+
+---
+
+## 主题
+
+支持四种主题，点击标题栏最左侧按钮循环切换：
+
+- **浅色** — 明亮白底
+- **暗色** — 深色护眼
+- **跟随系统** — 自动匹配 Windows 主题
+- **玻璃** — 毛玻璃半透明效果
+
+---
+
+## 排序方式
+
+| 选项 | 说明 |
+|------|------|
+| 手动排序 | 默认模式，可拖拽任务调整顺序 |
+| 截止日期 (近→远) | 最近到期的排最前，无日期排末尾 |
+| 截止日期 (远→近) | 最远到期的排最前，无日期排末尾 |
+| 优先级 (高→低) | 红旗优先 |
+| 字母 (A→Z) | 按标题字母升序 |
+| 字母 (Z→A) | 按标题字母降序 |
+| 创建时间 (新→旧) | 最新创建排最前 |
+| 创建时间 (旧→新) | 最早创建排最前 |
+
+---
+
+## 任务操作
+
+- **快速添加**：页面右上角点击「新建任务」
+- **勾选完成**：点击任务左侧圆形复选框
+- **右键任务**：标记完成 / 未完成、加入我的一天、添加子任务、复制、删除
+- **拖拽排序**：手动排序模式下拖拽任务调整顺序
+- **多选模式**：点击「多选」按钮进入批量操作模式
+
+---
+
+## 数据管理
+
+- **存储位置**：`%APPDATA%/com.todoflow.desktop/todo.db`（SQLite 本地数据库）
+- **备份**：设置页 → 备份数据库，保存为 `.db` 文件
+- **导出**：设置页 → 导出任务为 CSV，可用 Excel 打开
+
+---
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 桌面框架 | Tauri v2 |
+| 前端 | React 19 + TypeScript |
+| 样式 | Tailwind CSS v4 |
+| 状态管理 | TanStack Query v5 + Zustand v5 |
+| 数据库 | SQLite（rusqlite，WAL 模式） |
+| 路由 | react-router-dom v7 |
+| 拖拽 | @dnd-kit |
+| 图标 | lucide-react |
+
+---
+
+## 开发
+
+```bash
+npm install          # 安装依赖
+npm run tauri dev    # 启动开发模式
+npm run tauri build  # 构建发布版本
+npm test             # 运行测试
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 版本历史
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+| 版本 | 日期 | 更新内容 |
+|------|------|----------|
+| v0.2.0 | 2026-06-01 | 托盘菜单、排序修复、悬浮窗重构、UI 优化 |
+| v0.1.0 | 2026-05-24 | 初始版本 |

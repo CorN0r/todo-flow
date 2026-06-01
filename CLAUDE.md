@@ -119,6 +119,24 @@ Four themes: `light`, `dark`, `system`, `glass`. CSS custom properties in `index
 ### Date Handling
 All date functions re-exported from `src/lib/date.ts` (wraps date-fns). Use `todayISO()` for comparisons, `isOverdue()` for overdue checks, `formatDate()` for display. Chinese holidays in `src/lib/holidays.ts`.
 
+### Portal Dropdown Positioning
+Use `useLayoutEffect` (not `onClick`) to calculate dropdown position after browser layout. Add `window.addEventListener('scroll', calc, true)` and `window.addEventListener('resize', calc)` to keep dropdown tracking trigger button. If trigger scrolls off-screen, close the dropdown.
+
+### Page Layout (Fixed Header + Scrollable List)
+Task pages use this structure to keep title bar fixed:
+```tsx
+<div className="flex flex-col h-full">
+  <div className="shrink-0">...header...</div>
+  <div className="flex-1 min-h-0 overflow-y-auto">
+    <TaskList tasks={...} />
+  </div>
+</div>
+```
+The parent `<main>` container must NOT have `overflow-y-auto` — each page handles its own scrolling.
+
+### Widget Window Positioning
+When using `WebviewUrl::App(path)`, the path is appended to the dev URL. For the widget window, use `"/?widget=1"` and detect in App.tsx with `new URLSearchParams(window.location.search).has('widget')`. Do NOT rely on path-based routing for widget detection — MemoryRouter ignores the URL path.
+
 ---
 
 ## Design Tokens
@@ -148,3 +166,54 @@ All date functions re-exported from `src/lib/date.ts` (wraps date-fns). Use `tod
 - **Edit existing files** rather than creating new ones.
 - **All UI text in Chinese** (简体中文). Technical identifiers in English.
 - Use `cn()` from `src/lib/cn.ts` for conditional Tailwind classes.
+- **Theme adaptation**: Use explicit hex colors + `isDark` JS variable rather than Tailwind `dark:` variant. The widget window is a separate webview with its own JS context; CSS classes on `<html>` may not sync. Prefer `cn()` with `isDark ? 'dark-class' : 'light-class'`.
+
+---
+
+## Widget / Floating Window
+
+The widget is a separate Tauri `WebviewWindow` (label `"widget"`, URL `/?widget=1`). Key points:
+
+- **URL routing**: Since `MemoryRouter` ignores browser URLs, App.tsx detects the widget window via `window.location.search` (`?widget=1`) to set `initialEntries` to `/widget`.
+- **Event sync**: Rust emits `task-changed` event to all windows on CRUD. Both main and widget listen for this and call `queryClient.invalidateQueries({ queryKey: ['tasks'] })`.
+- **Theme in widget**: Use local `useState` + `getSetting('theme')` directly; do NOT rely on Zustand store cross-window sync.
+- **Window transparency**: Widget uses `transparent(true)` — must set `document.body.style.backgroundColor = 'transparent'` in a mount effect.
+- **Compact bubble**: Uses `startDragging()` (not `data-tauri-drag-region`) to allow simultaneous hover/click/drag on a single element.
+
+---
+
+## System Tray
+
+- `TrayIconBuilder::with_id("todoflow-tray")` — always use `.show_menu_on_left_click(false)` on Windows.
+- Left-click: match `TrayIconEvent::Click { button: MouseButton::Left, .. }` and call `window.unminimize()` before `show()`.
+- Right-click: handled by `.menu(&tray_menu)`, no event handler needed.
+- Close button (`X`) → `api.prevent_close()` + `window.hide()`; tray "退出" → `app.exit(0)`.
+
+---
+
+## Task Change Events
+
+All mutating commands in `task_commands.rs` take `app: AppHandle` and call `app.emit("task-changed", ())` after success. Frontend `listen('task-changed', ...)` invalidates `['tasks']` query key for real-time cross-window sync. No polling needed.
+
+---
+
+## Global Shortcuts
+
+- `Ctrl+Shift+T`: show main window + quick-add task
+- `Ctrl+Shift+W`: toggle widget visibility
+- Registration: `app.handle().global_shortcut().register(Shortcut::new(...))` in setup.
+- Handler: compare `*shortcut == ctrl_shift_t` to dispatch different actions.
+
+---
+
+## SQLite NULL Handling
+
+`params![]` with `WHERE col = ?1` and `None` (NULL) will NOT match in SQLite. Use `IS NOT DISTINCT FROM ?1` for NULL-safe comparison, or use `params![]` with no params for `IS NULL`.
+
+---
+
+## Sort Order Rules
+
+- **New parent task**: `UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS NULL` (all top-level tasks shift down), then insert with `sort_order = 0`.
+- **New subtask**: `SELECT COALESCE(MAX(sort_order), -1) + 1` within its parent.
+- **Date sort null handling**: Use explicit null checks in comparator — `if (!a.due_date) return 1` — rather than placeholder strings like `'9999'` to avoid localeCompare edge cases.

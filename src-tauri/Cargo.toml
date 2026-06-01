@@ -1,7 +1,12 @@
 [package]
 name = "todo-flow"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "A modern Windows desktop TODO app with calendar views, subtasks, tags, habit tracking, and image attachments"
+authors = ["TodoFlow"]
+license = "MIT"
+repository = "https://gitcode.com/CorN0r/todo-flow"
+homepage = "https://gitcode.com/CorN0r/todo-flow"
 
 [profile.release]
 strip = "symbols"
