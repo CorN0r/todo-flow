@@ -175,7 +175,7 @@ When using `WebviewUrl::App(path)`, the path is appended to the dev URL. For the
 The widget is a separate Tauri `WebviewWindow` (label `"widget"`, URL `/?widget=1`). Key points:
 
 - **URL routing**: Since `MemoryRouter` ignores browser URLs, App.tsx detects the widget window via `window.location.search` (`?widget=1`) to set `initialEntries` to `/widget`.
-- **Event sync**: Rust emits `task-changed` event to all windows on CRUD. Both main and widget listen for this and call `queryClient.invalidateQueries({ queryKey: ['tasks'] })`.
+- **Event sync**: Rust emits `task-changed` event to all windows on CRUD. Both main and widget listen for this and call `queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' })`.
 - **Theme in widget**: Use local `useState` + `getSetting('theme')` directly; do NOT rely on Zustand store cross-window sync.
 - **Window transparency**: Widget uses `transparent(true)` — must set `document.body.style.backgroundColor = 'transparent'` in a mount effect.
 - **Compact bubble**: Uses `startDragging()` (not `data-tauri-drag-region`) to allow simultaneous hover/click/drag on a single element.
@@ -193,7 +193,7 @@ The widget is a separate Tauri `WebviewWindow` (label `"widget"`, URL `/?widget=
 
 ## Task Change Events
 
-All mutating commands in `task_commands.rs` take `app: AppHandle` and call `app.emit("task-changed", ())` after success. Frontend `listen('task-changed', ...)` invalidates `['tasks']` query key for real-time cross-window sync. No polling needed.
+All mutating commands in `task_commands.rs` take `app: AppHandle` and call `app.emit("task-changed", ())` after success. Frontend `listen('task-changed', ...)` invalidates all task queries via predicate matching for real-time cross-window sync. No polling needed.
 
 ---
 
@@ -217,3 +217,58 @@ All mutating commands in `task_commands.rs` take `app: AppHandle` and call `app.
 - **New parent task**: `UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS NULL` (all top-level tasks shift down), then insert with `sort_order = 0`.
 - **New subtask**: `SELECT COALESCE(MAX(sort_order), -1) + 1` within its parent.
 - **Date sort null handling**: Use explicit null checks in comparator — `if (!a.due_date) return 1` — rather than placeholder strings like `'9999'` to avoid localeCompare edge cases.
+
+---
+
+## TanStack Query Invalidation
+
+Use `predicate` instead of `queryKey` for cross-page reliability:
+
+```tsx
+queryClient.invalidateQueries({
+  predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks'
+});
+```
+
+This matches ALL task queries regardless of their filter parameters. `queryKey: ['tasks']` prefix matching sometimes fails with dynamic filter objects.
+
+---
+
+## Delete Flow & Undo
+
+- **Before deleting**: call `setSelectedTaskId(null)` synchronously, NOT in `onSuccess` callback. This disables `useTask` before the mutation fires, preventing "Not found" errors.
+- **Auto-save guard**: TaskDetail's debounced auto-save cleanup must check `useUIStore.getState().selectedTaskId` before calling `doSave(local)` — otherwise it may save to a deleted task.
+- **Undo toast**: use `toast.success(() => <jsx>, { duration: 8000 })` with an inline `<button>` for undo. Use `toast.dismiss()` after undo to clear the toast.
+- `useDeleteTask.onSuccess` should NOT invalidate `['task', id]` — this triggers a refetch of the deleted task and causes a Rust "Not found" error.
+
+---
+
+## Widget Context Menu (Native Popup)
+
+Compact bubble uses a Rust native popup menu via `widget.popup_menu(&menu)`. Register the handler on `app.on_menu_event()`, not on the `Menu` struct. Use `MenuItemBuilder::with_id(...)` and match `event.id().as_ref()` in the handler.
+
+---
+
+## MyDay Page Enhancements
+
+- **Daily quote**: `dailyQuote()` function uses date arithmetic modulo a `QUOTES` array.
+- **Yesterday's unfinished**: `useTasks({ my_day_date: yesterday, is_completed: false })`, filtered against current MyDay IDs.
+- **Smart suggestions**: `useTasks({ is_completed: false, due_date_to: today, include_children: false })` filtered by `priority > 0` and not already in MyDay.
+- Each section has "收起"/"展开" toggle with a collapsed summary bar.
+
+---
+
+## New Task Default Due Date
+
+All top-level task creation paths default `due_date` to `todayISO()`:
+- `TaskQuickAdd`: `useState(defaultDueDate || (parentTaskId ? '' : todayISO()))`
+- Keyboard shortcuts `N`/`Ctrl+Shift+T` and Command Palette `?` → include `due_date: todayISO()`
+- Subtasks: no default date (remain `parentTaskId ? '' : todayISO()`)
+
+---
+
+## VirtualTaskList
+
+- Use `measureElement: (el) => el.getBoundingClientRect().height` for dynamic item height.
+- Container uses `className="h-full overflow-y-auto"` — rely on flex parent for height, never hardcode `calc(100vh - Xpx)`.
+- Default `estimateSize = 66` (task card ~60px + 6px gap).

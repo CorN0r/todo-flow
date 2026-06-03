@@ -8,7 +8,7 @@ interface VirtualTaskListProps {
   estimateSize?: number;
 }
 
-export function VirtualTaskList({ tasks, estimateSize = 82 }: VirtualTaskListProps) {
+export function VirtualTaskList({ tasks, estimateSize = 66 }: VirtualTaskListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -16,27 +16,29 @@ export function VirtualTaskList({ tasks, estimateSize = 82 }: VirtualTaskListPro
     count: tasks.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimateSize,
+    measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 5,
   });
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto" style={{ height: 'calc(100vh - 200px)' }}>
+    <div ref={parentRef} className="h-full overflow-y-auto">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const task = tasks[virtualItem.index];
           return (
             <div
               key={task.id}
+              ref={virtualizer.measureElement}
+              data-index={virtualItem.index}
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
                 transform: `translateY(${virtualItem.start}px)`,
-                paddingBottom: '6px',
               }}
             >
-              <TaskCard task={task} />
+              <div className="pb-[6px]"><TaskCard task={task} /></div>
             </div>
           );
         })}

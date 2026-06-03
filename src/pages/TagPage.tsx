@@ -40,7 +40,7 @@ export function TagPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 flex items-center gap-3 mb-4">
+      <div className="shrink-0 flex items-center gap-3 mb-2">
         {tag ? (
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: tag.color + '20' }}>
             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />

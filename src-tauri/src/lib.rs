@@ -296,6 +296,7 @@ pub fn run() {
             commands::settings_commands::backup_database,
             commands::widget_commands::hide_to_tray,
             commands::widget_commands::show_main_from_widget,
+            commands::widget_commands::show_widget_context_menu,
             commands::stats_commands::get_dashboard_stats,
             commands::habit_commands::create_habit,
             commands::habit_commands::get_habits,

@@ -39,7 +39,7 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (input: CreateTaskInput) => createTask(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TASKS_KEY });
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
       toast.success('任务已创建');
     },
     onError: (err: string) => toast.error(err),
@@ -51,8 +51,8 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: (input: UpdateTaskInput) => updateTask(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-      queryClient.invalidateQueries({ queryKey: ['task'] });
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'task' });
     },
     onError: (err: string) => toast.error(err),
   });
@@ -62,9 +62,8 @@ export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteTask(id),
-    onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-      queryClient.invalidateQueries({ queryKey: ['task', id] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
     },
     onError: (err: string) => toast.error(err),
   });
@@ -74,7 +73,7 @@ export function useReorderTasks() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (items: ReorderItem[]) => reorderTasks(items),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSuccess: () => queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' }),
   });
 }
 
@@ -83,8 +82,8 @@ export function useDuplicateTask() {
   return useMutation({
     mutationFn: (id: string) => duplicateTask(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-      toast.success('Task duplicated');
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
+      toast.success('任务已复制');
     },
     onError: (err: string) => toast.error(err),
   });

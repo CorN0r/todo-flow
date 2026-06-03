@@ -107,6 +107,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
   const duplicateTask = useDuplicateTask();
   const createTask = useCreateTask();
   const reorderTasks = useReorderTasks();
+  const selectedTaskId = useUIStore((s) => s.selectedTaskId);
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
   const selectionMode = useUIStore((s) => s.selectionMode);
   const selectedTaskIds = useUIStore((s) => s.selectedTaskIds);
@@ -344,7 +345,12 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
               <Copy size={15} className="text-[#6B7280]" /> 复制
             </button>
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] mt-1 pt-1">
-              <button onClick={() => { deleteTask.mutate(task.id); toast.success('任务已删除'); setContextMenu(null); }}
+              <button onClick={() => { const deleted = task; if (selectedTaskId === task.id) setSelectedTaskId(null); deleteTask.mutate(task.id); toast.success(
+                () => (
+                  <span>任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_id: deleted.tag_id || undefined, parent_task_id: deleted.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
+                ),
+                { duration: 8000 },
+              ); setContextMenu(null); }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 text-red-600 transition-colors">
                 <Trash2 size={15} /> 删除
               </button>

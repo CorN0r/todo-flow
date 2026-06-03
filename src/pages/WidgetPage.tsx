@@ -3,17 +3,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { motion } from 'motion/react';
-import { getTasks, createTask, updateTask, getSetting, setSetting, showMainFromWidget } from '../lib/db';
+import { getTasks, createTask, updateTask, getSetting, setSetting, showMainFromWidget, showWidgetContextMenu } from '../lib/db';
 import { todayISO, isOverdue, subDays } from '../lib/date';
 import { cn } from '../lib/cn';
 import { ListChecks, X, Check, Plus, AlertTriangle, ExternalLink } from 'lucide-react';
 
-type TabKey = 'today' | 'myday' | 'overdue';
+
+type TabKey = 'myday' | 'overdue' | 'today' | 'all';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'today', label: '今天' },
   { key: 'myday', label: '我的一天' },
   { key: 'overdue', label: '逾期' },
+  { key: 'today', label: '今天' },
+  { key: 'all', label: '全部任务' },
 ];
 
 export function WidgetPage() {
@@ -33,16 +35,16 @@ export function WidgetPage() {
   const createTaskMutation = useMutation({
     mutationFn: (input: { title: string; due_date?: string; my_day_date?: string }) =>
       createTask({ title: input.title, due_date: input.due_date, my_day_date: input.my_day_date }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tasks'] }); },
+    onSuccess: () => { queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' }); },
   });
   const updateTaskMutation = useMutation({
     mutationFn: (input: { id: string; is_completed: boolean }) =>
       updateTask({ id: input.id, is_completed: input.is_completed }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tasks'] }); },
+    onSuccess: () => { queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' }); },
   });
 
   const [activeTab, setActiveTab] = useState<TabKey>('today');
-  const [sizeMode, setSizeMode] = useState<'compact' | 'normal'>('normal');
+  const [sizeMode, setSizeMode] = useState<'compact' | 'normal'>('compact');
   const [inputValue, setInputValue] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,7 +52,9 @@ export function WidgetPage() {
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setContextMenu(null); };
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setContextMenu(null);
+    };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [contextMenu]);
@@ -60,6 +64,22 @@ export function WidgetPage() {
       if (s === 'compact' || s === 'normal') setSizeMode(s);
     }).catch(() => {});
   }, []);
+  useEffect(() => {
+    const w = sizeMode === 'compact' ? 60 : 300;
+    const h = sizeMode === 'compact' ? 60 : 420;
+    getCurrentWindow().setSize(new LogicalSize(w, h)).catch(() => {});
+  }, [sizeMode]);
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    const win = getCurrentWindow();
+    win.onFocusChanged(({ payload: focused }) => {
+      if (!focused && sizeMode === 'normal') {
+        setSizeMode('compact');
+        win.setSize(new LogicalSize(60, 60)).catch(() => {});
+      }
+    }).then((u) => { unlisten = u; }).catch(() => {});
+    return () => { unlisten?.(); };
+  }, [sizeMode]);
 
   const filters = useMemo(() => {
     switch (activeTab) {
@@ -67,8 +87,10 @@ export function WidgetPage() {
         return { my_day_date: today, is_completed: false };
       case 'overdue':
         return { is_completed: false, due_date_to: yesterday };
-      default:
+      case 'today':
         return { due_date_from: today, due_date_to: today, is_completed: false };
+      case 'all':
+        return { is_completed: false };
     }
   }, [activeTab, today, yesterday]);
 
@@ -83,7 +105,7 @@ export function WidgetPage() {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     listen('task-changed', () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
     }).then((u) => {
       if (cancelled) { u(); return; }
       unlisten = u;
@@ -172,7 +194,7 @@ export function WidgetPage() {
     if (!title) return;
     const extra: Record<string, string> = {};
     if (activeTab === 'today' || activeTab === 'overdue') extra.due_date = today;
-    if (activeTab === 'myday') extra.my_day_date = today;
+    else if (activeTab === 'myday') extra.my_day_date = today;
     createTaskMutation.mutate({ title, ...extra });
     setInputValue('');
     inputRef.current?.focus();
@@ -231,8 +253,7 @@ export function WidgetPage() {
             onContextMenu={async (e) => {
               e.preventDefault();
               if (sizeMode === 'compact') {
-                await toggleSize();
-                setTimeout(() => setContextMenu({ x: e.clientX + 100, y: e.clientY + 10 }), 100);
+                showWidgetContextMenu(e.clientX, e.clientY);
               } else {
                 setContextMenu({ x: e.clientX, y: e.clientY });
               }
@@ -280,7 +301,7 @@ export function WidgetPage() {
               ) : tasksList.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
                   <p className="text-[11px] text-[#9CA3AF]">
-                    {activeTab === 'today' ? '今天没有待办事项' : activeTab === 'myday' ? '今天还没有安排' : '没有逾期的任务 ✓'}
+                    {activeTab === 'myday' ? '今天还没有安排' : activeTab === 'overdue' ? '没有逾期的任务 ✓' : activeTab === 'today' ? '今天没有待办事项' : '没有待办任务 ✓'}
                   </p>
                 </div>
               ) : (
@@ -345,16 +366,16 @@ export function WidgetPage() {
             </div>
           </>
         )}
-        {contextMenu && (
+        {contextMenu && sizeMode !== 'compact' && (
           <div ref={menuRef}
-            className="absolute z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1 min-w-[150px]"
-            style={{ left: contextMenu.x, top: contextMenu.y }}>
+            className="absolute z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1"
+            style={{ left: contextMenu.x, top: contextMenu.y, minWidth: 150 }}>
             <button onClick={() => { showMainFromWidget(); setContextMenu(null); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-[#111827] dark:text-white/90">
               <ExternalLink size={12} className="text-[#6B7280]" /> 打开主界面
             </button>
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] my-0.5" />
-            <button onClick={() => { showMainFromWidget(); setSetting('widget_enabled', '0').catch(() => {}); setContextMenu(null); }}
+            <button onClick={() => { setSetting('widget_enabled', '0').catch(() => {}); setContextMenu(null); getCurrentWindow().hide().catch(() => {}); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 transition-colors">
               <X size={12} /> 不再显示悬浮窗
             </button>

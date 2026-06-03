@@ -135,6 +135,10 @@ export async function showMainFromWidget(): Promise<void> {
   return invoke('show_main_from_widget');
 }
 
+export async function showWidgetContextMenu(x: number, y: number): Promise<void> {
+  return invoke('show_widget_context_menu', { x, y });
+}
+
 // Habit commands
 import type { Habit, HabitWithStats, HabitLog, CreateHabitInput, UpdateHabitInput, ReorderHabitsItem } from '../types/habit';
 

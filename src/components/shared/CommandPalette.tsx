@@ -8,6 +8,7 @@ import {
 import { useUIStore } from '../../stores/uiStore';
 import { useCreateTask } from '../../hooks/useTasks';
 import { useTheme } from '../../hooks/useTheme';
+import { todayISO } from '../../lib/date';
 
 interface Command {
   id: string;
@@ -55,7 +56,7 @@ export function CommandPalette() {
     { id: 'dark', label: '深色主题', icon: <Moon size={16} />, action: () => setTheme('dark'), category: '视图' },
     { id: 'system-theme', label: '系统主题', icon: <Monitor size={16} />, action: () => setTheme('system'), category: '视图' },
     { id: 'glass', label: '玻璃主题', icon: <Sparkles size={16} />, action: () => setTheme('glass'), category: '视图' },
-    { id: 'new-task', label: '新建任务', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: '新建任务' }); setCommandPaletteOpen(false); }, category: '操作' },
+    { id: 'new-task', label: '新建任务', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: '新建任务', due_date: todayISO() }); setCommandPaletteOpen(false); }, category: '操作' },
   ], [navigate, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen]);
 
   const filtered = useMemo(() => {

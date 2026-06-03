@@ -7,7 +7,7 @@ import { useTags } from '../../hooks/useTags';
 import { DatePicker } from '../shared/DatePicker';
 import { priorityColors, priorityLabels, PRIORITY_HEX } from '../../lib/priority';
 import { parseTaskTitle, matchTagName } from '../../lib/nlp';
-import { formatDate } from '../../lib/date';
+import { formatDate, todayISO } from '../../lib/date';
 
 interface TaskQuickAddProps {
   tagId?: string;
@@ -21,7 +21,7 @@ interface TaskQuickAddProps {
 
 export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务...', defaultDueDate, defaultMyDay, onCancel, onCreated }: TaskQuickAddProps) {
   const [title, setTitle] = useState('');
-  const [dueDate, setDueDate] = useState(defaultDueDate || '');
+  const [dueDate, setDueDate] = useState(defaultDueDate || (parentTaskId ? '' : todayISO()));
   const [selectedTagId, setSelectedTagId] = useState(tagId || '');
   const [priority, setPriority] = useState(0);
   const [showTagPicker, setShowTagPicker] = useState(false);

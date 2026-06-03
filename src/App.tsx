@@ -64,7 +64,7 @@ function MainLayout() {
   const navigate = useNavigate();
 
   useKeyboardShortcuts({
-    onNewTask: () => createTaskRef.current.mutate({ title: 'New task' }),
+    onNewTask: () => createTaskRef.current.mutate({ title: 'New task', due_date: todayISO() }),
     onToggleComplete: () => {
       if (selectedTaskId) updateTask.mutate({ id: selectedTaskId, is_completed: true });
     },
@@ -87,7 +87,7 @@ function MainLayout() {
 
     (async () => {
       const u1 = await listen('global-shortcut-new-task', () => {
-        createTaskRef.current.mutate({ title: 'New task' });
+        createTaskRef.current.mutate({ title: 'New task', due_date: todayISO() });
       });
       const u2 = await listen<{ task_id: string; title: string }>('reminder-triggered', (event) => {
         toast(event.payload.title, {
@@ -104,7 +104,7 @@ function MainLayout() {
         });
       });
       const u3 = await listen('task-changed', () => {
-        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
       });
       if (cancelled) {
         u1();
@@ -164,7 +164,7 @@ function MainLayout() {
             <Header />
           </ErrorBoundary>
           <main className={`flex-1 min-h-0 ${isGlass ? 'bg-transparent' : 'bg-white dark:bg-[#1e1e32]'}`}
-            style={{ padding: '34px 32px 0 32px' }}>
+            style={{ padding: '16px 24px 0 24px' }}>
             <div className="h-full overflow-y-auto">
             <ErrorBoundary>
             <Routes>

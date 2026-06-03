@@ -78,7 +78,7 @@ export function DateFilterPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 flex items-center gap-3 mb-4">
+      <div className="shrink-0 flex items-center gap-3 mb-2">
         <div className={`w-8 h-8 rounded-lg ${config.iconBg} flex items-center justify-center`}>
           <IconComp size={18} className={config.iconColor} />
         </div>
@@ -100,7 +100,7 @@ export function DateFilterPage() {
       </div>
 
       {dateList.length > 0 && (
-        <div className="shrink-0 flex gap-2 flex-wrap mb-4">
+        <div className="shrink-0 flex gap-2 flex-wrap mb-2">
           {dateList.map((d) => {
             const dayName = format(new Date(d + 'T00:00:00'), 'EEE');
             const dayNum = new Date(d + 'T00:00:00').getDate();

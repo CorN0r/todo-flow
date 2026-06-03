@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Minus, Square, Copy, X, Sun, Moon, Monitor, Sparkles } from 'lucide-react';
+import { Minus, Square, Copy, X, Sun, Moon, Monitor, Sparkles, PanelBottom } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useTheme } from '../../hooks/useTheme';
 import { useUIStore } from '../../stores/uiStore';
 import { SearchBar } from '../shared/SearchBar';
+import { hideToTray } from '../../lib/db';
 
 const themes: { key: 'light' | 'dark' | 'system' | 'glass'; icon: typeof Sun; label: string }[] = [
   { key: 'light', icon: Sun, label: 'Light' },
@@ -47,10 +48,9 @@ export function Header() {
         <button onClick={() => setTheme(nextTheme.key)} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title={`主题: ${theme}`} aria-label={`切换主题: ${theme}`}>
           {(() => { const Icon = themes.find((t) => t.key === theme)?.icon || Sun; return <Icon size={15} className="text-[#9CA3AF]" />; })()}
         </button>
-        {/* 悬浮窗功能暂不发布 */}
-        {/* <button onClick={() => hideToTray()} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title="隐藏到浮窗" aria-label="隐藏到浮窗">
+        <button onClick={() => hideToTray()} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title="隐藏到浮窗" aria-label="隐藏到浮窗">
           <PanelBottom size={16} className="text-[#9CA3AF]" />
-        </button> */}
+        </button>
         <button onClick={() => { getCurrentWindow().minimize().catch(() => {}); }} className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors" title="最小化" aria-label="最小化">
           <Minus size={14} className="text-[#9CA3AF]" />
         </button>

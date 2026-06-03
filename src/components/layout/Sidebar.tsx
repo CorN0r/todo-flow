@@ -274,7 +274,7 @@ export function Sidebar() {
             <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreateTag(); if (e.key === 'Escape') setIsCreating(false); }}
               onBlur={() => { if (!newName.trim()) setIsCreating(false); }}
-              placeholder="标签名称..." className="w-full text-[13px] px-2 py-1 rounded border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.04] text-[#111827] dark:text-white outline-none focus:ring-1 focus:ring-[#7C72F6] placeholder:text-[#9CA3AF]" />
+              placeholder="标签名称..." className="mt-1 w-full text-[13px] px-2 py-1 rounded border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.04] text-[#111827] dark:text-white outline-none focus:ring-1 focus:ring-[#7C72F6] placeholder:text-[#9CA3AF]" />
           )}
           {tags?.map((tag) => (
             <TagTreeItem

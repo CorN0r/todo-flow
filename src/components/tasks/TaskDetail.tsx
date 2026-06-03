@@ -102,8 +102,8 @@ export function TaskDetail() {
       local.reminder !== orig.reminder || local.tag_id !== orig.tag_id || local.recurrence !== orig.recurrence;
     if (!hasChanges) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { saveTimerRef.current = null; doSave(local); }, 800);
-    return () => { if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; doSave(local); } };
+    saveTimerRef.current = setTimeout(() => { saveTimerRef.current = null; if (useUIStore.getState().selectedTaskId) doSave(local); }, 800);
+    return () => { if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; if (useUIStore.getState().selectedTaskId) doSave(local); } };
   }, [local, doSave]);
 
   const update = (patch: Partial<LocalState>) => { setLocal((prev) => (prev ? { ...prev, ...patch } : null)); };
@@ -116,10 +116,15 @@ export function TaskDetail() {
 
   const handleDelete = () => {
     const deletedTask = task;
+    setSelectedTaskId(null);
     deleteTask.mutate(task.id, {
       onSuccess: () => {
-        setSelectedTaskId(null);
-        toast('任务已删除', { action: { label: '撤销', onClick: () => { createTask.mutate({ title: deletedTask.title, description: deletedTask.description, priority: deletedTask.priority, due_date: deletedTask.due_date || undefined, tag_id: deletedTask.tag_id || undefined, parent_task_id: deletedTask.parent_task_id || undefined }); } } });
+        toast.success(
+          () => (
+            <span>任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: deletedTask.title, description: deletedTask.description, priority: deletedTask.priority, due_date: deletedTask.due_date || undefined, tag_id: deletedTask.tag_id || undefined, parent_task_id: deletedTask.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
+          ),
+          { duration: 8000 },
+        );
       },
     });
   };

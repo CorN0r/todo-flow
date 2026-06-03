@@ -91,7 +91,7 @@ export function PageTitle({
           className="h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md bg-white dark:bg-[#1e1e32] border border-[#E5E7EB] dark:border-white/[0.07] text-[12px] font-medium text-[#374151] dark:text-white/80 hover:bg-[#F9FAFB] dark:hover:bg-white/[0.06] transition-colors"
           title={globalSubtasksExpanded ? '折叠全部子任务' : '展开全部子任务'}>
           {globalSubtasksExpanded ? <ListCollapse size={13} className="text-[#6B7280]" /> : <ListTree size={13} className="text-[#6B7280]" />}
-          子任务
+          {globalSubtasksExpanded ? '收起子任务' : '展开子任务'}
         </button>
       )}
 

@@ -45,7 +45,7 @@ export function TodayPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 flex items-center gap-3 mb-4">
+      <div className="shrink-0 flex items-center gap-3 mb-2">
         <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
           <Sun size={18} className="text-emerald-500" />
         </div>
