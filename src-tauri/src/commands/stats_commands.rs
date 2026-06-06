@@ -10,6 +10,8 @@ pub struct DashboardStats {
     pub completed_tasks: i64,
     pub incomplete_tasks: i64,
     pub overdue_tasks: i64,
+    pub suspended_tasks: i64,
+    pub abandoned_tasks: i64,
     pub today_completed: i64,
     pub today_total: i64,
     pub streak_days: i64,
@@ -49,22 +51,36 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppErro
 
     let completed_tasks: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL",
+            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND (is_completed = 1 OR is_abandoned = 1) AND parent_task_id IS NULL",
             [],
             |row| row.get(0),
         )?;
 
     let incomplete_tasks: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND parent_task_id IS NULL",
+            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND is_abandoned = 0 AND parent_task_id IS NULL",
             [],
             |row| row.get(0),
         )?;
 
     let overdue_tasks: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND due_date IS NOT NULL AND due_date < ?1 AND parent_task_id IS NULL",
+            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND is_abandoned = 0 AND due_date IS NOT NULL AND due_date < ?1 AND parent_task_id IS NULL",
             [&today],
+            |row| row.get(0),
+        )?;
+
+    let suspended_tasks: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_suspended = 1 AND parent_task_id IS NULL",
+            [],
+            |row| row.get(0),
+        )?;
+
+    let abandoned_tasks: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_abandoned = 1 AND parent_task_id IS NULL",
+            [],
             |row| row.get(0),
         )?;
 
@@ -109,7 +125,7 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppErro
         let mut stmt = conn.prepare(
             "SELECT t.id, t.name, t.color, COUNT(tk.id)
              FROM tags t
-             LEFT JOIN tasks tk ON tk.tag_id = t.id AND tk.is_archived = 0 AND tk.parent_task_id IS NULL
+             LEFT JOIN tasks tk ON tk.tag_id = t.id AND tk.is_archived = 0 AND tk.is_suspended = 0 AND tk.is_abandoned = 0 AND tk.parent_task_id IS NULL
              GROUP BY t.id
              ORDER BY COUNT(tk.id) DESC",
         )?;
@@ -129,6 +145,8 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppErro
         completed_tasks,
         incomplete_tasks,
         overdue_tasks,
+        suspended_tasks,
+        abandoned_tasks,
         today_completed,
         today_total,
         streak_days,
@@ -158,6 +176,8 @@ mod tests {
         assert_eq!(stats.completed_tasks, 0);
         assert_eq!(stats.incomplete_tasks, 0);
         assert_eq!(stats.overdue_tasks, 0);
+        assert_eq!(stats.suspended_tasks, 0);
+        assert_eq!(stats.abandoned_tasks, 0);
         assert_eq!(stats.streak_days, 0);
         assert!(stats.tasks_by_tag.is_empty());
     }

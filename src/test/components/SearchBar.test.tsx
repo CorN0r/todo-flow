@@ -31,13 +31,13 @@ describe('SearchBar', () => {
     const user = userEvent.setup();
     renderWithProviders(<SearchBar />);
     await user.click(screen.getByText('搜索任务...'));
-    expect(screen.getByPlaceholderText('Search tasks...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('搜索任务...')).toBeInTheDocument();
   });
 
   it('shows type prompt when query is empty', async () => {
     const user = userEvent.setup();
     renderWithProviders(<SearchBar />);
     await user.click(screen.getByText('搜索任务...'));
-    expect(screen.getByText(/Type at least 2 characters/)).toBeInTheDocument();
+    expect(screen.getByText(/输入至少 2 个字符/)).toBeInTheDocument();
   });
 });

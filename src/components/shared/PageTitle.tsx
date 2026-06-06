@@ -3,10 +3,11 @@ import { ArrowUpDown, Plus, CheckSquare, ListCollapse, ListTree } from 'lucide-r
 import { Portal } from './Portal';
 import { useUIStore } from '../../stores/uiStore';
 
-export type SortMode = 'manual' | 'date-asc' | 'date-desc' | 'priority' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc';
+export type SortMode = 'manual' | 'date-asc' | 'date-desc' | 'priority' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc' | 'status';
 
 const sortOptions: { value: SortMode; label: string }[] = [
   { value: 'manual', label: '手动排序' },
+  { value: 'status', label: '按状态排序' },
   { value: 'date-asc', label: '截止日期 (近→远)' },
   { value: 'date-desc', label: '截止日期 (远→近)' },
   { value: 'priority', label: '优先级 (高→低)' },
@@ -73,8 +74,28 @@ export function PageTitle({
         <div className="flex items-center gap-1">
           {filterBtn('all', `全部 ${taskCount} 项`)}
           {filterBtn('incomplete', `未完成 ${taskCount - (completedCount || 0)}`)}
-          {completedCount !== undefined && completedCount > 0 && filterBtn('completed', `已完成 ${completedCount}`)}
-          {overdueCount !== undefined && overdueCount > 0 && filterBtn('overdue', `超期 ${overdueCount}`)}
+          {completedCount !== undefined && completedCount > 0 && (
+            <button onClick={() => onFilterChange?.('completed')}
+              className={`h-[22px] inline-flex items-center px-2 rounded-full text-[12px] font-medium transition-colors ${
+                filterMode === 'completed'
+                  ? 'bg-[#10B981] text-white'
+                  : 'text-[#10B981] bg-emerald-50 dark:bg-emerald-950/20 hover:bg-emerald-100 dark:hover:bg-emerald-950/30'
+              }`}
+            >
+              已完成 {completedCount}
+            </button>
+          )}
+          {overdueCount !== undefined && overdueCount > 0 && (
+            <button onClick={() => onFilterChange?.('overdue')}
+              className={`h-[22px] inline-flex items-center px-2 rounded-full text-[12px] font-medium transition-colors ${
+                filterMode === 'overdue'
+                  ? 'bg-[#EF4444] text-white'
+                  : 'text-[#EF4444] bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30'
+              }`}
+            >
+              超期 {overdueCount}
+            </button>
+          )}
         </div>
       )}
       {taskCount > 0 && !onFilterChange && (

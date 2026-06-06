@@ -12,26 +12,26 @@ import { sortTasks, nestChildren } from '../lib/sortTasks';
 
 export function TodayPage() {
   const today = todayISO();
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const { data: tasks, isLoading, isError } = useTasks({ due_date_from: today, due_date_to: today, include_children: true });
   const sortMode = useUIStore((s) => s.sortMode);
   const setSortMode = useUIStore((s) => s.setSortMode);
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
   const [showNewTask, setShowNewTask] = useState(false);
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
 
   const filtered = useMemo(() => {
-    if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed);
-    if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed);
-    if (filterMode === 'overdue') return topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today);
+    if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned);
+    if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed || t.is_abandoned);
+    if (filterMode === 'overdue') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today);
     return topLevel;
   }, [topLevel, filterMode, today]);
 
-  const completedCount = topLevel.filter((t) => t.is_completed).length;
-  const overdueCount = topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today).length;
+  const completedCount = topLevel.filter((t) => t.is_completed || t.is_abandoned).length;
+  const overdueCount = topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today).length;
 
   const setSelectableIds = useUIStore((s) => s.setSelectableIds);
   useEffect(() => { setSelectableIds(filtered.map((t) => t.id)); }, [filtered, setSelectableIds]);

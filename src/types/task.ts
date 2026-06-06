@@ -4,6 +4,9 @@ export interface Task {
   description: string;
   is_completed: boolean;
   is_archived: boolean;
+  is_suspended: boolean;
+  is_abandoned: boolean;
+  is_pinned: boolean;
   priority: number;
   due_date: string | null;
   reminder: string | null;
@@ -47,6 +50,9 @@ export interface UpdateTaskInput {
   reminder?: string | null;
   recurrence?: string;
   my_day_date?: string | null;
+  is_suspended?: boolean;
+  is_abandoned?: boolean;
+  is_pinned?: boolean;
 }
 
 export interface ReorderItem {

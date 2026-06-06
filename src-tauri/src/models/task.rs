@@ -7,6 +7,9 @@ pub struct Task {
     pub description: String,
     pub is_completed: bool,
     pub is_archived: bool,
+    pub is_suspended: bool,
+    pub is_abandoned: bool,
+    pub is_pinned: bool,
     pub priority: i32,
     pub due_date: Option<String>,
     pub reminder: Option<String>,
@@ -51,6 +54,9 @@ pub struct UpdateTaskRequest {
     pub reminder: Option<String>,
     pub recurrence: Option<String>,
     pub my_day_date: Option<Option<String>>,
+    pub is_suspended: Option<bool>,
+    pub is_abandoned: Option<bool>,
+    pub is_pinned: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +68,11 @@ pub struct TaskFilter {
     pub search_query: Option<String>,
     pub parent_task_id: Option<String>,
     pub my_day_date: Option<String>,
+    pub priority: Option<i32>,
+    pub is_suspended: Option<bool>,
+    pub is_abandoned: Option<bool>,
     pub include_children: Option<bool>,
+    pub include_archived: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

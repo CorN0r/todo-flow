@@ -62,6 +62,9 @@ pub fn update_task(
     reminder: Option<String>,
     recurrence: Option<String>,
     my_day_date: Option<Option<String>>,
+    is_suspended: Option<bool>,
+    is_abandoned: Option<bool>,
+    is_pinned: Option<bool>,
 ) -> Result<Task, AppError> {
     let conn = state.db()?;
     let task = task_repo::update(
@@ -78,6 +81,9 @@ pub fn update_task(
             reminder,
             recurrence,
             my_day_date,
+            is_suspended,
+            is_abandoned,
+            is_pinned,
         },
     )?;
     let _ = app.emit("task-changed", ());
@@ -108,7 +114,11 @@ pub fn get_tasks(
     search_query: Option<String>,
     parent_task_id: Option<String>,
     my_day_date: Option<String>,
+    priority: Option<i32>,
+    is_suspended: Option<bool>,
+    is_abandoned: Option<bool>,
     include_children: Option<bool>,
+    include_archived: Option<bool>,
 ) -> Result<Vec<Task>, AppError> {
     let conn = state.db()?;
     task_repo::get_all(
@@ -121,7 +131,11 @@ pub fn get_tasks(
             search_query,
             parent_task_id,
             my_day_date,
+            priority,
+            is_suspended,
+            is_abandoned,
             include_children,
+            include_archived,
         },
     )
 }
@@ -159,6 +173,9 @@ pub fn add_task_to_my_day(app: AppHandle, state: State<AppState>, id: String) ->
             reminder: None,
             recurrence: None,
             my_day_date: Some(Some(today)),
+            is_suspended: None,
+            is_abandoned: None,
+            is_pinned: None,
         },
     )?;
     let _ = app.emit("task-changed", ());
@@ -182,6 +199,9 @@ pub fn remove_task_from_my_day(app: AppHandle, state: State<AppState>, id: Strin
             reminder: None,
             recurrence: None,
             my_day_date: Some(None),
+            is_suspended: None,
+            is_abandoned: None,
+            is_pinned: None,
         },
     )?;
     let _ = app.emit("task-changed", ());

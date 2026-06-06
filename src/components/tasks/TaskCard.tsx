@@ -3,8 +3,8 @@ import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import type { Task } from '../../types/task';
 import { formatDate, isOverdue } from '../../lib/date';
-import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X } from 'lucide-react';
-import { useUpdateTask, useDeleteTask, useDuplicateTask, useCreateTask, useReorderTasks } from '../../hooks/useTasks';
+import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X, PauseCircle, Play, XCircle, Pin } from 'lucide-react';
+import { useUpdateTask, useDeleteTask, useCreateTask, useReorderTasks } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { useUIStore } from '../../stores/uiStore';
 import { todayISO } from '../../lib/date';
@@ -88,6 +88,18 @@ function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               {child.is_completed ? <><RotateCcw size={15} className="text-[#6B7280]" /> 标记未完成</> : <><Check size={15} className="text-[#7C72F6]" /> 标记完成</>}
             </button>
+            <button onClick={() => { updateTask.mutate({ id: child.id, is_suspended: !child.is_suspended, is_abandoned: false }); setSubMenu(null); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              {child.is_suspended ? <><Play size={15} className="text-[#6B7280]" /> 恢复</> : <><PauseCircle size={15} className="text-[#6B7280]" /> 挂起</>}
+            </button>
+            <button onClick={() => { updateTask.mutate({ id: child.id, is_abandoned: !child.is_abandoned, is_suspended: false }); setSubMenu(null); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              {child.is_abandoned ? <><RotateCcw size={15} className="text-[#6B7280]" /> 重新激活</> : <><XCircle size={15} className="text-[#EF4444]" /> 放弃</>}
+            </button>
+            <button onClick={() => { navigator.clipboard.writeText(child.title); toast.success('已复制标题'); setSubMenu(null); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <Copy size={15} className="text-[#6B7280]" /> 复制标题
+            </button>
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] mt-1 pt-1">
               <button onClick={() => { onDelete(); setSubMenu(null); }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 text-red-600 transition-colors">
@@ -104,7 +116,6 @@ function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void
 export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
-  const duplicateTask = useDuplicateTask();
   const createTask = useCreateTask();
   const reorderTasks = useReorderTasks();
   const selectedTaskId = useUIStore((s) => s.selectedTaskId);
@@ -115,7 +126,9 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
   const isSelected = selectedTaskIds.has(task.id);
-  const overdue = isOverdue(task.due_date);
+  const isSuspended = task.is_suspended;
+  const isAbandoned = task.is_abandoned;
+  const overdue = !isSuspended && !isAbandoned && isOverdue(task.due_date);
   const { data: tags } = useTags();
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -212,10 +225,19 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
         'flex flex-col group select-none',
         !isGlass && 'bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06]',
         !isGlass && task.is_completed && 'opacity-75 bg-[#FAFAFA] dark:bg-white/[0.02]',
+        !isGlass && isAbandoned && 'bg-[#FEF2F2] dark:bg-red-950/30',
+        !isGlass && isSuspended && 'bg-[#F3F4F6] dark:bg-white/[0.05]',
+        !isGlass && overdue && !task.is_completed && 'bg-[#FFF7ED] dark:bg-orange-950/20',
         isGlass && 'glass-card',
-        overdue && !task.is_completed && 'border-l-[3px] border-l-red-400 dark:border-l-red-400',
         isSelected && 'ring-2 ring-[#7C72F6] ring-offset-1',
-      )} style={isGlass ? { padding: '14px 16px', borderRadius: '10px' } : { padding: '14px 16px', borderRadius: '10px', boxShadow: 'var(--card-shadow)' }}>
+      )} style={{
+        padding: '14px 16px',
+        borderRadius: '10px',
+        boxShadow: isGlass ? undefined : 'var(--card-shadow)',
+        borderLeftWidth: (isAbandoned || isSuspended || overdue) ? '3px' : undefined,
+        borderLeftColor: isAbandoned ? '#EF4444' : isSuspended ? '#9CA3AF' : overdue ? '#F97316' : undefined,
+        borderLeftStyle: (isAbandoned || isSuspended || overdue) ? 'solid' : undefined,
+      }}>
         <div className="flex items-center gap-3">
           {selectionMode && (
             <button onClick={(e) => { e.stopPropagation(); toggleTaskSelection(task.id); }}
@@ -229,6 +251,19 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
               )}
             </button>
           )}
+          {isSuspended ? (
+            <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_suspended: false }); }}
+              className="flex items-center justify-center flex-shrink-0 text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
+              aria-label={`恢复 "${task.title}"`}>
+              <PauseCircle size={20} />
+            </button>
+          ) : isAbandoned ? (
+            <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_abandoned: false }); }}
+              className="flex items-center justify-center flex-shrink-0 text-[#EF4444] hover:text-red-500 transition-colors"
+              aria-label={`重新激活 "${task.title}"`}>
+              <XCircle size={20} />
+            </button>
+          ) : (
           <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_completed: !task.is_completed }); }}
             className={cn('w-5 h-5 rounded-full border-[2px] flex items-center justify-center flex-shrink-0 transition-all duration-200',
               task.is_completed ? 'bg-[#7C72F6] border-[#7C72F6] text-white' : 'border-[#D1D5DB] hover:border-[#7C72F6] hover:bg-[#7C72F6]/[0.06]')}
@@ -239,6 +274,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
               </svg>
             )}
           </button>
+          )}
           {hasChildren && (
             <button onClick={(e) => { e.stopPropagation(); setSubtaskExpanded(!subtaskExpanded); }}
               className="text-[#6B7280] hover:text-[#111827] dark:hover:text-white/90 transition-colors flex-shrink-0 flex items-center gap-0.5"
@@ -259,8 +295,14 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
                     onKeyDown={handleEditKeyDown} onBlur={handleSaveEdit} onClick={(e) => e.stopPropagation()}
                     className="flex-1 min-w-[120px] text-[14px] font-medium px-1.5 py-0.5 rounded-md bg-[#F3F4F6] dark:bg-white/[0.08] outline-none ring-2 ring-[#7C72F6]/40 text-[#111827] dark:text-white/90" />
                 ) : (
-                  <span className={cn('text-[14px] font-medium truncate cursor-text', task.is_completed && 'line-through text-[#9CA3AF]', !task.is_completed && 'text-[#111827] dark:text-white/90')}
-                    onClick={handleStartEdit} title="点击编辑标题">{task.title}</span>
+                  <span className="flex items-center gap-1 min-w-0" onClick={handleStartEdit} title="点击编辑标题">
+                    {task.is_pinned && <Pin size={13} className="text-[#7C72F6] flex-shrink-0" />}
+                    <span className={cn('text-[14px] font-medium truncate cursor-text',
+                        isAbandoned && 'line-through text-red-400/70',
+                        isSuspended && 'text-[#9CA3AF]',
+                        task.is_completed && !isAbandoned && 'line-through text-[#9CA3AF]',
+                        !task.is_completed && !isSuspended && !isAbandoned && 'text-[#111827] dark:text-white/90')}>{task.title}</span>
+                  </span>
                 )}
                 {taskTag && (
                   <span className="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0"
@@ -340,10 +382,43 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
                 <Plus size={15} className="text-[#6B7280]" /> 添加子任务
               </button>
             )}
-            <button onClick={() => { duplicateTask.mutate(task.id); setContextMenu(null); }}
+            <button onClick={() => { updateTask.mutate({ id: task.id, is_pinned: !task.is_pinned }); setContextMenu(null); }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
-              <Copy size={15} className="text-[#6B7280]" /> 复制
+              {task.is_pinned ? <><Pin size={15} className="text-[#7C72F6]" /> 取消置顶</> : <><Pin size={15} className="text-[#6B7280]" /> 置顶</>}
             </button>
+            <button onClick={() => {
+              updateTask.mutate({ id: task.id, is_suspended: !isSuspended, is_abandoned: false });
+              setContextMenu(null);
+            }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              {isSuspended
+                ? <><Play size={15} className="text-[#6B7280]" /> 恢复</>
+                : <><PauseCircle size={15} className="text-[#6B7280]" /> 挂起</>}
+            </button>
+            <button onClick={() => {
+              updateTask.mutate({ id: task.id, is_abandoned: !isAbandoned, is_suspended: false });
+              setContextMenu(null);
+            }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              {isAbandoned
+                ? <><RotateCcw size={15} className="text-[#6B7280]" /> 重新激活</>
+                : <><XCircle size={15} className="text-[#EF4444]" /> 放弃</>}
+            </button>
+            <button onClick={() => { navigator.clipboard.writeText(task.title); toast.success('已复制标题'); setContextMenu(null); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <Copy size={15} className="text-[#6B7280]" /> 复制标题
+            </button>
+            {hasChildren && (
+              <button onClick={() => {
+                const text = task.title + '\n' + children.map((c) => `  - ${c.title}`).join('\n');
+                navigator.clipboard.writeText(text);
+                toast.success('已复制含子任务');
+                setContextMenu(null);
+              }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+                <Copy size={15} className="text-[#6B7280]" /> 复制含子任务
+              </button>
+            )}
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] mt-1 pt-1">
               <button onClick={() => { const deleted = task; if (selectedTaskId === task.id) setSelectedTaskId(null); deleteTask.mutate(task.id); toast.success(
                 () => (

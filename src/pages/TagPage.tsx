@@ -26,7 +26,7 @@ export function TagPage() {
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
-  const completedCount = useMemo(() => topLevel.filter((t) => t.is_completed).length, [topLevel]);
+  const completedCount = useMemo(() => topLevel.filter((t) => t.is_completed || t.is_abandoned).length, [topLevel]);
 
   const setSelectableIds = useUIStore((s) => s.setSelectableIds);
   useEffect(() => { setSelectableIds(topLevel.map((t) => t.id)); }, [topLevel, setSelectableIds]);

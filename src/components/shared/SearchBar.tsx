@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, ArrowRight } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { getTasks } from '../../lib/db';
 import { useUIStore } from '../../stores/uiStore';
@@ -10,6 +10,7 @@ import type { Task } from '../../types/task';
 export function SearchBar() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Task[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -20,20 +21,29 @@ export function SearchBar() {
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
   useEffect(() => {
     if (query.length < 2) {
-      setResults([]); // eslint-disable-line react-hooks/set-state-in-effect
+      setResults([]);
+      setTotalCount(0);
       return;
     }
     const timer = setTimeout(async () => {
       try {
-        const tasks = await getTasks({ search_query: query });
-        if (mountedRef.current) setResults(tasks.slice(0, 8));
-      } catch {
-        if (mountedRef.current) setResults([]);
+        const tasks = await getTasks({ search_query: query, include_children: true });
+        if (mountedRef.current) {
+          const list = Array.isArray(tasks) ? tasks : [];
+          setTotalCount(list.length);
+          setResults(list.slice(0, 8));
+        }
+      } catch (err) {
+        if (mountedRef.current) {
+          console.error('[SearchBar] search failed:', err);
+          setResults([]);
+        }
       }
     }, 200);
     return () => clearTimeout(timer);
@@ -105,7 +115,7 @@ export function SearchBar() {
                 ESC
               </kbd>
             </div>
-            <div className="max-h-[300px] overflow-y-auto p-1">
+            <div className="max-h-[380px] overflow-y-auto p-1">
               {results.length === 0 && query.length >= 2 && (
                 <p className="text-sm text-[#9CA3AF] text-center py-10">
                   未找到 "{query}" 相关任务
@@ -113,7 +123,7 @@ export function SearchBar() {
               )}
               {results.length > 0 && (
                 <div role="listbox" id="search-results-list" className="px-3 py-2 section-label">
-                  Tasks — {results.length} result{results.length !== 1 ? 's' : ''}
+                  任务 — {results.length}{totalCount > 8 ? ` / ${totalCount}` : ''} 条
                 </div>
               )}
               {results.map((task, i) => (
@@ -147,27 +157,39 @@ export function SearchBar() {
                 </button>
               ))}
             </div>
-            {results.length > 0 && (
-              <button
-                onClick={() => {
-                  navigate(`/search?q=${encodeURIComponent(query)}`);
-                  setIsOpen(false);
-                  setQuery('');
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-[#7C72F6] hover:bg-[#7C72F6]/[0.04] border-t border-[#F3F4F6] dark:border-white/[0.06] transition-colors font-medium"
-              >
-                显示全部结果
-                <ArrowRight size={14} />
-              </button>
-            )}
             {query.length < 2 && (
-              <div className="py-12 text-center">
+              <div className="py-10 text-center">
                 <Search size={28} className="mx-auto mb-3 text-[#D1D5DB]" />
                 <p className="text-sm text-[#9CA3AF]">
                   输入至少 2 个字符进行搜索
                 </p>
               </div>
             )}
+            <div className="flex items-center justify-end px-4 py-2.5 border-t border-[#F3F4F6] dark:border-white/[0.06]">
+              {totalCount > 8 ? (
+                <button
+                  onClick={() => {
+                    navigate(`/search?q=${encodeURIComponent(query)}`);
+                    setIsOpen(false);
+                    setQuery('');
+                  }}
+                  className="text-[11px] text-[#7C72F6] hover:text-[#6D63E6] transition-colors"
+                >
+                  显示全部 {totalCount} 条结果 →
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    navigate(query.length >= 2 ? `/search?q=${encodeURIComponent(query)}` : '/search');
+                    setIsOpen(false);
+                    setQuery('');
+                  }}
+                  className="text-[11px] text-[#7C72F6] hover:text-[#6D63E6] transition-colors"
+                >
+                  更多筛选条件 →
+                </button>
+              )}
+            </div>
           </div>
         </Portal>
       )}

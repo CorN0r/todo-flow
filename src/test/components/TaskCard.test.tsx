@@ -24,6 +24,7 @@ vi.mock('../../hooks/useTasks', () => ({
   useDeleteTask: () => ({ mutate: vi.fn() }),
   useDuplicateTask: () => ({ mutate: vi.fn() }),
   useCreateTask: () => ({ mutate: vi.fn() }),
+  useReorderTasks: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock('../../hooks/useTags', () => ({
@@ -36,6 +37,9 @@ const baseTask = {
   description: 'A test description',
   is_completed: false,
   is_archived: false,
+  is_suspended: false,
+  is_abandoned: false,
+  is_pinned: false,
   priority: 0,
   due_date: null,
   tag_id: null,

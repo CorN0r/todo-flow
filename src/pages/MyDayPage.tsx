@@ -36,6 +36,7 @@ export function MyDayPage() {
   const yesterday = subDays(new Date(), 1).toISOString().split('T')[0];
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
   const { data: tasks, isLoading, isError } = useTasks({ my_day_date: today, include_children: true });
   const { data: yesterdayTasks } = useTasks({ my_day_date: yesterday, is_completed: false, include_children: true });
@@ -47,20 +48,19 @@ export function MyDayPage() {
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
   const [showNewTask, setShowNewTask] = useState(false);
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [showYesterday, setShowYesterday] = useState(true);
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
   const filtered = useMemo(() => {
-    if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed);
-    if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed);
-    if (filterMode === 'overdue') return topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today);
+    if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned);
+    if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed || t.is_abandoned);
+    if (filterMode === 'overdue') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today);
     return topLevel;
   }, [topLevel, filterMode, today]);
-  const completedCount = topLevel.filter((t) => t.is_completed).length;
-  const overdueCount = topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today).length;
+  const completedCount = topLevel.filter((t) => t.is_completed || t.is_abandoned).length;
+  const overdueCount = topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today).length;
 
   const myDayIds = new Set(tasks?.map((t) => t.id) || []);
   const yesterdayList = (yesterdayTasks || []).filter((t) => !myDayIds.has(t.id) && !t.parent_task_id);

@@ -9,6 +9,8 @@ const { mockStats } = vi.hoisted(() => ({
     completed_tasks: 4,
     incomplete_tasks: 6,
     overdue_tasks: 2,
+    suspended_tasks: 1,
+    abandoned_tasks: 1,
     streak_days: 3,
     today_completed: 1,
     completion_by_date: [

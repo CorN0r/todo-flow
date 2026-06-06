@@ -28,15 +28,28 @@ describe('SearchPage', () => {
     mockGetTasks.mockResolvedValue([]);
   });
 
-  it('renders search input', () => {
+  it('renders advanced search title', () => {
     renderWithProviders(<SearchPage />, { initialEntries: ['/search'] });
-    expect(screen.getByPlaceholderText('Search tasks by title or description...')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '高级搜索' })).toBeInTheDocument();
   });
 
-  it('shows initial suggestions when no query', () => {
+  it('renders search input', () => {
     renderWithProviders(<SearchPage />, { initialEntries: ['/search'] });
-    expect(screen.getByText('Search your tasks')).toBeInTheDocument();
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
-    expect(screen.getByText('High priority')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('搜索任务标题或描述...')).toBeInTheDocument();
+  });
+
+  it('renders filter controls', () => {
+    renderWithProviders(<SearchPage />, { initialEntries: ['/search'] });
+    expect(screen.getByText('标签')).toBeInTheDocument();
+    expect(screen.getByText('全部')).toBeInTheDocument();
+    expect(screen.getByText('未完成')).toBeInTheDocument();
+    expect(screen.getByText('已完成')).toBeInTheDocument();
+    expect(screen.getByText('优先级')).toBeInTheDocument();
+    expect(screen.getByText('我的一天')).toBeInTheDocument();
+  });
+
+  it('shows initial empty state', () => {
+    renderWithProviders(<SearchPage />, { initialEntries: ['/search'] });
+    expect(screen.getByText('使用上方筛选条件搜索任务，支持按关键词、标签、优先级、日期范围等组合筛选')).toBeInTheDocument();
   });
 });

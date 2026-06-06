@@ -32,7 +32,11 @@ export async function getTasks(filters?: {
   search_query?: string;
   parent_task_id?: string;
   my_day_date?: string;
+  priority?: number;
+  is_suspended?: boolean;
+  is_abandoned?: boolean;
   include_children?: boolean;
+  include_archived?: boolean;
 }): Promise<Task[]> {
   return invoke('get_tasks', { ...filters });
 }
@@ -111,6 +115,14 @@ export async function backupDatabase(destination: string): Promise<void> {
   return invoke('backup_database', { destination });
 }
 
+export async function exportCsv(path: string, content: string): Promise<void> {
+  return invoke('export_csv', { path, content });
+}
+
+export async function importDatabase(source: string): Promise<string> {
+  return invoke('import_database', { source });
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   return invoke('get_dashboard_stats');
 }
@@ -120,6 +132,8 @@ export interface DashboardStats {
   completed_tasks: number;
   incomplete_tasks: number;
   overdue_tasks: number;
+  suspended_tasks: number;
+  abandoned_tasks: number;
   today_completed: number;
   today_total: number;
   streak_days: number;

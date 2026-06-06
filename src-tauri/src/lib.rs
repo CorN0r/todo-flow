@@ -294,6 +294,8 @@ pub fn run() {
             commands::settings_commands::set_setting,
             commands::settings_commands::get_all_settings,
             commands::settings_commands::backup_database,
+            commands::settings_commands::export_csv,
+            commands::settings_commands::import_database,
             commands::widget_commands::hide_to_tray,
             commands::widget_commands::show_main_from_widget,
             commands::widget_commands::show_widget_context_menu,

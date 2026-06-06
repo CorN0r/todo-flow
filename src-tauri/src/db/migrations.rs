@@ -138,5 +138,23 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 7)?;
     }
 
+    if current_version < 8 {
+        conn.execute_batch(
+            "ALTER TABLE tasks ADD COLUMN is_suspended INTEGER NOT NULL DEFAULT 0;
+             ALTER TABLE tasks ADD COLUMN is_abandoned INTEGER NOT NULL DEFAULT 0;
+             CREATE INDEX IF NOT EXISTS idx_tasks_is_suspended ON tasks(is_suspended);
+             CREATE INDEX IF NOT EXISTS idx_tasks_is_abandoned ON tasks(is_abandoned);",
+        )?;
+        conn.pragma_update(None, "user_version", 8)?;
+    }
+
+    if current_version < 9 {
+        conn.execute_batch(
+            "ALTER TABLE tasks ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;
+             CREATE INDEX IF NOT EXISTS idx_tasks_is_pinned ON tasks(is_pinned);",
+        )?;
+        conn.pragma_update(None, "user_version", 9)?;
+    }
+
     Ok(())
 }

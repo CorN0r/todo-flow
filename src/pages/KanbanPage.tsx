@@ -5,7 +5,7 @@ import { useUIStore } from '../stores/uiStore';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { type SortMode } from '../components/shared/PageTitle';
-import { Layout, Flag, CheckCircle2, Layers, ArrowUpDown, Calendar, Sun } from 'lucide-react';
+import { Layout, Flag, CheckCircle2, Layers, ArrowUpDown, Calendar, Sun, PauseCircle, XCircle } from 'lucide-react';
 import { sortTasks } from '../lib/sortTasks';
 import { priorityColors } from '../lib/priority';
 import { cn } from '../lib/cn';
@@ -88,7 +88,20 @@ function DraggableKanbanCard({ task }: { task: Task }) {
         onClick={() => setSelectedTaskId(task.id)}
       >
         <div className="flex items-start gap-2">
-          {/* Completion checkbox */}
+          {/* Status indicator */}
+          {task.is_suspended ? (
+            <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_suspended: false }); }}
+              className="shrink-0 mt-0.5 text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
+              title="恢复">
+              <PauseCircle size={18} />
+            </button>
+          ) : task.is_abandoned ? (
+            <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_abandoned: false }); }}
+              className="shrink-0 mt-0.5 text-[#EF4444] hover:text-red-500 transition-colors"
+              title="重新激活">
+              <XCircle size={18} />
+            </button>
+          ) : (
           <button
             onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_completed: !task.is_completed }); }}
             className={cn(
@@ -104,6 +117,7 @@ function DraggableKanbanCard({ task }: { task: Task }) {
               </svg>
             )}
           </button>
+          )}
 
           {/* Title + meta */}
           <div className="flex-1 min-w-0">
@@ -243,7 +257,7 @@ export function KanbanPage() {
         color: '#F59E0B',
         bgClass: 'bg-amber-50 dark:bg-amber-950/15',
         icon: <CheckCircle2 size={16} color="#F59E0B" />,
-        tasks: topLevel.filter((t) => !t.is_completed),
+        tasks: topLevel.filter((t) => !t.is_completed && !t.is_abandoned),
       },
       {
         id: 'done',
@@ -251,7 +265,7 @@ export function KanbanPage() {
         color: '#10B981',
         bgClass: 'bg-emerald-50 dark:bg-emerald-950/15',
         icon: <CheckCircle2 size={16} color="#10B981" />,
-        tasks: topLevel.filter((t) => t.is_completed),
+        tasks: topLevel.filter((t) => t.is_completed || t.is_abandoned),
       },
     ];
   }, [topLevel, groupBy, tags]);
@@ -280,7 +294,7 @@ export function KanbanPage() {
       const tagId = columnId === 'untagged' ? undefined : columnId.replace('tag_', '');
       updateTask.mutate({ id: taskId, tag_id: tagId });
     } else if (groupBy === 'completed') {
-      updateTask.mutate({ id: taskId, is_completed: columnId === 'done' });
+      updateTask.mutate({ id: taskId, is_completed: columnId === 'done', is_abandoned: false });
     }
   }, [groupBy, updateTask]);
 

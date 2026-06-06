@@ -24,6 +24,8 @@ pub fn start_polling(app_handle: AppHandle, db: Arc<Mutex<Connection>>) {
                  FROM tasks t
                  WHERE t.is_completed = 0
                    AND t.is_archived = 0
+                   AND t.is_suspended = 0
+                   AND t.is_abandoned = 0
                    AND t.reminder IS NOT NULL
                    AND t.reminder <= ?1
                    AND t.reminded = 0",

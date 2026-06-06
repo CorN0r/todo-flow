@@ -169,7 +169,7 @@ export function MatrixPage() {
   const buckets = useMemo(() => {
     const result: Task[][] = [[], [], [], []];
     for (const t of sorted) {
-      if (t.is_completed) continue;
+      if (t.is_completed || t.is_abandoned) continue;
       result[bucketTask(t)].push(t);
     }
     return result;

@@ -21,7 +21,11 @@ fn empty_filter() -> TaskFilter {
         search_query: None,
         parent_task_id: None,
         my_day_date: None,
+        priority: None,
+        is_suspended: None,
+        is_abandoned: None,
         include_children: None,
+        include_archived: None,
     }
 }
 

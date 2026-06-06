@@ -49,6 +49,9 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         description: row.get("description")?,
         is_completed: row.get::<_, i32>("is_completed")? != 0,
         is_archived: row.get::<_, i32>("is_archived")? != 0,
+        is_suspended: row.get::<_, i32>("is_suspended")? != 0,
+        is_abandoned: row.get::<_, i32>("is_abandoned")? != 0,
+        is_pinned: row.get::<_, i32>("is_pinned")? != 0,
         priority: row.get("priority")?,
         due_date: row.get("due_date")?,
         reminder: row.get("reminder")?,
@@ -119,7 +122,8 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
 
 pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<Task>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT id, title, description, is_completed, is_archived, priority, due_date, reminder,
+        "SELECT id, title, description, is_completed, is_archived, is_suspended, is_abandoned, is_pinned,
+                priority, due_date, reminder,
                 tag_id, parent_task_id, sort_order, recurrence, my_day_date, created_at, updated_at
          FROM tasks WHERE id = ?1",
     )?;
@@ -129,7 +133,8 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<Task>, AppError> 
 
 pub fn get_children(conn: &Connection, parent_id: &str) -> Result<Vec<Task>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT id, title, description, is_completed, is_archived, priority, due_date, reminder,
+        "SELECT id, title, description, is_completed, is_archived, is_suspended, is_abandoned, is_pinned,
+                priority, due_date, reminder,
                 tag_id, parent_task_id, sort_order, recurrence, my_day_date, created_at, updated_at
          FROM tasks WHERE parent_task_id = ?1 AND is_archived = 0
          ORDER BY sort_order ASC",
@@ -150,14 +155,19 @@ pub fn get_detail(conn: &Connection, id: &str) -> Result<Option<TaskDetail>, App
 
 pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppError> {
     let mut sql = String::from(
-        "SELECT t.id, t.title, t.description, t.is_completed, t.is_archived, t.priority, t.due_date,
+        "SELECT t.id, t.title, t.description, t.is_completed, t.is_archived, t.is_suspended, t.is_abandoned, t.is_pinned,
+                t.priority, t.due_date,
                 t.reminder, t.tag_id, t.parent_task_id, t.sort_order, t.recurrence, t.my_day_date,
                 (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id AND c.is_archived = 0) AS children_count,
                 t.created_at, t.updated_at
-         FROM tasks t WHERE t.is_archived = 0",
+         FROM tasks t WHERE 1=1",
     );
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
     let inc_children = filter.include_children.unwrap_or(false);
+
+    if !filter.include_archived.unwrap_or(false) {
+        sql.push_str(" AND t.is_archived = 0");
+    }
 
     if let Some(ref parent_id) = filter.parent_task_id {
         sql.push_str(" AND t.parent_task_id = ?");
@@ -214,6 +224,29 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
         params.push(Box::new(my_day.clone()));
     }
 
+    if let Some(priority) = filter.priority {
+        sql.push_str(" AND t.priority = ?");
+        params.push(Box::new(priority));
+    }
+
+    if let Some(suspended) = filter.is_suspended {
+        if suspended && inc_children {
+            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.is_suspended = ?)");
+        } else {
+            sql.push_str(" AND t.is_suspended = ?");
+        }
+        params.push(Box::new(suspended as i32));
+    }
+
+    if let Some(abandoned) = filter.is_abandoned {
+        if abandoned && inc_children {
+            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.is_abandoned = ?)");
+        } else {
+            sql.push_str(" AND t.is_abandoned = ?");
+        }
+        params.push(Box::new(abandoned as i32));
+    }
+
     sql.push_str(" ORDER BY t.sort_order ASC");
 
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
@@ -262,6 +295,9 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
         Some(None) => None,
         Some(Some(ref d)) => Some(d.clone()),
     };
+    let is_suspended = req.is_suspended.unwrap_or(existing.is_suspended);
+    let is_abandoned = req.is_abandoned.unwrap_or(existing.is_abandoned);
+    let is_pinned = req.is_pinned.unwrap_or(existing.is_pinned);
 
     let existing_parent_task_id = existing.parent_task_id.clone();
 
@@ -320,8 +356,10 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
     conn.execute(
         "UPDATE tasks SET title = ?1, description = ?2, is_completed = ?3, priority = ?4,
          due_date = ?5, tag_id = ?6, parent_task_id = ?7, reminder = ?8, recurrence = ?9,
-         my_day_date = ?10, reminded = CASE WHEN ?12 THEN 0 ELSE reminded END,
-         updated_at = datetime('now') WHERE id = ?11",
+         my_day_date = ?10, is_suspended = ?11, is_abandoned = ?12,
+         is_pinned = ?15,
+         reminded = CASE WHEN ?14 THEN 0 ELSE reminded END,
+         updated_at = datetime('now') WHERE id = ?13",
         rusqlite::params![
             title,
             description,
@@ -333,8 +371,11 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
             reminder,
             recurrence,
             my_day_date,
+            is_suspended as i32,
+            is_abandoned as i32,
             id,
             reminder_changed,
+            is_pinned as i32,
         ],
     )?;
 
@@ -508,6 +549,9 @@ mod tests {
                 reminder: None,
                 recurrence: None,
                 my_day_date: None,
+                is_suspended: None,
+                is_abandoned: None,
+                is_pinned: None,
             },
         )
         .unwrap();
@@ -552,7 +596,11 @@ mod tests {
                     search_query: None,
                     parent_task_id: None,
                     my_day_date: None,
+                    priority: None,
+                    is_suspended: None,
+                    is_abandoned: None,
                     include_children: None,
+                    include_archived: None,
                 }
             },
         )
@@ -594,7 +642,8 @@ mod tests {
         let all = get_all(&conn, TaskFilter {
             tag_id: None, is_completed: None, due_date_from: None,
             due_date_to: None, search_query: None, parent_task_id: None,
-            my_day_date: None,include_children: None,
+            my_day_date: None, priority: None, is_suspended: None, is_abandoned: None,
+            include_children: None, include_archived: None,
         }).unwrap();
         assert_eq!(all[0].id, t3.id);
         assert_eq!(all[1].id, t1.id);
@@ -611,7 +660,9 @@ mod tests {
         let results = get_all(&conn, TaskFilter {
             tag_id: None, is_completed: None, due_date_from: None,
             due_date_to: None, search_query: Some("Buy".to_string()),
-            parent_task_id: None, my_day_date: None,include_children: None,
+            parent_task_id: None, my_day_date: None, priority: None,
+            is_suspended: None, is_abandoned: None,
+            include_children: None, include_archived: None,
         }).unwrap();
         assert_eq!(results.len(), 2);
     }
@@ -625,13 +676,14 @@ mod tests {
             title: None, description: None, is_completed: Some(true),
             priority: None, due_date: None, tag_id: None,
             parent_task_id: None, reminder: None, recurrence: None,
-            my_day_date: None,
+            my_day_date: None, is_suspended: None, is_abandoned: None, is_pinned: None,
         }).unwrap();
 
         let completed = get_all(&conn, TaskFilter {
             tag_id: None, is_completed: Some(true), due_date_from: None,
             due_date_to: None, search_query: None, parent_task_id: None,
-            my_day_date: None,include_children: None,
+            my_day_date: None, priority: None, is_suspended: None, is_abandoned: None,
+            include_children: None, include_archived: None,
         }).unwrap();
         assert_eq!(completed.len(), 1);
     }
@@ -644,6 +696,7 @@ mod tests {
             is_completed: None, priority: None, due_date: None,
             tag_id: None, parent_task_id: None, reminder: None,
             recurrence: None, my_day_date: None,
+            is_suspended: None, is_abandoned: None, is_pinned: None,
         });
         assert!(result.is_err());
     }

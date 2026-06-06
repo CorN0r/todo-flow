@@ -4,7 +4,6 @@ import { useTasks } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
 import { TaskList } from '../components/tasks/TaskList';
 import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
-import { VirtualTaskList } from '../components/tasks/VirtualTaskList';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageTitle, type FilterMode } from '../components/shared/PageTitle';
@@ -33,6 +32,8 @@ export function DateFilterPage() {
     return { dateFrom: from, dateTo: to };
   }, [filter, config.days, config.fromOffset]);
 
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+
   const { data: tasks, isLoading, isError } = useTasks(
     filter === 'all' ? { include_children: true } : { due_date_from: dateFrom, due_date_to: dateTo, include_children: true },
   );
@@ -42,22 +43,22 @@ export function DateFilterPage() {
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
 
+  const [showNewTask, setShowNewTask] = useState(false);
+
   const handleToggleSelection = () => {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }
   };
 
-  const [showNewTask, setShowNewTask] = useState(false);
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
   const filtered = useMemo(() => {
-    if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed);
-    if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed);
-    if (filterMode === 'overdue') return topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today);
+    if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned);
+    if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed || t.is_abandoned);
+    if (filterMode === 'overdue') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today);
     return topLevel;
   }, [topLevel, filterMode, today]);
-  const completedCount = topLevel.filter((t) => t.is_completed).length;
-  const overdueCount = topLevel.filter((t) => !t.is_completed && t.due_date && t.due_date < today).length;
+  const completedCount = topLevel.filter((t) => t.is_completed || t.is_abandoned).length;
+  const overdueCount = topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today).length;
 
   const setSelectableIds = useUIStore((s) => s.setSelectableIds);
   useEffect(() => { setSelectableIds(filtered.map((t) => t.id)); }, [filtered, setSelectableIds]);
@@ -131,12 +132,7 @@ export function DateFilterPage() {
       )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {filtered.length > 50 ? (
-          <VirtualTaskList tasks={filtered} />
-        ) : (
-          <TaskList tasks={filtered} />
-        )}
-
+        <TaskList tasks={filtered} />
         {sorted.length === 0 && !showNewTask && (
           <EmptyState
             icon={<Inbox size={40} />}

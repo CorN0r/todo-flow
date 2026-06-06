@@ -1,8 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
-import { Download, Database, PanelBottom } from 'lucide-react';
+import { Upload, Download, Database, PanelBottom } from 'lucide-react';
 import { toast } from 'sonner';
-import { getTasks, backupDatabase, getSetting, setSetting } from '../lib/db';
-import { save } from '@tauri-apps/plugin-dialog';
+import { getTasks, backupDatabase, exportCsv, importDatabase, getSetting, setSetting } from '../lib/db';
+import { save, open } from '@tauri-apps/plugin-dialog';
 
 export function SettingsPage() {
   const [exporting, setExporting] = useState(false);
@@ -37,10 +37,15 @@ export function SettingsPage() {
   };
 
   const handleExportCSV = async () => {
+    const path = await save({
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+      defaultPath: `todoflow-export-${new Date().toISOString().split('T')[0]}.csv`,
+    });
+    if (!path) return;
     setExporting(true);
     try {
-      const tasks = await getTasks({});
-      const headers = ['id', 'title', 'description', 'is_completed', 'priority', 'due_date', 'tag_id', 'parent_task_id', 'created_at'];
+      const tasks = await getTasks({ include_children: true });
+      const headers = ['id', 'title', 'description', 'is_completed', 'is_archived', 'is_suspended', 'is_abandoned', 'priority', 'due_date', 'reminder', 'recurrence', 'tag_id', 'parent_task_id', 'sort_order', 'my_day_date', 'created_at', 'updated_at'];
       const rows = tasks.map((t) =>
         headers.map((h) => {
           const val = (t as unknown as Record<string, unknown>)[h];
@@ -48,19 +53,31 @@ export function SettingsPage() {
           return String(val).includes(',') ? `"${val}"` : String(val);
         }).join(',')
       );
-      const csv = [headers.join(','), ...rows].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `todoflow-export-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const csv = '﻿' + [headers.join(','), ...rows].join('\n');
+      await exportCsv(path, csv);
       toast.success('数据已导出为 CSV');
     } catch {
       toast.error('导出失败');
     }
     setExporting(false);
+  };
+
+  const [importing, setImporting] = useState(false);
+
+  const handleImport = async () => {
+    const selected = await open({
+      filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+      multiple: false,
+    });
+    if (!selected) return;
+    setImporting(true);
+    try {
+      const result = await importDatabase(selected as string);
+      toast.success(result);
+    } catch (err) {
+      toast.error('导入失败: ' + (err as string));
+    }
+    setImporting(false);
   };
 
   return (
@@ -86,6 +103,14 @@ export function SettingsPage() {
           >
             <Database size={16} />
             {backingUp ? '备份中...' : '备份数据库'}
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={importing}
+            className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] hover:bg-[#F9FAFB] dark:hover:bg-white/[0.04] transition-colors w-full text-[#111827] dark:text-white/90 font-medium"
+          >
+            <Upload size={16} />
+            {importing ? '导入中...' : '导入数据库'}
           </button>
         </div>
       </div>

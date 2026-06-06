@@ -42,7 +42,7 @@ function renderHook(
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 't1', title: 'Test', description: '', is_completed: false, is_archived: false,
-    priority: 0, due_date: '2026-06-15', reminder: null, tag_id: null,
+    is_suspended: false, is_abandoned: false, is_pinned: false, priority: 0, due_date: '2026-06-15', reminder: null, tag_id: null,
     parent_task_id: null, sort_order: 0, recurrence: null, my_day_date: null,
     children_count: 0,
     created_at: '', updated_at: '',
