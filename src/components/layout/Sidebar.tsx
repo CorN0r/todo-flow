@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import {
   Sun, Plus, PanelLeftClose, PanelLeft,
@@ -153,7 +152,6 @@ function TagTreeItem({ tag, depth, editingTagId, editName, setEditName, setEditi
 /* ─── Sidebar ─── */
 
 export function Sidebar() {
-  const { t } = useTranslation();
   const { data: tags } = useTags();
   const createTag = useCreateTag();
   const updateTag = useUpdateTag();

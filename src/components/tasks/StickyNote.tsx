@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import { formatDate, isOverdue, todayISO } from '../../lib/date';
-import { Flag, Calendar, Sun, Check, RotateCcw, Trash2, Copy, SunDim, Plus, PauseCircle, Play, XCircle, Pin } from 'lucide-react';
+import { Flag, Calendar, Sun, Check, RotateCcw, Trash2, Copy, SunDim, PauseCircle, Play, XCircle, Pin } from 'lucide-react';
 import { priorityColors, priorityLabels } from '../../lib/priority';
 import { useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
 import { useUIStore } from '../../stores/uiStore';
@@ -17,7 +17,7 @@ interface StickyNoteProps {
   onExpand?: () => void;
 }
 
-export function StickyNote({ task, colors, rotation, isExpanded, onExpand }: StickyNoteProps) {
+export function StickyNote({ task, colors, rotation, onExpand }: StickyNoteProps) {
   const selectionMode = useUIStore((s) => s.selectionMode);
   const selectedTaskIds = useUIStore((s) => s.selectedTaskIds);
   const toggleTaskSelection = useUIStore((s) => s.toggleTaskSelection);

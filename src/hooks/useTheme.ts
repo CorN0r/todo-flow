@@ -37,7 +37,7 @@ export function useTheme() {
     }
   }, [resolvedTheme, theme]);
 
-  const changeTheme = (newTheme: Theme) => {
+  const changeTheme = (newTheme: 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina') => {
     setTheme(newTheme);
     setSetting('theme', newTheme);
   };

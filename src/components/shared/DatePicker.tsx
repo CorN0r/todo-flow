@@ -34,7 +34,7 @@ function getCalendarDays(year: number, month: number) {
 }
 
 export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, iconOnly }: DatePickerProps) {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
   const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const today = new Date();

@@ -1,7 +1,7 @@
 {
   "name": "todo-flow",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A modern Windows desktop TODO app with calendar views, subtasks, tags, habit tracking, and image attachments",
   "type": "module",
   "author": "TodoFlow",

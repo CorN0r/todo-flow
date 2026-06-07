@@ -10,7 +10,7 @@ import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageTitle, type FilterMode } from '../components/shared/PageTitle';
 import { todayISO, addDays, format } from '../lib/date';
-import { Inbox, AlertTriangle, Hash, Sunrise, CalendarRange, CalendarDays, CalendarCheck, Globe } from 'lucide-react';
+import { Inbox, AlertTriangle, Hash, Sunrise, CalendarRange, CalendarDays, CalendarCheck } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { sortTasks, nestChildren } from '../lib/sortTasks';
 

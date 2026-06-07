@@ -7,7 +7,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { todayISO, isOverdue } from '../../lib/date';
 import { cn } from '../../lib/cn';
 import type { UpdateTaskInput } from '../../types/task';
-import { Trash2, Tag, Flag, ChevronDown, Sun, SunDim, Pin, X, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus } from 'lucide-react';
+import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus } from 'lucide-react';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
 import { ReminderList } from '../shared/ReminderList';
@@ -94,7 +94,7 @@ export function TaskDetail() {
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
   const { data: tags } = useTags();
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
 
   const [local, setLocal] = useState<LocalState | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -195,7 +195,6 @@ export function TaskDetail() {
   };
 
   const toggleComplete = () => { const next = !local.is_completed; updateTask.mutate({ id: task.id, is_completed: next }); setLocal((prev) => (prev ? { ...prev, is_completed: next } : null)); };
-  const priorityInfo = priorityConfig[local.priority] || priorityConfig[0];
   const taskTag = tags?.find((t) => t.id === local.tag_id);
 
   const completedCount = children.filter((c) => c.is_completed).length;

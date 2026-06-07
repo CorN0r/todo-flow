@@ -31,7 +31,7 @@ interface PageTitleProps {
   onNewTask?: () => void;
   selectionMode?: boolean;
   onToggleSelection?: () => void;
-  taskViewMode?: 'list' | 'wall';
+  taskViewMode?: 'list' | 'wall' | 'unified';
   onToggleViewMode?: () => void;
 }
 

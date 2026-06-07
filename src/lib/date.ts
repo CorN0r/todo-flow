@@ -127,8 +127,6 @@ export function inferReminderOffset(dueDate: string, reminder: string): string {
   due.setHours(hour, minute, 0, 0);
   const rem = new Date(reminder.replace('T', ' ').replace(' ', 'T'));
 
-  const diffMs = rem.getTime() - due.getTime();
-
   for (const [label, { minutes }] of Object.entries(REMINDER_PRESETS)) {
     const target = due.getTime() + minutes * 60000;
     if (Math.abs(rem.getTime() - target) < 60000) return label;

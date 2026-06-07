@@ -115,7 +115,7 @@ function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void
 }
 
 export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();

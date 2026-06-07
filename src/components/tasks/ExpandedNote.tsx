@@ -2,13 +2,12 @@ import { useState, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { X, Flag, Trash2, Sun, SunDim, Pin } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { todayISO, isOverdue, formatDate } from '../../lib/date';
-import { priorityColors, priorityLabels, PRIORITY_HEX, hexToRgba } from '../../lib/priority';
+import { todayISO, formatDate, isOverdue } from '../../lib/date';
+import { PRIORITY_HEX, hexToRgba, priorityLabels } from '../../lib/priority';
 import { useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
-import { useUIStore } from '../../stores/uiStore';
 import { toast } from 'sonner';
-import type { Task } from '../../types/task';
+import type { Task, UpdateTaskInput } from '../../types/task';
 
 interface ExpandedNoteProps {
   task: Task;
@@ -23,20 +22,17 @@ export function ExpandedNote({ task, colors, rotation, onClose, isDark }: Expand
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
   const { data: tags } = useTags();
-  const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
-
   const [localTitle, setLocalTitle] = useState(task.title);
   const [localDescription, setLocalDescription] = useState(task.description);
   const [localPriority, setLocalPriority] = useState(task.priority);
-  const [localDueDate, setLocalDueDate] = useState(task.due_date || '');
-  const [localTagId, setLocalTagId] = useState(task.tag_id || '');
-  const [localRecurrence, setLocalRecurrence] = useState(task.recurrence || '');
+  const [localDueDate] = useState(task.due_date || '');
+  const [localTagId] = useState(task.tag_id || '');
 
   const taskTag = tags?.find((t) => t.id === localTagId);
   const priorityInfo = PRIORITY_HEX[localPriority] || '#9CA3AF';
   const overdue = isOverdue(localDueDate);
 
-  const saveDebounced = useCallback((patch: Partial<Task>) => {
+  const saveDebounced = useCallback((patch: { [K in keyof UpdateTaskInput]?: UpdateTaskInput[K] }) => {
     updateTask.mutate({ id: task.id, ...patch });
   }, [task.id, updateTask]);
 

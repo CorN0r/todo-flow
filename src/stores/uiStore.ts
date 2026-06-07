@@ -47,6 +47,7 @@ function getResolvedTheme(theme: Theme): 'light' | 'dark' {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   if (theme === 'glass' || theme === 'warm') return 'dark';
+  if (theme === 'lumina') return 'light';
   return theme;
 }
 

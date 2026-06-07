@@ -12,7 +12,7 @@ interface ReminderListProps {
 }
 
 export function ReminderList({ taskId, dueDate }: ReminderListProps) {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
   const { data: reminders } = useTaskReminders(taskId);
   const createReminder = useCreateTaskReminder();
   const deleteReminder = useDeleteTaskReminder();

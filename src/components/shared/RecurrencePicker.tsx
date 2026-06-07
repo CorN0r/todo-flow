@@ -19,7 +19,7 @@ export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
   startOpen?: boolean;
   iconOnly?: boolean | 'label';
 }) {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
   const config = parseRecurrence(value);
   const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);

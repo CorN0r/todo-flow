@@ -3,8 +3,8 @@ import { useUpdateTask, useDeleteTask, useCreateTask, useReorderTasks } from '..
 import { useUIStore } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
-import { priorityColors, priorityLabels } from '../../lib/priority';
-import { Flag, Pin, Check, RotateCcw, Trash2, PauseCircle, Play, XCircle } from 'lucide-react';
+import { priorityColors } from '../../lib/priority';
+import { Flag, Pin, Check, RotateCcw, Trash2, PauseCircle, XCircle } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
