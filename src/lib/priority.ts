@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 export const priorityColors: Record<number, string> = {
   0: 'text-[#9CA3AF]',
   1: 'text-[#3B82F6]',
@@ -14,6 +16,13 @@ export const PRIORITY_HEX: Record<number, string> = {
   4: '#EF4444',
 };
 
+export function getPriorityLabels(): Record<number, string> {
+  return {
+    0: i18n.t('priority.none'), 1: i18n.t('priority.low'), 2: i18n.t('priority.medium'), 3: i18n.t('priority.high'), 4: i18n.t('priority.urgent'),
+  };
+}
+
+// Legacy alias — components should use getPriorityLabels()
 export const priorityLabels: Record<number, string> = {
   0: '无优先级', 1: '低', 2: '中', 3: '高', 4: '紧急',
 };

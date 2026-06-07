@@ -14,7 +14,14 @@
   "bugs": {
     "url": "https://gitcode.com/CorN0r/todo-flow/issues"
   },
-  "keywords": ["todo", "task-manager", "desktop-app", "tauri", "react", "productivity"],
+  "keywords": [
+    "todo",
+    "task-manager",
+    "desktop-app",
+    "tauri",
+    "react",
+    "productivity"
+  ],
   "scripts": {
     "dev": "vite --port 1420",
     "build": "tsc -b && vite build",
@@ -48,11 +55,13 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "clsx": "^2.1.1",
     "date-fns": "^4.3.0",
+    "i18next": "^26.3.1",
     "lucide-react": "^1.16.0",
     "motion": "^12.40.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.76.1",
+    "react-i18next": "^17.0.8",
     "react-router-dom": "^7.15.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",

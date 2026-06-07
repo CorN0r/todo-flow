@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import {
   Sun, Plus, PanelLeftClose, PanelLeft,
@@ -152,6 +153,7 @@ function TagTreeItem({ tag, depth, editingTagId, editName, setEditName, setEditi
 /* ─── Sidebar ─── */
 
 export function Sidebar() {
+  const { t } = useTranslation();
   const { data: tags } = useTags();
   const createTag = useCreateTag();
   const updateTag = useUpdateTag();
@@ -179,6 +181,7 @@ export function Sidebar() {
           <NavLink to="/date/all" className={collapsedBtnCls} aria-label="全部任务"><span className="w-4 h-4 flex items-center justify-center text-xs font-bold">☰</span></NavLink>
           <NavLink to="/myday" className={collapsedBtnCls} aria-label="我的一天"><Sun size={16} /></NavLink>
           <NavLink to="/" end className={collapsedBtnCls} aria-label="今天"><CalendarCheck size={16} /></NavLink>
+          <NavLink to="/calendar" className={collapsedBtnCls} aria-label="日历"><CalendarRange size={16} /></NavLink>
           <NavLink to="/calendar" className={collapsedBtnCls} aria-label="日历"><CalendarRange size={16} /></NavLink>
           <NavLink to="/matrix" className={collapsedBtnCls} aria-label="四象限"><LayoutGrid size={16} /></NavLink>
           <NavLink to="/kanban" className={collapsedBtnCls} aria-label="看板"><Layout size={16} /></NavLink>
@@ -246,9 +249,9 @@ export function Sidebar() {
         <div className="flex flex-col gap-[2px]" style={{ padding: '0px 12px' }}>
           {[
             { to: '/', end: true, label: '今天', icon: <CalendarCheck size={14} /> },
-            { to: '/date/next-3', label: '未来 3 天', icon: <CalendarRange size={14} /> },
-            { to: '/date/next-7', label: '未来 7 天', icon: <CalendarDays size={14} /> },
-            { to: '/date/next-year', label: '今年', icon: <Globe size={14} /> },
+            { to: '/date/tomorrow', label: '明天', icon: <CalendarRange size={14} /> },
+            { to: '/date/this-week', label: '本周', icon: <CalendarDays size={14} /> },
+            { to: '/date/this-month', label: '本月', icon: <Globe size={14} /> },
           ].map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end}
               className={({ isActive }) => cn(NAV_STYLE, 'h-[36px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>

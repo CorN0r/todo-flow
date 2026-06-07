@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 export interface RecurrenceConfig {
   type: 'daily' | 'weekly' | 'monthly' | 'yearly';
   interval: number;
@@ -16,17 +18,12 @@ export function parseRecurrence(json: string): RecurrenceConfig | null {
 
 export function formatRecurrence(json: string): string {
   const config = parseRecurrence(json);
-  if (!config) return '不重复';
+  if (!config) return i18n.t('attributes.noRepeat');
   const { type, interval } = config;
-  const labels: Record<string, string> = {
-    daily: '天',
-    weekly: '周',
-    monthly: '月',
-    yearly: '年',
-  };
-  const label = labels[type] || type;
-  if (interval === 1) return `每${label}`;
-  return `每${interval}${label}`;
+  const key = `recurrence.${type}` as const;
+  const label = i18n.t(key);
+  if (interval === 1) return label;
+  return `${i18n.t('common.every')} ${interval} ${label}`;
 }
 
 export function serializeRecurrence(config: RecurrenceConfig | null): string {

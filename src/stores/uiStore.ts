@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { SortMode } from '../components/shared/PageTitle';
 
-type Theme = 'light' | 'dark' | 'system' | 'glass';
+type Theme = 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina';
 
 interface UIState {
   sidebarOpen: boolean;
@@ -26,6 +26,9 @@ interface UIState {
   sortMode: SortMode;
   setSortMode: (mode: SortMode) => void;
 
+  taskViewMode: 'list' | 'wall' | 'unified';
+  setTaskViewMode: (mode: 'list' | 'wall' | 'unified') => void;
+
   globalSubtasksExpanded: boolean;
   toggleGlobalSubtasksExpanded: () => void;
 
@@ -43,7 +46,7 @@ function getResolvedTheme(theme: Theme): 'light' | 'dark' {
   if (theme === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  if (theme === 'glass') return 'dark';
+  if (theme === 'glass' || theme === 'warm') return 'dark';
   return theme;
 }
 
@@ -70,6 +73,9 @@ export const useUIStore = create<UIState>((set) => ({
 
   sortMode: 'manual',
   setSortMode: (sortMode) => set({ sortMode }),
+
+  taskViewMode: (localStorage.getItem('taskViewMode') as 'list' | 'wall' | 'unified') || 'list',
+  setTaskViewMode: (taskViewMode) => { localStorage.setItem('taskViewMode', taskViewMode); set({ taskViewMode }); },
 
   globalSubtasksExpanded: false,
   toggleGlobalSubtasksExpanded: () => set((s) => ({ globalSubtasksExpanded: !s.globalSubtasksExpanded })),

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   House, CalendarDays, Settings, Sun, Moon, Monitor,
-  PanelLeft, PanelLeftClose, Plus, Search, Sparkles,
+  PanelLeft, PanelLeftClose, Plus, Search, Sparkles, Flame, Lightbulb,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useCreateTask } from '../../hooks/useTasks';
@@ -55,6 +55,8 @@ export function CommandPalette() {
     { id: 'light', label: '浅色主题', icon: <Sun size={16} />, action: () => setTheme('light'), category: '视图' },
     { id: 'dark', label: '深色主题', icon: <Moon size={16} />, action: () => setTheme('dark'), category: '视图' },
     { id: 'system-theme', label: '系统主题', icon: <Monitor size={16} />, action: () => setTheme('system'), category: '视图' },
+    { id: 'lumina', label: '浮光', icon: <Lightbulb size={16} />, action: () => setTheme('lumina'), category: '视图' },
+    { id: 'warm', label: '温暖石炭', icon: <Flame size={16} />, action: () => setTheme('warm'), category: '视图' },
     { id: 'glass', label: '玻璃主题', icon: <Sparkles size={16} />, action: () => setTheme('glass'), category: '视图' },
     { id: 'new-task', label: '新建任务', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: '新建任务', due_date: todayISO() }); setCommandPaletteOpen(false); }, category: '操作' },
   ], [navigate, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen]);

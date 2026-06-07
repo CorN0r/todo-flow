@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Minus, Square, Copy, X, Sun, Moon, Monitor, Sparkles, PanelBottom } from 'lucide-react';
+import { Minus, Square, Copy, X, Sun, Moon, Monitor, Sparkles, PanelBottom, Flame, Lightbulb } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useTheme } from '../../hooks/useTheme';
 import { useUIStore } from '../../stores/uiStore';
 import { SearchBar } from '../shared/SearchBar';
 import { hideToTray } from '../../lib/db';
 
-const themes: { key: 'light' | 'dark' | 'system' | 'glass'; icon: typeof Sun; label: string }[] = [
+const themes: { key: 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina'; icon: typeof Sun; label: string }[] = [
+  { key: 'lumina', icon: Lightbulb, label: 'Lumina' },
   { key: 'light', icon: Sun, label: 'Light' },
   { key: 'dark', icon: Moon, label: 'Dark' },
+  { key: 'warm', icon: Flame, label: 'Warm' },
   { key: 'glass', icon: Sparkles, label: 'Glass' },
   { key: 'system', icon: Monitor, label: 'System' },
 ];

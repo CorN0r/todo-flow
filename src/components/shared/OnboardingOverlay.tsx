@@ -7,20 +7,20 @@ const STORAGE_KEY = 'todoflow-onboarding-done';
 const steps = [
   {
     icon: <Tag size={32} />,
-    title: 'Create your first tag',
-    description: 'Tags help you organize tasks by project or category. Click the + button in the sidebar to get started.',
+    title: '创建你的第一个标签',
+    description: '标签可以帮助你按项目或分类管理任务。点击侧边栏右侧的 + 按钮开始吧。',
     color: 'from-indigo-500 to-blue-500',
   },
   {
     icon: <CheckSquare size={32} />,
-    title: 'Add your first task',
-    description: 'Use the quick-add bar at the bottom of any page. Press Enter to create, or click a task to open its details.',
+    title: '添加你的第一个任务',
+    description: '使用底部的快速添加栏输入任务，按 Enter 创建，点击任务可打开详情面板。',
     color: 'from-[#7C72F6] to-[#A78BFA]',
   },
   {
     icon: <Keyboard size={32} />,
-    title: 'Master keyboard shortcuts',
-    description: 'Press ? for all shortcuts. Ctrl+K opens the command palette. Ctrl+B toggles the sidebar. Long-press a task to select multiple.',
+    title: '掌握快捷键',
+    description: '按 ? 查看所有快捷键。Ctrl+K 打开命令面板，Ctrl+B 折叠侧边栏，Ctrl+Shift+T 全局快速添加。',
     color: 'from-amber-500 to-orange-500',
   },
 ];
@@ -85,7 +85,7 @@ export function OnboardingOverlay() {
               className="text-xs text-[#6B7280] hover:text-[#111827] dark:hover:text-white/90 transition-colors flex items-center gap-1"
             >
               <X size={14} />
-              Skip all
+              跳过
             </button>
 
             <button
@@ -100,11 +100,11 @@ export function OnboardingOverlay() {
             >
               {step < steps.length - 1 ? (
                 <>
-                  Next
+                  下一步
                   <ArrowRight size={16} />
                 </>
               ) : (
-                'Get started'
+                '开始使用'
               )}
             </button>
           </div>

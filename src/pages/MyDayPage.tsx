@@ -3,6 +3,8 @@ import { todayISO, subDays } from '../lib/date';
 import { useTasks, useUpdateTask } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
 import { TaskList } from '../components/tasks/TaskList';
+import { StickyWall } from '../components/tasks/StickyWall';
+import { UnifiedLayout } from '../components/tasks/UnifiedLayout';
 import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -45,11 +47,27 @@ export function MyDayPage() {
 
   const sortMode = useUIStore((s) => s.sortMode);
   const setSortMode = useUIStore((s) => s.setSortMode);
+  const taskViewMode = useUIStore((s) => s.taskViewMode);
+  const setTaskViewMode = useUIStore((s) => s.setTaskViewMode);
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [showYesterday, setShowYesterday] = useState(true);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(sessionStorage.getItem('myday-dismissed') || '[]')); } catch { return new Set(); }
+  });
+  const addDismissed = (id: string) => {
+    setDismissedIds((prev) => {
+      const next = new Set([...prev, id]);
+      sessionStorage.setItem('myday-dismissed', JSON.stringify([...next]));
+      return next;
+    });
+  };
+  const clearDismissed = () => {
+    setDismissedIds(new Set());
+    sessionStorage.removeItem('myday-dismissed');
+  };
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
@@ -64,7 +82,7 @@ export function MyDayPage() {
 
   const myDayIds = new Set(tasks?.map((t) => t.id) || []);
   const yesterdayList = (yesterdayTasks || []).filter((t) => !myDayIds.has(t.id) && !t.parent_task_id);
-  const suggestionList = (suggestions || []).filter((t) => !myDayIds.has(t.id) && !t.parent_task_id && t.priority > 0);
+  const suggestionList = (suggestions || []).filter((t) => !myDayIds.has(t.id) && !t.parent_task_id && t.priority > 0 && !t.is_suspended && !t.is_abandoned && !dismissedIds.has(t.id));
 
   const setSelectableIds = useUIStore((s) => s.setSelectableIds);
   useEffect(() => { setSelectableIds(filtered.map((t) => t.id)); }, [filtered, setSelectableIds]);
@@ -90,7 +108,11 @@ export function MyDayPage() {
             overdueCount={overdueCount} filterMode={filterMode} onFilterChange={setFilterMode}
             sortMode={sortMode} onSortChange={setSortMode}
             onNewTask={() => setShowNewTask(true)}
-            selectionMode={selectionMode} onToggleSelection={handleToggleSelection} />
+            selectionMode={selectionMode} onToggleSelection={handleToggleSelection}
+            taskViewMode={taskViewMode} onToggleViewMode={() => {
+              if (taskViewMode === 'unified') useUIStore.getState().setSelectedTaskId(null);
+              setTaskViewMode(taskViewMode === 'wall' ? 'unified' : taskViewMode === 'unified' ? 'list' : 'wall');
+            }} />
           <p className="text-xs text-[#6B7280]">{today}</p>
         </div>
       </div>
@@ -176,6 +198,8 @@ export function MyDayPage() {
                     className="shrink-0 flex items-center gap-0.5 text-[10px] text-[#7C72F6] hover:underline">
                     <Plus size={10} />加入
                   </button>
+                  <button onClick={() => addDismissed(task.id)}
+                    className="shrink-0 text-[10px] text-[#9CA3AF] hover:text-[#6B7280] ml-1">暂不</button>
                 </div>
               ))}
             </div>
@@ -189,7 +213,15 @@ export function MyDayPage() {
             建议 &middot; {suggestionList.length} 项
           </button>
         )}
-        <TaskList tasks={filtered} />
+        {dismissedIds.size > 0 && (
+          <button onClick={clearDismissed}
+            className="w-full mb-3 px-3 py-1.5 rounded-lg text-[11px] text-[#9CA3AF] hover:text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-left">
+            重新推荐 &middot; {dismissedIds.size} 项
+          </button>
+        )}
+        <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto')}>
+          {taskViewMode === 'wall' ? <StickyWall tasks={filtered} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filtered} /> : <TaskList tasks={filtered} />}
+        </div>
         {sorted.length === 0 && !showNewTask && (
           <EmptyState icon={<Sun size={40} />} title="今天没有任务"
             description='右键任务选择"加入我的一天"，或点击上方新建任务' />

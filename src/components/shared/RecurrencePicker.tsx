@@ -1,4 +1,5 @@
 import { useState, useRef, useLayoutEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Repeat, ChevronDown, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { parseRecurrence, formatRecurrence, serializeRecurrence } from '../../lib/recurrence';
@@ -18,6 +19,7 @@ export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
   startOpen?: boolean;
   iconOnly?: boolean | 'label';
 }) {
+  const { t } = useTranslation();
   const config = parseRecurrence(value);
   const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);

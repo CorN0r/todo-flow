@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useTask, useUpdateTask, useDeleteTask, useCreateTask, useDuplicateTask } from '../../hooks/useTasks';
+import { useTask, useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useTags } from '../../hooks/useTags';
 import { useUIStore } from '../../stores/uiStore';
-import { todayISO } from '../../lib/date';
+import { todayISO, isOverdue } from '../../lib/date';
 import { cn } from '../../lib/cn';
 import type { UpdateTaskInput } from '../../types/task';
-import { Trash2, Copy, Tag, Flag, ChevronDown, Sun, SunDim, Pin, X } from 'lucide-react';
+import { Trash2, Tag, Flag, ChevronDown, Sun, SunDim, Pin, X, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus } from 'lucide-react';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
 import { ReminderList } from '../shared/ReminderList';
@@ -51,6 +52,39 @@ function EditableSubtaskTitle({ child }: { child: { id: string; title: string; i
   );
 }
 
+function SubtasksAddForm({ taskId, parentTaskId }: { taskId: string; parentTaskId: string }) {
+  const createTask = useCreateTask();
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleAdd = () => {
+    const t = title.trim();
+    if (!t) return;
+    createTask.mutate({ title: t, parent_task_id: taskId }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['task', parentTaskId || taskId] });
+        setTitle('');
+        inputRef.current?.focus();
+      },
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input ref={inputRef} value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+        placeholder="添加子任务..."
+        className="flex-1 text-[13px] px-3 py-1.5 rounded-lg border border-dashed border-[#D1D5DB] dark:border-white/[0.10] bg-transparent outline-none focus:border-[#7C72F6] text-[#111827] dark:text-white/90 placeholder:text-[#9CA3AF]" />
+      <button onClick={handleAdd} disabled={!title.trim()}
+        className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+        <Plus size={14} style={{ strokeWidth: 2.5 }} />
+      </button>
+    </div>
+  );
+}
+
 export function TaskDetail() {
   const selectedTaskId = useUIStore((s) => s.selectedTaskId);
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
@@ -59,8 +93,8 @@ export function TaskDetail() {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
-  const duplicateTask = useDuplicateTask();
   const { data: tags } = useTags();
+  const { t } = useTranslation();
 
   const [local, setLocal] = useState<LocalState | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,6 +148,8 @@ export function TaskDetail() {
     return () => { if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; doSave(local); } };
   }, [local, doSave]);
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const update = (patch: Partial<LocalState>) => { setLocal((prev) => (prev ? { ...prev, ...patch } : null)); };
 
   if (!selectedTaskId) return null;
@@ -123,13 +159,34 @@ export function TaskDetail() {
   const { task, children } = detail;
 
   const handleDelete = () => {
+    if (children.length > 0) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    doDelete();
+  };
+
+  const doDelete = () => {
     const deletedTask = task;
+    const deletedChildren = children;
     setSelectedTaskId(null);
     deleteTask.mutate(task.id, {
       onSuccess: () => {
         toast.success(
           () => (
-            <span>任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: deletedTask.title, description: deletedTask.description, priority: deletedTask.priority, due_date: deletedTask.due_date || undefined, tag_id: deletedTask.tag_id || undefined, parent_task_id: deletedTask.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
+            <span>任务已删除 &middot; <button onClick={async () => {
+              const parent = await createTask.mutateAsync({
+                title: deletedTask.title, description: deletedTask.description,
+                priority: deletedTask.priority, due_date: deletedTask.due_date || undefined,
+                tag_id: deletedTask.tag_id || undefined,
+                parent_task_id: deletedTask.parent_task_id || undefined,
+                recurrence: deletedTask.recurrence || undefined,
+              });
+              for (const child of deletedChildren) {
+                await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id });
+              }
+              toast.dismiss();
+            }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
           ),
           { duration: 8000 },
         );
@@ -144,6 +201,7 @@ export function TaskDetail() {
   const completedCount = children.filter((c) => c.is_completed).length;
 
   return (
+    <>
     <div className="space-y-5">
       {/* ── Title + Quick Actions ── */}
       <div className="space-y-2">
@@ -158,25 +216,48 @@ export function TaskDetail() {
               placeholder="任务标题" />
           </div>
         </div>
-        <div className="flex items-center gap-2 pl-10">
+        <div className="h-px bg-[#F3F4F6] dark:bg-white/[0.06] my-1" />
+        <div className="flex items-center gap-1.5 mb-1">
+          <Activity size={13} className="text-[#6B7280]" />
+          <label className="section-label">状态</label>
+        </div>
+        <div className="flex items-center gap-2">
           <button onClick={() => { const isMyDay = task.my_day_date === todayISO(); updateTask.mutate({ id: task.id, my_day_date: isMyDay ? '' : todayISO() }); }}
-            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-lg transition-colors',
-              task.my_day_date === todayISO() ? 'text-[#F59E0B] bg-[#FFFBEB] dark:bg-amber-950/30' : 'text-[#6B7280] hover:text-[#F59E0B] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]')}>
+            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
+              task.my_day_date === todayISO() ? 'text-[#F59E0B] bg-[#FFFBEB] dark:bg-amber-950/30' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#F59E0B] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
             {task.my_day_date === todayISO() ? <SunDim size={13} /> : <Sun size={13} />}
             我的一天
           </button>
           <button onClick={() => { updateTask.mutate({ id: task.id, is_pinned: !task.is_pinned }); }}
-            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-lg transition-colors',
-              task.is_pinned ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#6B7280] hover:text-[#7C72F6] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]')}>
+            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
+              task.is_pinned ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
             <Pin size={13} />
             置顶
           </button>
+          {isOverdue(task.due_date) && !task.is_completed && !task.is_suspended && !task.is_abandoned && (
+            <span className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium text-[#F97316] bg-[#FFF7ED] dark:bg-orange-950/30">超期</span>
+          )}
+          {task.is_suspended && (
+            <button onClick={() => updateTask.mutate({ id: task.id, is_suspended: false })}
+              className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#6B7280]">
+              已挂起
+            </button>
+          )}
+          {task.is_abandoned && (
+            <button onClick={() => updateTask.mutate({ id: task.id, is_abandoned: false })}
+              className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium text-[#EF4444] bg-[#FEF2F2] dark:bg-red-950/30 hover:text-red-600">
+              已放弃
+            </button>
+          )}
         </div>
       </div>
 
       {/* ── Attributes ── */}
       <div>
-        <label className="section-label mb-2 block">属性</label>
+        <div className="flex items-center gap-1.5 mb-2">
+          <SlidersHorizontal size={13} className="text-[#6B7280]" />
+          <label className="section-label">属性</label>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Due Date */}
           <DatePicker value={local.due_date} onChange={(val) => update({ due_date: val })} showTime iconOnly="label" />
@@ -249,7 +330,10 @@ export function TaskDetail() {
 
       {/* ── Description ── */}
       <div>
-        <label className="section-label mb-2 block">描述</label>
+        <div className="flex items-center gap-1.5 mb-2">
+          <AlignLeft size={13} className="text-[#6B7280]" />
+          <label className="section-label">描述</label>
+        </div>
         <textarea value={local.description}
           onChange={(e) => setLocal((prev) => prev ? { ...prev, description: e.target.value } : null)}
           onBlur={() => { const t = taskRef.current; if (t) { mutateRef.current({ id: t.id, description: local.description }, { onSuccess: () => {}, onError: () => {} }); } }}
@@ -257,43 +341,81 @@ export function TaskDetail() {
           className="w-full text-sm px-3 py-2.5 rounded-[10px] border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.03] text-[#111827] dark:text-white/90 outline-none focus:ring-2 focus:ring-[#7C72F6]/30 focus:border-[#7C72F6] resize-y placeholder:text-[#9CA3AF] min-h-[60px]" />
       </div>
 
-      {/* ── Subtasks with Progress Bar ── */}
-      {children.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
+      {/* ── Subtasks ── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <ListChecks size={13} className="text-[#6B7280]" />
             <label className="section-label">子任务</label>
-            <span className="text-[11px] font-medium text-[#6B7280]">{completedCount}/{children.length}</span>
           </div>
-          <div className="w-full h-1.5 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] mb-3 overflow-hidden">
-            <div className="h-full rounded-full bg-[#7C72F6] transition-all duration-500 ease-out"
-              style={{ width: `${(completedCount / children.length) * 100}%` }} />
-          </div>
-          <div className="space-y-1 mb-3 ml-6 border-l-2 border-[#F3F4F6] dark:border-white/[0.06] pl-4">
-            {children.map((child) => (
-              <div key={child.id} className="flex items-center gap-2 py-1.5 px-2 rounded-[8px]">
-                <button onClick={() => updateTask.mutate({ id: child.id, is_completed: !child.is_completed })}
-                  className={cn('w-[18px] h-[18px] rounded-full border-[2px] flex items-center justify-center flex-shrink-0 transition-colors',
-                    child.is_completed ? 'bg-[#7C72F6] border-[#7C72F6] text-white' : 'border-[#D1D5DB] hover:border-[#7C72F6]')}>
-                  {child.is_completed && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                </button>
-                <EditableSubtaskTitle child={child} />
-              </div>
-            ))}
-          </div>
+          {children.length > 0 && <span className="text-[11px] font-medium text-[#6B7280]">{completedCount}/{children.length}</span>}
         </div>
-      )}
+        {children.length > 0 && (
+          <>
+            <div className="w-full h-1.5 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] mb-3 overflow-hidden">
+              <div className="h-full rounded-full bg-[#7C72F6] transition-all duration-500 ease-out"
+                style={{ width: `${(completedCount / children.length) * 100}%` }} />
+            </div>
+            <div className="space-y-1 mb-2">
+              {children.map((child) => (
+                <div key={child.id} className={cn('flex items-center gap-2.5 px-3 py-2 rounded-[10px] border transition-colors group',
+                  child.is_completed
+                    ? 'bg-[#FAFAFA] dark:bg-white/[0.02] border-[#F3F4F6] dark:border-white/[0.04]'
+                    : 'bg-white dark:bg-[#1e1e32] border-[#F3F4F6] dark:border-white/[0.06] hover:border-[#E5E7EB] dark:hover:border-white/[0.08]')}>
+                  <button onClick={() => updateTask.mutate({ id: child.id, is_completed: !child.is_completed })}
+                    className={cn('w-[18px] h-[18px] rounded-full border-[2px] flex items-center justify-center flex-shrink-0 transition-colors',
+                      child.is_completed ? 'bg-[#7C72F6] border-[#7C72F6] text-white' : 'border-[#D1D5DB] hover:border-[#7C72F6]')}>
+                    {child.is_completed && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                  </button>
+                  <EditableSubtaskTitle child={child} />
+                  <button onClick={() => { deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); } }); }}
+                    className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[#9CA3AF] hover:text-[#EF4444] transition-all ml-auto">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <SubtasksAddForm taskId={task.id} parentTaskId={task.parent_task_id || ''} />
+      </div>
 
-      {/* ── Bottom Actions ── */}
-      <div className="pt-4 border-t border-[#F3F4F6] dark:border-white/[0.06]">
-        <div className="flex items-center justify-between">
-          <button onClick={handleDelete}
-            className="flex items-center gap-1.5 text-[12px] text-[#6B7280] hover:text-[#EF4444] transition-colors px-2 py-1.5 rounded-lg hover:bg-[#FEF2F2] dark:hover:bg-red-950/30">
-            <Trash2 size={14} />删除</button>
-          <button onClick={() => duplicateTask.mutate(task.id)}
-            className="flex items-center gap-1.5 text-[12px] text-[#6B7280] hover:text-[#374151] dark:hover:text-white transition-colors px-2 py-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]">
-            <Copy size={14} />复制</button>
+      {/* ── Time Info + Bottom Actions ── */}
+      <div className="pt-3 border-t border-[#F3F4F6] dark:border-white/[0.06] flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF]">
+          <span>创建于</span>
+          <span className="text-[#6B7280]">{new Date(task.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+          {task.is_completed && (
+            <>
+              <span className="mx-1 text-[#E5E7EB]">|</span>
+              <span>完成于</span>
+              <span className="text-[#6B7280]">{new Date(task.updated_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            </>
+          )}
         </div>
+        <button onClick={handleDelete}
+          className="flex items-center gap-1.5 text-[12px] text-[#6B7280] hover:text-[#EF4444] transition-colors px-2 py-1.5 rounded-lg hover:bg-[#FEF2F2] dark:hover:bg-red-950/30 shrink-0">
+          <Trash2 size={14} />删除</button>
       </div>
     </div>
+
+    {/* Delete confirm dialog */}
+    {showDeleteConfirm && (
+      <Portal>
+        <div className="fixed inset-0 z-[300] bg-black/40 flex items-center justify-center" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="bg-white dark:bg-[#1e1e32] rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-[#111827] dark:text-white/90 mb-1 font-medium">确认删除</p>
+            <p className="text-[13px] text-[#6B7280] mb-5">此任务包含 {children.length} 个子任务，删除后将一并移除，不可恢复。</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded-lg text-[13px] text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors">取消</button>
+              <button onClick={() => { setShowDeleteConfirm(false); doDelete(); }}
+                className="px-4 py-2 rounded-lg text-[13px] bg-[#EF4444] text-white hover:bg-red-600 transition-colors font-medium">删除</button>
+            </div>
+          </div>
+        </div>
+      </Portal>
+    )}
+    </>
   );
 }

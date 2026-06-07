@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bell, Plus, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { useTaskReminders, useCreateTaskReminder, useDeleteTaskReminder } from '../../hooks/useTasks';
@@ -11,6 +12,7 @@ interface ReminderListProps {
 }
 
 export function ReminderList({ taskId, dueDate }: ReminderListProps) {
+  const { t } = useTranslation();
   const { data: reminders } = useTaskReminders(taskId);
   const createReminder = useCreateTaskReminder();
   const deleteReminder = useDeleteTaskReminder();

@@ -8,8 +8,9 @@ export function TaskDetailPanel() {
   const selectedTaskId = useUIStore((s) => s.selectedTaskId);
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
   const theme = useUIStore((s) => s.theme);
+  const taskViewMode = useUIStore((s) => s.taskViewMode);
   const isGlass = theme === 'glass';
-  const isOpen = !!selectedTaskId;
+  const isOpen = !!selectedTaskId && taskViewMode !== 'unified';
 
   return (
     <AnimatePresence>

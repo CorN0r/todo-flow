@@ -102,6 +102,56 @@
     --card-shadow-expanded: 0 8px 40px rgba(0, 0, 0, 0.25);
   }
 
+  .warm {
+    /* Warm theme — charcoal base + matte gold accent */
+    --background: 30 8% 8%;
+    --foreground: 42 30% 88%;
+    --primary: 44 55% 54%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 30 8% 14%;
+    --muted-foreground: 42 15% 58%;
+    --border: 42 10% 16%;
+    --ring: 44 55% 54%;
+    --card: 30 8% 10%;
+    --card-foreground: 42 30% 88%;
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --accent-foreground: 42 30% 88%;
+    --input: 30 8% 14%;
+    --sidebar: 30 8% 6%;
+    --sidebar-foreground: 42 15% 68%;
+    --sidebar-accent: 44 55% 54% / 0.12;
+    --sidebar-accent-foreground: 44 55% 54%;
+    --sidebar-border: 42 10% 14%;
+    --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    --card-shadow-expanded: 0 8px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  .lumina {
+    /* Lumina light theme — off-white base, muted slate primary, diffuse shadows */
+    --background: 40 10% 97%;
+    --foreground: 215 15% 14%;
+    --primary: 214 18% 52%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 40 8% 94%;
+    --muted-foreground: 215 8% 46%;
+    --border: 40 6% 89%;
+    --ring: 214 18% 52%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 15% 14%;
+    --destructive: 0 55% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --accent-foreground: 215 15% 14%;
+    --input: 40 5% 95%;
+    --sidebar: 40 10% 94%;
+    --sidebar-foreground: 215 10% 32%;
+    --sidebar-accent: 214 18% 52% / 0.1;
+    --sidebar-accent-foreground: 214 18% 40%;
+    --sidebar-border: 40 6% 88%;
+    --card-shadow: 0 2px 16px rgba(107, 127, 160, 0.08), 0 4px 32px rgba(107, 127, 160, 0.04);
+    --card-shadow-expanded: 0 8px 40px rgba(107, 127, 160, 0.1), 0 16px 64px rgba(107, 127, 160, 0.05);
+  }
+
   /* Glass morphism utility classes */
   .glass-panel {
     background: rgba(255, 255, 255, 0.05);
@@ -245,6 +295,137 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  /* ===== Warm theme ===== */
+  /* Primary accent: #7C72F6 → #C9A84C */
+  .warm .bg-\[\#7C72F6\],
+  .warm .bg-\[\#7C72F6\]\/\[0\.06\],
+  .warm .bg-\[\#7C72F6\]\/\[0\.08\],
+  .warm .bg-\[\#7C72F6\]\/\[0\.10\],
+  .warm .bg-\[\#7C72F6\]\/\[0\.12\] {
+    background-color: rgba(201, 168, 76, 0.12);
+  }
+  .warm .text-\[\#7C72F6\] {
+    color: #C9A84C;
+  }
+  .warm .border-\[\#7C72F6\] {
+    border-color: #C9A84C;
+  }
+  .warm .ring-\[\#7C72F6\] {
+    --tw-ring-color: #C9A84C;
+  }
+  .warm .hover\:border-\[\#7C72F6\]:hover {
+    border-color: #C9A84C;
+  }
+  .warm .hover\:bg-\[\#7C72F6\]\/\[0\.08\]:hover {
+    background-color: rgba(201, 168, 76, 0.12);
+  }
+  .warm .hover\:text-\[\#7C72F6\]:hover {
+    color: #C9A84C;
+  }
+  .warm .focus\:border-\[\#7C72F6\]:focus {
+    border-color: #C9A84C;
+  }
+
+  /* Sidebar background */
+  .warm .bg-\[\#F3F2FA\] { background-color: #1c1a17; }
+  .warm .bg-\[\#EEECF8\] { background-color: #22201c; }
+  .warm .dark\:bg-\[\#16162A\],
+  .warm aside.bg-\[\#16162A\] { background-color: #141210; }
+
+  /* Card / panel backgrounds */
+  .warm .dark\:bg-\[\#1e1e32\] { background-color: #1c1a17; }
+  .warm .bg-white { background-color: #1c1a17; }
+
+  /* Inputs */
+  .warm .dark\:bg-white\/\[0\.03\] { background-color: rgba(201, 168, 76, 0.04); }
+  .warm .dark\:bg-white\/\[0\.04\] { background-color: rgba(201, 168, 76, 0.05); }
+  .warm .dark\:bg-white\/\[0\.06\] { background-color: rgba(201, 168, 76, 0.06); }
+
+  /* Borders */
+  .warm .dark\:border-white\/\[0\.06\] { border-color: rgba(201, 168, 76, 0.1); }
+  .warm .dark\:border-white\/\[0\.07\] { border-color: rgba(201, 168, 76, 0.12); }
+  .warm .border-\[\#F3F4F6\] { border-color: rgba(201, 168, 76, 0.12); }
+
+  /* Input background */
+  .warm .bg-\[\#F9FAFB\] { background-color: #1e1c19; }
+  .warm .bg-\[\#F3F4F6\] { background-color: #24211d; }
+
+  /* Hover states */
+  .warm .hover\:bg-\[\#F3F4F6\]:hover { background-color: #2a2621; }
+  .warm .hover\:bg-\[\#E5E7EB\]:hover { background-color: #2e2a24; }
+  .warm .dark\:hover\:bg-white\/\[0\.04\]:hover { background-color: rgba(201, 168, 76, 0.06); }
+  .warm .dark\:hover\:bg-white\/\[0\.06\]:hover { background-color: rgba(201, 168, 76, 0.08); }
+  .warm .dark\:hover\:bg-white\/\[0\.08\]:hover { background-color: rgba(201, 168, 76, 0.1); }
+  .warm .dark\:hover\:bg-white\/\[0\.1\]:hover { background-color: rgba(201, 168, 76, 0.12); }
+
+  /* Text colors */
+  .warm .dark\:text-white\/90 { color: rgba(235, 222, 190, 0.9); }
+  .warm .dark\:text-white { color: #ebe0be; }
+  .warm .text-\[\#111827\] { color: #e0d5b8; }
+  .warm .text-\[\#6B7280\] { color: #9e947a; }
+  .warm .text-\[\#9CA3AF\] { color: #7a7260; }
+  .warm .text-\[\#374151\] { color: #c8bc98; }
+  .warm .dark\:text-\[\#C4C4CC\] { color: #b8aa84; }
+
+  /* Section label */
+  .warm .section-label { color: #9e947a; }
+
+  /* ===== Lumina light theme ===== */
+  /* Base background — no pure white */
+  .lumina body {
+    background-color: #FAF9F7;
+  }
+  .lumina .bg-white {
+    background-color: #FFFFFF;
+    box-shadow: 0 1px 3px rgba(107, 127, 160, 0.06);
+  }
+  .lumina .bg-\[\#F9FAFB\] { background-color: #F4F3F1; }
+  .lumina .bg-\[\#F3F4F6\] { background-color: #F0EFEC; }
+  .lumina .bg-\[\#FAFAFA\] { background-color: #F7F6F4; }
+  .lumina .bg-\[\#F3F2FA\] { background-color: #F0EEEA; }
+  .lumina .bg-\[\#EEECF8\] { background-color: #ECE9E5; }
+
+  /* Primary accent: #7C72F6 → #6B7FA0 (muted slate) */
+  .lumina .bg-\[\#7C72F6\] { background-color: #6B7FA0; }
+  .lumina .bg-\[\#7C72F6\]\/\[0\.06\] { background-color: rgba(107, 127, 160, 0.06); }
+  .lumina .bg-\[\#7C72F6\]\/\[0\.08\] { background-color: rgba(107, 127, 160, 0.08); }
+  .lumina .bg-\[\#7C72F6\]\/\[0\.10\] { background-color: rgba(107, 127, 160, 0.10); }
+  .lumina .bg-\[\#7C72F6\]\/\[0\.12\] { background-color: rgba(107, 127, 160, 0.12); }
+  .lumina .text-\[\#7C72F6\] { color: #5B6F90; }
+  .lumina .border-\[\#7C72F6\] { border-color: #6B7FA0; }
+  .lumina .ring-\[\#7C72F6\] { --tw-ring-color: #6B7FA0; }
+  .lumina .hover\:border-\[\#7C72F6\]:hover { border-color: #6B7FA0; }
+  .lumina .hover\:text-\[\#7C72F6\]:hover { color: #5B6F90; }
+  .lumina .focus\:border-\[\#7C72F6\]:focus { border-color: #6B7FA0; }
+
+  /* Text colors — no pure black, use deep grey-blue #1D2129 */
+  .lumina .text-\[\#111827\] { color: #1D2129; }
+  .lumina .text-\[\#6B7280\] { color: #5F6C7A; }
+  .lumina .text-\[\#9CA3AF\] { color: #8A95A1; }
+  .lumina .text-\[\#374151\] { color: #384250; }
+
+  /* Borders — softer */
+  .lumina .border-\[\#F3F4F6\] { border-color: #E8E5E0; }
+  .lumina .border-\[\#E5E7EB\] { border-color: #DEDBD6; }
+  .lumina .border-\[\#D1D5DB\] { border-color: #C8C4BD; }
+
+  /* Hover states */
+  .lumina .hover\:bg-\[\#F3F4F6\]:hover { background-color: #F0EFEC; }
+  .lumina .hover\:bg-\[\#E5E7EB\]:hover { background-color: #E8E5E0; }
+
+  /* Subtle shadow on cards */
+  .lumina .shadow-\[0px_2px_8px_0px_rgba\(124\,114\,246\,0\.08\)\] {
+    box-shadow: 0 2px 12px rgba(107, 127, 160, 0.07), 0 1px 3px rgba(107, 127, 160, 0.05);
+  }
+
+  /* Section label */
+  .lumina .section-label { color: #6B7A8A; }
+
+  /* Edge highlight on interactive elements */
+  .lumina button.bg-\[\#7C72F6\]:not(.hover\:bg-\[\#6C63E6\]) {
+    box-shadow: 0 2px 8px rgba(107, 127, 160, 0.25), inset 0 1px 0 rgba(255,255,255,0.2);
   }
 }
 

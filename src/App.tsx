@@ -3,6 +3,8 @@ import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster, toast } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
+import './i18n';
+import { useLanguage } from './i18n/useLanguage';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { TaskDetailPanel } from './components/layout/TaskDetailPanel';
@@ -61,6 +63,7 @@ function MainLayout() {
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
+  const isWarm = theme === 'warm';
   const navigate = useNavigate();
 
   useKeyboardShortcuts({
@@ -156,6 +159,14 @@ function MainLayout() {
           />
         </>
       )}
+      {/* Warm theme background gradient */}
+      {isWarm && (
+        <div className="fixed inset-0 z-[-1] pointer-events-none"
+          style={{
+            background: 'linear-gradient(135deg, #161514 0%, #1c1a17 40%, #22201c 100%)',
+          }}
+        />
+      )}
       <div className="flex h-full w-full">
         <ErrorBoundary>
           <Sidebar />
@@ -198,6 +209,9 @@ function MainLayout() {
 }
 
 function App() {
+  const { loadSavedLanguage } = useLanguage();
+  useEffect(() => { loadSavedLanguage(); }, [loadSavedLanguage]);
+
   return (
     <MemoryRouter initialEntries={[new URLSearchParams(window.location.search).has('widget') ? '/widget' : '/date/all']}>
       <QueryClientProvider client={queryClient}>

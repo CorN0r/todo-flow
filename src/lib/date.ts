@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 import {
   format,
   startOfMonth,
@@ -63,21 +64,30 @@ export function normalizeReminder(reminder: string | null | undefined): string |
   return reminder.replace('T', ' ');
 }
 
-const REMINDER_PRESETS: Record<string, { minutes: number; label: string }> = {
-  '0m': { minutes: 0, label: '准时' },
-  '-5m': { minutes: -5, label: '提前5分钟' },
-  '-30m': { minutes: -30, label: '提前30分钟' },
-  '-1h': { minutes: -60, label: '提前1小时' },
-  '-1d': { minutes: -1440, label: '提前1天' },
-  '-1w': { minutes: -10080, label: '提前1周' },
+const REMINDER_PRESETS: Record<string, { minutes: number }> = {
+  '0m': { minutes: 0 },
+  '-5m': { minutes: -5 },
+  '-30m': { minutes: -30 },
+  '-1h': { minutes: -60 },
+  '-1d': { minutes: -1440 },
+  '-1w': { minutes: -10080 },
 };
 
-export function getReminderPresets() { return REMINDER_PRESETS; }
+export function getReminderPresets(): Record<string, { minutes: number; label: string }> {
+  return {
+    '0m': { minutes: 0, label: i18n.t('reminderPresets.0m') },
+    '-5m': { minutes: -5, label: i18n.t('reminderPresets.-5m') },
+    '-30m': { minutes: -30, label: i18n.t('reminderPresets.-30m') },
+    '-1h': { minutes: -60, label: i18n.t('reminderPresets.-1h') },
+    '-1d': { minutes: -1440, label: i18n.t('reminderPresets.-1d') },
+    '-1w': { minutes: -10080, label: i18n.t('reminderPresets.-1w') },
+  };
+}
 
 export function getReminderLabel(offset: string): string {
   if (!offset) return '';
-  if (offset.startsWith('custom:')) return `自定义 ${offset.slice(7)}`;
-  return REMINDER_PRESETS[offset]?.label || offset;
+  if (offset.startsWith('custom:')) return `${i18n.t('common.custom', '自定义')} ${offset.slice(7)}`;
+  return REMINDER_PRESETS[offset] ? getReminderPresets()[offset].label : offset;
 }
 
 export function computeReminderTime(dueDate: string, offset: string): string {

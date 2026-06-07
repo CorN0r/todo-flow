@@ -26,7 +26,7 @@ export function WidgetPage() {
 
   useEffect(() => {
     getSetting('theme').then((saved) => {
-      if (saved === 'dark' || saved === 'glass') setIsDark(true);
+      if (saved === 'dark' || saved === 'glass' || saved === 'warm') setIsDark(true);
       else if (saved === 'light') setIsDark(false);
       else setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
     }).catch(() => setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches));

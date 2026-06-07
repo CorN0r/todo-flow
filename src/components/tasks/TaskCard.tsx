@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import type { Task } from '../../types/task';
@@ -69,7 +70,7 @@ function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setSubMenu({ x: e.clientX, y: e.clientY }); }}>
         {editing ? (
           <input id={`subtask-input-${child.id}`} value={val} onChange={(e) => setVal(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { const t = val.trim(); if (t) updateTask.mutate({ id: child.id, title: t }); setEditing(false); } if (e.key === 'Escape') setEditing(false); }}
+            onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { const t = val.trim(); if (t) updateTask.mutate({ id: child.id, title: t }); setEditing(false); } if (e.key === 'Escape') setEditing(false); }}
             onBlur={() => setEditing(false)}
             className="flex-1 text-[13px] px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.08] outline-none ring-1 ring-[#7C72F6]/40 text-[#111827] dark:text-white/90" />
         ) : (
@@ -114,6 +115,7 @@ function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void
 }
 
 export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
+  const { t } = useTranslation();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();

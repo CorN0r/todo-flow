@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Portal } from '../shared/Portal';
 import { Plus, Tag, Flag, X, Bell, Repeat } from 'lucide-react';
 import { useCreateTask, useCreateTaskReminder } from '../../hooks/useTasks';
@@ -55,6 +56,7 @@ function ChipBtn({ active, activeClass, activeStyle, icon, label, onClear, onCli
 }
 
 export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务...', defaultDueDate, defaultMyDay, onCancel, onCreated }: TaskQuickAddProps) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState(defaultDueDate || (parentTaskId ? '' : todayISO()));
   const [selectedTagId, setSelectedTagId] = useState(tagId || '');

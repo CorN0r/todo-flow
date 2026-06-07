@@ -1,4 +1,5 @@
 ﻿import { useState, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { Portal } from './Portal';
@@ -33,6 +34,7 @@ function getCalendarDays(year: number, month: number) {
 }
 
 export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, iconOnly }: DatePickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const today = new Date();

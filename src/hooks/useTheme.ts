@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { getSetting, setSetting } from '../lib/db';
 
-const VALID_THEMES = ['light', 'dark', 'system', 'glass'] as const;
+const VALID_THEMES = ['light', 'dark', 'system', 'glass', 'warm', 'lumina'] as const;
+
+type Theme = 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina';
 
 export function useTheme() {
   const { theme, setTheme, resolvedTheme } = useUIStore();
@@ -11,7 +13,7 @@ export function useTheme() {
   useEffect(() => {
     getSetting('theme').then((saved) => {
       if (saved && (VALID_THEMES as readonly string[]).includes(saved)) {
-        setTheme(saved as 'light' | 'dark' | 'system' | 'glass');
+        setTheme(saved as Theme);
       }
     });
   }, [setTheme]);
@@ -19,9 +21,10 @@ export function useTheme() {
   // Apply theme to document
   useEffect(() => {
     const root = document.documentElement;
-    const isGlass = theme === 'glass';
     root.classList.toggle('dark', resolvedTheme === 'dark');
-    root.classList.toggle('glass', isGlass);
+    root.classList.toggle('glass', theme === 'glass');
+    root.classList.toggle('warm', theme === 'warm');
+    root.classList.toggle('lumina', theme === 'lumina');
 
     // Listen for system preference changes
     if (theme === 'system') {
@@ -34,7 +37,7 @@ export function useTheme() {
     }
   }, [resolvedTheme, theme]);
 
-  const changeTheme = (newTheme: 'light' | 'dark' | 'system' | 'glass') => {
+  const changeTheme = (newTheme: Theme) => {
     setTheme(newTheme);
     setSetting('theme', newTheme);
   };

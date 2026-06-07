@@ -1,28 +1,32 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { useTasks } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
 import { TaskList } from '../components/tasks/TaskList';
+import { StickyWall } from '../components/tasks/StickyWall';
+import { UnifiedLayout } from '../components/tasks/UnifiedLayout';
 import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageTitle, type FilterMode } from '../components/shared/PageTitle';
 import { todayISO, addDays, format } from '../lib/date';
 import { Inbox, AlertTriangle, Hash, Sunrise, CalendarRange, CalendarDays, CalendarCheck, Globe } from 'lucide-react';
+import { cn } from '../lib/cn';
 import { sortTasks, nestChildren } from '../lib/sortTasks';
 
 const filterConfig: Record<string, { label: string; days: number; showDates: boolean; fromOffset: number; icon: typeof Hash; iconBg: string; iconColor: string }> = {
   all: { label: '全部任务', days: 0, showDates: false, fromOffset: 0, icon: Hash, iconBg: 'bg-indigo-100 dark:bg-indigo-900/50', iconColor: 'text-indigo-500' },
   today: { label: '今天', days: 0, showDates: false, fromOffset: 0, icon: CalendarCheck, iconBg: 'bg-emerald-100 dark:bg-emerald-900/50', iconColor: 'text-emerald-500' },
   tomorrow: { label: '明天', days: 1, showDates: false, fromOffset: 1, icon: Sunrise, iconBg: 'bg-sky-100 dark:bg-sky-900/50', iconColor: 'text-sky-500' },
-  'next-3': { label: '未来 3 天', days: 3, showDates: true, fromOffset: 0, icon: CalendarRange, iconBg: 'bg-blue-100 dark:bg-blue-900/50', iconColor: 'text-blue-500' },
-  'next-7': { label: '未来 7 天', days: 7, showDates: true, fromOffset: 0, icon: CalendarDays, iconBg: 'bg-violet-100 dark:bg-violet-900/50', iconColor: 'text-violet-500' },
-  'next-year': { label: '今年', days: 365, showDates: false, fromOffset: 0, icon: Globe, iconBg: 'bg-teal-100 dark:bg-teal-900/50', iconColor: 'text-teal-500' },
+  'this-week': { label: '本周', days: 7, showDates: true, fromOffset: 0, icon: CalendarRange, iconBg: 'bg-blue-100 dark:bg-blue-900/50', iconColor: 'text-blue-500' },
+  'this-month': { label: '本月', days: 31, showDates: false, fromOffset: 0, icon: CalendarDays, iconBg: 'bg-violet-100 dark:bg-violet-900/50', iconColor: 'text-violet-500' },
 };
 
 export function DateFilterPage() {
   const { filter = 'all' } = useParams<{ filter: string }>();
+  const location = useLocation();
   const config = filterConfig[filter] || filterConfig.all;
+  const navFilterMode = (location.state as { filterMode?: FilterMode })?.filterMode;
 
   const today = todayISO();
   const { dateFrom, dateTo } = useMemo(() => {
@@ -32,7 +36,7 @@ export function DateFilterPage() {
     return { dateFrom: from, dateTo: to };
   }, [filter, config.days, config.fromOffset]);
 
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [filterMode, setFilterMode] = useState<FilterMode>(navFilterMode || 'all');
 
   const { data: tasks, isLoading, isError } = useTasks(
     filter === 'all' ? { include_children: true } : { due_date_from: dateFrom, due_date_to: dateTo, include_children: true },
@@ -40,6 +44,8 @@ export function DateFilterPage() {
 
   const sortMode = useUIStore((s) => s.sortMode);
   const setSortMode = useUIStore((s) => s.setSortMode);
+  const taskViewMode = useUIStore((s) => s.taskViewMode);
+  const setTaskViewMode = useUIStore((s) => s.setTaskViewMode);
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
 
@@ -96,6 +102,10 @@ export function DateFilterPage() {
             onNewTask={() => setShowNewTask(true)}
             selectionMode={selectionMode}
             onToggleSelection={handleToggleSelection}
+            taskViewMode={taskViewMode} onToggleViewMode={() => {
+              if (taskViewMode === 'unified') useUIStore.getState().setSelectedTaskId(null);
+              setTaskViewMode(taskViewMode === 'wall' ? 'unified' : taskViewMode === 'unified' ? 'list' : 'wall');
+            }}
           />
         </div>
       </div>
@@ -131,8 +141,8 @@ export function DateFilterPage() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <TaskList tasks={filtered} />
+      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto')}>
+        {taskViewMode === 'wall' ? <StickyWall tasks={filtered} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filtered} /> : <TaskList tasks={filtered} />}
         {sorted.length === 0 && !showNewTask && (
           <EmptyState
             icon={<Inbox size={40} />}
