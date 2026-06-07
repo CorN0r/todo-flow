@@ -176,7 +176,7 @@ export function Sidebar() {
           <PanelLeft size={18} />
         </button>
         <nav className="flex-1 flex flex-col gap-[2px] mt-2">
-          <NavLink to="/date/all" className={collapsedBtnCls} aria-label="全部任务"><span className="text-xs font-bold">☰</span></NavLink>
+          <NavLink to="/date/all" className={collapsedBtnCls} aria-label="全部任务"><span className="w-4 h-4 flex items-center justify-center text-xs font-bold">☰</span></NavLink>
           <NavLink to="/myday" className={collapsedBtnCls} aria-label="我的一天"><Sun size={16} /></NavLink>
           <NavLink to="/" end className={collapsedBtnCls} aria-label="今天"><CalendarCheck size={16} /></NavLink>
           <NavLink to="/calendar" className={collapsedBtnCls} aria-label="日历"><CalendarRange size={16} /></NavLink>

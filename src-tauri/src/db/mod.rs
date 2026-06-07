@@ -1,5 +1,6 @@
 pub mod connection;
 pub mod migrations;
+pub mod reminder_repo;
 pub mod task_repo;
 pub mod tag_repo;
 pub mod attachment_repo;

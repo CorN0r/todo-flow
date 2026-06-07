@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect } from 'react';
-import { Repeat, ChevronDown } from 'lucide-react';
+import { Repeat, ChevronDown, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { parseRecurrence, formatRecurrence, serializeRecurrence } from '../../lib/recurrence';
 import type { RecurrenceConfig } from '../../lib/recurrence';
@@ -12,12 +12,14 @@ const frequencies: { value: RecurrenceConfig['type']; label: string }[] = [
   { value: 'yearly', label: '年' },
 ];
 
-export function RecurrencePicker({ value, onChange }: {
+export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
   value: string;
   onChange: (val: string) => void;
+  startOpen?: boolean;
+  iconOnly?: boolean | 'label';
 }) {
   const config = parseRecurrence(value);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [type, setType] = useState<RecurrenceConfig['type']>(config?.type || 'weekly');
   const [interval, setInterval] = useState(config?.interval || 1);
@@ -67,22 +69,59 @@ export function RecurrencePicker({ value, onChange }: {
     { type: 'monthly' as const, interval: 1 },
   ];
 
+  const recLabel = config ? (() => {
+    const t = config.type;
+    const i = config.interval;
+    if (t === 'daily') return i > 1 ? `每${i}天` : '每天';
+    if (t === 'weekly') return i > 1 ? `每${i}周` : '每周';
+    if (t === 'monthly') return i > 1 ? `每${i}月` : '每月';
+    if (t === 'yearly') return i > 1 ? `每${i}年` : '每年';
+    return formatRecurrence(value);
+  })() : '';
+
   return (
     <div className="relative">
+      {iconOnly && recLabel ? (
+        <span
+          ref={triggerRef as any}
+          onClick={() => setOpen(!open)}
+          className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium bg-[#F59E0B]/[0.10] text-[#F59E0B] cursor-pointer transition-colors hover:opacity-80"
+        >
+          <Repeat size={12} />
+          <span className="truncate max-w-[80px]">{recLabel}</span>
+          <span role="button" tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); clear(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); clear(); } }}
+            className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+            <X size={12} />
+          </span>
+        </span>
+      ) : iconOnly === 'label' ? (
+        <button
+          ref={triggerRef}
+          onClick={() => setOpen(!open)}
+          className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors"
+        >
+          <Repeat size={12} />重复
+        </button>
+      ) : (
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors border font-medium',
-          config
-            ? 'border-[#7C72F6]/30 bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12] text-[#7C72F6]'
-            : 'border-[#E5E7EB] dark:border-white/[0.07] text-[#9CA3AF] hover:border-[#D1D5DB] hover:text-[#6B7280]',
+          iconOnly
+            ? 'flex items-center justify-center shrink-0 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1] transition-colors'
+            : cn('flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors border font-medium',
+              config ? 'border-[#7C72F6]/30 bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12] text-[#7C72F6]' : 'border-[#E5E7EB] dark:border-white/[0.07] text-[#9CA3AF] hover:border-[#D1D5DB] hover:text-[#6B7280]'),
         )}
+        style={iconOnly ? { width: '28px', height: '28px' } : undefined}
+        title={iconOnly ? (config ? formatRecurrence(value) : '重复') : undefined}
       >
-        <Repeat size={14} />
-        <span>{formatRecurrence(value)}</span>
-        <ChevronDown size={12} />
+        <Repeat size={iconOnly ? 13 : 14} />
+        {!iconOnly && <span>{formatRecurrence(value)}</span>}
+        {!iconOnly && <ChevronDown size={12} />}
       </button>
+      )}
 
       {open && (
         <Portal>

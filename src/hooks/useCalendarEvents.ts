@@ -36,7 +36,7 @@ export function useCalendarEvents(currentDate: Date, viewMode: 'month' | 'week' 
       .filter((t) => t.due_date)
       .map((t) => ({
         title: t.title,
-        date: t.due_date!,
+        date: t.due_date!.slice(0, 10),
         task: t,
       }));
   }, [tasks]);

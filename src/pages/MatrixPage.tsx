@@ -82,7 +82,7 @@ const QUADRANTS: QuadrantDef[] = [
 
 function bucketTask(task: Task): number {
   const overdue = task.due_date && isOverdue(task.due_date);
-  const dueToday = task.due_date === todayISO();
+  const dueToday = task.due_date?.slice(0, 10) === todayISO();
   const urgent = !!(overdue || dueToday);
   const important = task.priority >= 3;
 

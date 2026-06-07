@@ -156,5 +156,38 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 9)?;
     }
 
+    if current_version < 10 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS task_reminders (
+                id              TEXT PRIMARY KEY,
+                task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                offset          TEXT NOT NULL,
+                reminder_time   TEXT NOT NULL,
+                reminded        INTEGER NOT NULL DEFAULT 0,
+                created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders(task_id);
+            CREATE INDEX IF NOT EXISTS idx_task_reminders_time ON task_reminders(reminder_time, reminded);
+
+            INSERT INTO task_reminders (id, task_id, offset, reminder_time, reminded)
+            SELECT hex(randomblob(16)),
+                   id,
+                   CASE
+                       WHEN due_date IS NOT NULL AND reminder IS NOT NULL AND reminder = due_date || ' 09:00' THEN '0m'
+                       WHEN reminder IS NOT NULL THEN 'custom:' || reminder
+                       ELSE 'custom:'
+                   END,
+                   CASE
+                       WHEN reminder IS NOT NULL AND reminder LIKE '____-__-__T__:__' THEN replace(reminder, 'T', ' ')
+                       ELSE reminder
+                   END,
+                   reminded
+            FROM tasks
+            WHERE reminder IS NOT NULL AND reminder != '';",
+        )?;
+        conn.pragma_update(None, "user_version", 10)?;
+    }
+
     Ok(())
 }

@@ -105,6 +105,7 @@ function MainLayout() {
       });
       const u3 = await listen('task-changed', () => {
         queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
+        queryClient.invalidateQueries({ queryKey: ['tags'] });
       });
       if (cancelled) {
         u1();

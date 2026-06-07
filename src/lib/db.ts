@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Task, TaskDetail, CreateTaskInput, UpdateTaskInput, ReorderItem } from '../types/task';
+import type { Task, TaskDetail, CreateTaskInput, UpdateTaskInput, ReorderItem, TaskReminder } from '../types/task';
 import type { Tag, TagWithCount, CreateTagInput } from '../types/tag';
 import type { Attachment } from '../types/attachment';
 
@@ -51,6 +51,23 @@ export async function addTaskToMyDay(id: string): Promise<Task> {
 
 export async function removeTaskFromMyDay(id: string): Promise<Task> {
   return invoke('remove_task_from_my_day', { id });
+}
+
+// Reminder commands
+export async function getTaskReminders(taskId: string): Promise<TaskReminder[]> {
+  return invoke('get_task_reminders', { task_id: taskId });
+}
+
+export async function createTaskReminder(taskId: string, offset: string, dueDate?: string): Promise<TaskReminder> {
+  return invoke('create_task_reminder', { task_id: taskId, offset, due_date: dueDate });
+}
+
+export async function deleteTaskReminder(reminderId: string): Promise<void> {
+  return invoke('delete_task_reminder', { reminder_id: reminderId });
+}
+
+export async function clearTaskReminders(taskId: string): Promise<void> {
+  return invoke('clear_task_reminders', { task_id: taskId });
 }
 
 // Tag commands

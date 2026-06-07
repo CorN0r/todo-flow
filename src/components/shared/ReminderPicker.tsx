@@ -1,3 +1,6 @@
+// DEPRECATED: Reminder functionality has been merged into DatePicker (showReminder prop).
+// This component is no longer imported and may be removed in a future release.
+
 import { useState, useRef } from 'react';
 import { Bell, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -7,6 +10,7 @@ import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isToday, for
 interface ReminderPickerProps {
   value: string;
   onChange: (val: string) => void;
+  startOpen?: boolean;
 }
 
 function getCalendarDays(year: number, month: number) {
@@ -27,8 +31,8 @@ function getCalendarDays(year: number, month: number) {
   return { weeks, month: firstDay.getMonth() };
 }
 
-export function ReminderPicker({ value, onChange }: ReminderPickerProps) {
-  const [open, setOpen] = useState(false);
+export function ReminderPicker({ value, onChange, startOpen }: ReminderPickerProps) {
+  const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const today = new Date();
 

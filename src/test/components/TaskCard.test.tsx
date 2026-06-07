@@ -109,11 +109,11 @@ describe('TaskCard', () => {
     expect(screen.getByText('1/3')).toBeInTheDocument();
   });
 
-  it('shows selection checkbox in selection mode', () => {
+  it('shows selection checkbox in selection mode instead of completion circle', () => {
     mockStoreState.selectionMode = true;
-    const { container } = renderWithProviders(<TaskCard task={baseTask} />);
-    const checkboxes = container.querySelectorAll('button');
-    expect(checkboxes.length).toBeGreaterThan(1);
+    renderWithProviders(<TaskCard task={baseTask} />);
+    expect(screen.getByLabelText(`选择 "Test Task"`)).toBeInTheDocument();
+    expect(screen.queryByLabelText(`Mark "Test Task" complete`)).not.toBeInTheDocument();
   });
 
   it('does not show priority when priority is 0', () => {

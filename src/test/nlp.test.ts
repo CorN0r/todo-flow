@@ -62,26 +62,29 @@ describe('parseTaskTitle', () => {
     it('parses 明天下午3点 with time', () => {
       const r = parseTaskTitle('明天下午3点开会');
       expect(r.title).toBe('开会');
-      expect(r.dueDate).toMatch(YYYY_MM_DD_RE);
-      expect(r.reminder).toMatch(/^\d{4}-\d{2}-\d{2} 15:00$/);
+      expect(r.dueDate).toMatch(/^\d{4}-\d{2}-\d{2} 15:00$/);
+      expect(r.reminder).toBeNull();
     });
 
     it('parses 明天上午10点', () => {
       const r = parseTaskTitle('明天上午10点交报告');
       expect(r.title).toBe('交报告');
-      expect(r.reminder).toMatch(/^\d{4}-\d{2}-\d{2} 10:00$/);
+      expect(r.dueDate).toMatch(/^\d{4}-\d{2}-\d{2} 10:00$/);
+      expect(r.reminder).toBeNull();
     });
 
     it('parses 晚上8点', () => {
       const r = parseTaskTitle('明天晚上8点聚餐');
       expect(r.title).toBe('聚餐');
-      expect(r.reminder).toMatch(/^\d{4}-\d{2}-\d{2} 20:00$/);
+      expect(r.dueDate).toMatch(/^\d{4}-\d{2}-\d{2} 20:00$/);
+      expect(r.reminder).toBeNull();
     });
 
     it('parses 明天3点 (no period, treated as 3:00)', () => {
       const r = parseTaskTitle('明天3点取快递');
       expect(r.title).toBe('取快递');
-      expect(r.reminder).toMatch(/^\d{4}-\d{2}-\d{2} 03:00$/);
+      expect(r.dueDate).toMatch(/^\d{4}-\d{2}-\d{2} 03:00$/);
+      expect(r.reminder).toBeNull();
     });
   });
 
@@ -181,8 +184,8 @@ describe('parseTaskTitle', () => {
     it('parses date + time + tag + priority', () => {
       const r = parseTaskTitle('明天下午3点开会 #工作 !!');
       expect(r.title).toBe('开会');
-      expect(r.dueDate).toMatch(YYYY_MM_DD_RE);
-      expect(r.reminder).toMatch(/15:00$/);
+      expect(r.dueDate).toMatch(/^\d{4}-\d{2}-\d{2} 15:00$/);
+      expect(r.reminder).toBeNull();
       expect(r.tagName).toBe('工作');
       expect(r.priority).toBe(2);
     });

@@ -93,7 +93,7 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppErro
 
     let today_total: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND parent_task_id IS NULL AND (due_date = ?1 OR date(updated_at) = ?1)",
+            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND parent_task_id IS NULL AND (substr(due_date, 1, 10) = ?1 OR date(updated_at) = ?1)",
             [&today],
             |row| row.get(0),
         )?;

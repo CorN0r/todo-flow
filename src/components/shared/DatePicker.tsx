@@ -9,6 +9,8 @@ interface DatePickerProps {
   onChange: (val: string) => void;
   dateCounts?: Map<string, number>;
   showTime?: boolean;
+  startOpen?: boolean;
+  iconOnly?: boolean | 'label';
 }
 
 function getCalendarDays(year: number, month: number) {
@@ -30,12 +32,12 @@ function getCalendarDays(year: number, month: number) {
   return { weeks, month: firstDay.getMonth(), year: firstDay.getFullYear() };
 }
 
-export function DatePicker({ value, onChange, dateCounts, showTime }: DatePickerProps) {
-  const [open, setOpen] = useState(false);
+export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, iconOnly }: DatePickerProps) {
+  const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const today = new Date();
-  const datePart = showTime && value ? value.slice(0, 10) : value;
-  const timePart = showTime && value && value.includes('T') ? value.slice(11, 16) : '09:00';
+  const datePart = value ? value.slice(0, 10) : value;
+  const timePart = value.length > 10 ? value.slice(11, 16) : '09:00';
   const [viewYear, setViewYear] = useState(
     value ? parseInt(value.split('-')[0]) : today.getFullYear()
   );
@@ -56,16 +58,16 @@ export function DatePicker({ value, onChange, dateCounts, showTime }: DatePicker
 
   const handleSelect = (d: Date) => {
     const dateStr = format(d, 'yyyy-MM-dd');
-    onChange(showTime ? `${dateStr}T${timePart}` : dateStr);
+    onChange(showTime ? `${dateStr} ${timePart}` : dateStr);
     if (!showTime) setOpen(false);
   };
 
   const handleTimeChange = (time: string) => {
     const base = datePart || format(today, 'yyyy-MM-dd');
-    onChange(`${base}T${time}`);
+    onChange(`${base} ${time}`);
   };
 
-  const displayValue = showTime && value ? value.replace('T', ' ') : value;
+  const displayValue = value.length > 10 ? value : value;
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
@@ -79,21 +81,49 @@ export function DatePicker({ value, onChange, dateCounts, showTime }: DatePicker
   const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
   const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
+  const compactLabel = value ? format(new Date(value.replace(' ', 'T')), 'M月d日') + (value.length > 10 ? ' ' + value.slice(11, 16) : '') : '';
+
   return (
     <div className="relative inline-block">
+      {iconOnly && value ? (
+        <span
+          ref={triggerRef as any}
+          onClick={() => setOpen(!open)}
+          className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium bg-[#7C72F6]/[0.10] text-[#7C72F6] cursor-pointer transition-colors hover:opacity-80"
+        >
+          <CalendarIcon size={12} />
+          <span className="truncate max-w-[90px]">{compactLabel}</span>
+          <span role="button" tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onChange(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onChange(''); } }}
+            className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+            <X size={12} />
+          </span>
+        </span>
+      ) : iconOnly === 'label' ? (
+        <button
+          ref={triggerRef}
+          onClick={() => setOpen(!open)}
+          className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors"
+        >
+          <CalendarIcon size={12} />截止日期
+        </button>
+      ) : (
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors border font-medium',
-          value
-            ? 'border-[#7C72F6] bg-[#7C72F6]/[0.06] text-[#7C72F6]'
-            : 'border-[#E5E7EB] dark:border-white/[0.07] text-[#9CA3AF] hover:border-[#D1D5DB] hover:text-[#6B7280]',
+          iconOnly
+            ? 'flex items-center justify-center shrink-0 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1] transition-colors'
+            : cn('flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors border font-medium',
+              value ? 'border-[#7C72F6] bg-[#7C72F6]/[0.06] text-[#7C72F6]' : 'border-[#E5E7EB] dark:border-white/[0.07] text-[#9CA3AF] hover:border-[#D1D5DB] hover:text-[#6B7280]'),
         )}
+        style={iconOnly ? { width: '28px', height: '28px' } : undefined}
+        title={iconOnly ? (displayValue || '选择日期') : undefined}
       >
-        <CalendarIcon size={14} />
-        <span>{displayValue || (showTime ? '选择日期时间' : '选择日期')}</span>
-        {value && (
+        <CalendarIcon size={iconOnly ? 13 : 14} />
+        {!iconOnly && <span>{displayValue || (showTime ? '选择日期时间' : '选择日期')}</span>}
+        {!iconOnly && value && (
           <span
             role="button"
             tabIndex={0}
@@ -105,6 +135,7 @@ export function DatePicker({ value, onChange, dateCounts, showTime }: DatePicker
           </span>
         )}
       </button>
+      )}
 
       {open && (
         <Portal>
@@ -185,9 +216,28 @@ export function DatePicker({ value, onChange, dateCounts, showTime }: DatePicker
               ))}
             </div>
 
-            {/* Time picker */}
+            {/* Time presets */}
             {showTime && (
               <div className="mt-2 pt-2 border-t border-[#F3F4F6] dark:border-white/[0.06]">
+                <div className="text-[10px] text-[#9CA3AF] font-semibold tracking-wide mb-2">时间</div>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {[
+                    { label: '上午 9:00', time: '09:00' },
+                    { label: '下午 2:00', time: '14:00' },
+                    { label: '傍晚 5:30', time: '17:30' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.time}
+                      onClick={() => handleTimeChange(preset.time)}
+                      className={cn(
+                        'text-[11px] px-2 py-1 rounded-lg transition-colors font-medium',
+                        timePart === preset.time ? 'bg-[#7C72F6] text-white' : 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1]',
+                      )}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="time"
                   value={timePart}
@@ -200,13 +250,13 @@ export function DatePicker({ value, onChange, dateCounts, showTime }: DatePicker
             {/* Quick actions */}
             <div className={`${showTime ? 'mt-2 pt-2' : 'mt-2 pt-2'} border-t border-[#F3F4F6] dark:border-white/[0.06] flex gap-1`}>
               <button
-                onClick={() => { onChange(showTime ? `${format(today, 'yyyy-MM-dd')}T${timePart}` : format(today, 'yyyy-MM-dd')); setOpen(false); }}
+                onClick={() => { const d = format(today, 'yyyy-MM-dd'); onChange(showTime ? `${d} ${timePart}` : d); setOpen(false); }}
                 className="text-[12px] px-2.5 py-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-[#6B7280] font-medium"
               >
                 今天
               </button>
               <button
-                onClick={() => { onChange(showTime ? `${format(addDays(today, 1), 'yyyy-MM-dd')}T${timePart}` : format(addDays(today, 1), 'yyyy-MM-dd')); setOpen(false); }}
+                onClick={() => { const tomorrow = format(addDays(today, 1), 'yyyy-MM-dd'); onChange(showTime ? `${tomorrow} ${timePart}` : tomorrow); setOpen(false); }}
                 className="text-[12px] px-2.5 py-1.5 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-[#6B7280] font-medium"
               >
                 明天

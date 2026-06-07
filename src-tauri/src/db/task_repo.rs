@@ -3,6 +3,7 @@ use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::db::reminder_repo;
 use crate::error::AppError;
 use crate::models::task::{
     CreateTaskRequest, ReorderItem, Task, TaskDetail, TaskFilter, UpdateTaskRequest,
@@ -15,8 +16,12 @@ fn parse_recurrence(recurrence: &str) -> Option<(String, i64)> {
     Some((typ, interval))
 }
 
+fn parse_due_date_only(due: &str) -> &str {
+    if due.len() > 10 { &due[..10] } else { due }
+}
+
 fn compute_next_due(current_due: &str, rec_type: &str, interval: i64) -> Option<String> {
-    let date = NaiveDate::parse_from_str(current_due, "%Y-%m-%d").ok()?;
+    let date = NaiveDate::parse_from_str(parse_due_date_only(current_due), "%Y-%m-%d").ok()?;
     let next = match rec_type {
         "daily" => date.checked_add_days(Days::new(interval as u64))?,
         "weekly" => date.checked_add_days(Days::new((interval * 7) as u64))?,
@@ -32,9 +37,9 @@ fn compute_next_due(current_due: &str, rec_type: &str, interval: i64) -> Option<
 
 fn advance_reminder_time(old_due: &str, old_reminder: &str, new_due: &str) -> Option<String> {
     use chrono::NaiveDateTime;
-    let old_due_date = NaiveDate::parse_from_str(old_due, "%Y-%m-%d").ok()?;
+    let old_due_date = NaiveDate::parse_from_str(parse_due_date_only(old_due), "%Y-%m-%d").ok()?;
     let old_rem_dt = NaiveDateTime::parse_from_str(old_reminder, "%Y-%m-%d %H:%M").ok()?;
-    let new_due_date = NaiveDate::parse_from_str(new_due, "%Y-%m-%d").ok()?;
+    let new_due_date = NaiveDate::parse_from_str(parse_due_date_only(new_due), "%Y-%m-%d").ok()?;
     let old_rem_date = old_rem_dt.date();
     let offset = old_rem_date.signed_duration_since(old_due_date);
     let new_rem_date = new_due_date.checked_add_days(Days::new(offset.num_days().max(0) as u64))?;
@@ -201,9 +206,9 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
 
     if let Some(ref to) = filter.due_date_to {
         if inc_children {
-            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.due_date <= ?)");
+            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR substr(t.due_date, 1, 10) <= ?)");
         } else {
-            sql.push_str(" AND t.due_date <= ?");
+            sql.push_str(" AND substr(t.due_date, 1, 10) <= ?");
         }
         params.push(Box::new(to.clone()));
     }
@@ -258,7 +263,7 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
 
 pub fn get_today_count(conn: &Connection, today: &str) -> Result<i64, AppError> {
     let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND parent_task_id IS NULL AND due_date = ?1",
+        "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND parent_task_id IS NULL AND substr(due_date, 1, 10) = ?1",
         rusqlite::params![today],
         |row| row.get(0),
     )?;
@@ -289,7 +294,11 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
     };
     let original_reminder = existing.reminder.clone();
     let reminder = req.reminder.or(original_reminder.clone());
-    let recurrence = req.recurrence.or(existing.recurrence);
+    let recurrence = match req.recurrence {
+        None => existing.recurrence.clone(),
+        Some(ref d) if d.is_empty() => None,
+        Some(ref d) => Some(d.clone()),
+    };
     let my_day_date = match req.my_day_date {
         None => existing.my_day_date.clone(),
         Some(None) => None,
@@ -460,6 +469,8 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
             ],
         )?;
     }
+
+    let _ = reminder_repo::copy_reminders(conn, id, &new_id);
 
     get_by_id(conn, &new_id)?.ok_or(AppError::Generic("Failed to duplicate task".to_string()))
 }

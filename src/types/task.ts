@@ -60,3 +60,12 @@ export interface ReorderItem {
   sort_order: number;
   parent_task_id: string | null;
 }
+
+export interface TaskReminder {
+  id: string;
+  task_id: string;
+  offset: string;
+  reminder_time: string;
+  reminded: boolean;
+  created_at: string;
+}

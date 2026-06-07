@@ -139,10 +139,11 @@ function parseDateExpression(input: string): { date: string; consumedText: strin
     }
   }
 
+  const dateStr = format(targetDate, 'yyyy-MM-dd');
   return {
-    date: format(targetDate, 'yyyy-MM-dd'),
+    date: timeStr ? `${dateStr} ${timeStr}` : dateStr,
     consumedText,
-    reminder: timeStr ? `${format(targetDate, 'yyyy-MM-dd')} ${timeStr}` : null,
+    reminder: null,
   };
 }
 

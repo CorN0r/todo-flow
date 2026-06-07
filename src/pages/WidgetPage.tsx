@@ -64,19 +64,21 @@ export function WidgetPage() {
       if (s === 'compact' || s === 'normal') setSizeMode(s);
     }).catch(() => {});
   }, []);
-  useEffect(() => {
-    const w = sizeMode === 'compact' ? 60 : 300;
-    const h = sizeMode === 'compact' ? 60 : 420;
-    getCurrentWindow().setSize(new LogicalSize(w, h)).catch(() => {});
-  }, [sizeMode]);
+  const collapsingRef = useRef(false);
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     const win = getCurrentWindow();
-    win.onFocusChanged(({ payload: focused }) => {
-      if (!focused && sizeMode === 'normal') {
+    win.onFocusChanged(async ({ payload: focused }) => {
+      if (focused || sizeMode !== 'normal' || collapsingRef.current) return;
+      try {
+        const pos = await win.outerPosition();
+        setSetting('widget_x', String(Math.round(pos.x))).catch(() => {});
+        setSetting('widget_y', String(Math.round(pos.y))).catch(() => {});
         setSizeMode('compact');
-        win.setSize(new LogicalSize(60, 60)).catch(() => {});
-      }
+        await win.setSize(new LogicalSize(60, 60));
+        await new Promise(r => setTimeout(r, 50));
+        await win.setPosition(pos);
+      } catch {}
     }).then((u) => { unlisten = u; }).catch(() => {});
     return () => { unlisten?.(); };
   }, [sizeMode]);
@@ -174,15 +176,30 @@ export function WidgetPage() {
   const count = tasksList.length;
   const overdueCount = tasksList.filter((t) => isOverdue(t.due_date)).length;
 
-  const toggleSize = async () => {
-    const next = sizeMode === 'compact' ? 'normal' : 'compact';
-    setSizeMode(next);
-    const w = next === 'compact' ? 60 : 300;
-    const h = next === 'compact' ? 60 : 420;
+  const expandToNormal = async () => {
+    if (sizeMode !== 'compact') return;
+    setSizeMode('normal');
     try {
-      await getCurrentWindow().setSize(new LogicalSize(w, h));
+      await getCurrentWindow().setSize(new LogicalSize(300, 420));
     } catch {}
-    setSetting('widget_size', next).catch(() => {});
+    setSetting('widget_size', 'normal').catch(() => {});
+  };
+
+  const collapseToBubble = async () => {
+    if (sizeMode !== 'normal') return;
+    collapsingRef.current = true;
+    try {
+      const win = getCurrentWindow();
+      const pos = await win.outerPosition();
+      setSetting('widget_x', String(Math.round(pos.x))).catch(() => {});
+      setSetting('widget_y', String(Math.round(pos.y))).catch(() => {});
+      setSizeMode('compact');
+      await win.setSize(new LogicalSize(60, 60));
+      await new Promise(r => setTimeout(r, 50));
+      await win.setPosition(pos);
+    } catch {}
+    setSetting('widget_size', 'compact').catch(() => {});
+    setTimeout(() => { collapsingRef.current = false; }, 500);
   };
 
   const handleCheck = (id: string, completed: boolean) => {
@@ -220,7 +237,7 @@ export function WidgetPage() {
             title="打开主界面">
             <ExternalLink size={11} />
           </button>
-          <button onClick={toggleSize}
+          <button onClick={collapseToBubble}
             className={cn('w-5 h-5 rounded-full flex items-center justify-center text-[#6B7280] transition-colors flex-shrink-0 ml-1', isDark ? 'hover:bg-white/10' : 'hover:bg-[#F3F4F6]')}
             title="还原为气泡">
             <X size={11} />
@@ -245,7 +262,7 @@ export function WidgetPage() {
               const onUp = (ev: MouseEvent) => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('mouseup', onUp);
-                if (!dragged && Math.abs(ev.clientX - sx) < 4 && Math.abs(ev.clientY - sy) < 4) { setSetting('widget_enabled', '1').catch(() => {}); toggleSize(); }
+                if (!dragged && Math.abs(ev.clientX - sx) < 4 && Math.abs(ev.clientY - sy) < 4) { setSetting('widget_enabled', '1').catch(() => {}); expandToNormal(); }
               };
               window.addEventListener('mousemove', onMove);
               window.addEventListener('mouseup', onUp);

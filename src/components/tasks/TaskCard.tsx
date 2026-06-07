@@ -229,7 +229,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
         !isGlass && isSuspended && 'bg-[#F3F4F6] dark:bg-white/[0.05]',
         !isGlass && overdue && !task.is_completed && 'bg-[#FFF7ED] dark:bg-orange-950/20',
         isGlass && 'glass-card',
-        isSelected && 'ring-2 ring-[#7C72F6] ring-offset-1',
+        isSelected && 'ring-2 ring-[#7C72F6] ring-inset',
       )} style={{
         padding: '14px 16px',
         borderRadius: '10px',
@@ -239,19 +239,18 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
         borderLeftStyle: (isAbandoned || isSuspended || overdue) ? 'solid' : undefined,
       }}>
         <div className="flex items-center gap-3">
-          {selectionMode && (
+          {selectionMode ? (
             <button onClick={(e) => { e.stopPropagation(); toggleTaskSelection(task.id); }}
-              className={cn('w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
+              className={cn('w-5 h-5 rounded-[5px] border-2 flex items-center justify-center flex-shrink-0 transition-colors',
                 isSelected ? 'bg-[#7C72F6] border-[#7C72F6] text-white' : 'border-[#D1D5DB] hover:border-[#7C72F6]')}
-              aria-label={isSelected ? `Deselect "${task.title}"` : `Select "${task.title}"`}>
+              aria-label={isSelected ? `取消选择 "${task.title}"` : `选择 "${task.title}"`}>
               {isSelected && (
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               )}
             </button>
-          )}
-          {isSuspended ? (
+          ) : isSuspended ? (
             <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_suspended: false }); }}
               className="flex items-center justify-center flex-shrink-0 text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
               aria-label={`恢复 "${task.title}"`}>
