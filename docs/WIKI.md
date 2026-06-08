@@ -14,7 +14,7 @@
 
 **TodoFlow 给了你第三个选择**：一个基于 Tauri v2 构建的原生 Windows 桌面应用，轻量快速（安装包不到 10MB），所有数据完全存储在本地，同时不妥协于功能和颜值。
 
-![主界面概览](images/01-main-overview.png)
+![主界面概览](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/01-main-overview.png)
 
 ---
 
@@ -35,7 +35,7 @@
 3. 可选：设置优先级（红旗）、截止日期、提醒时间
 4. 按 Enter 确认
 
-![快捷创建](images/14-quick-add.png)
+![快捷创建](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/14-quick-add.png)
 
 > 💡 按下 `Ctrl+Shift+T` 可以在任何界面唤起 TodoFlow 并直接开始新建任务。
 
@@ -67,7 +67,7 @@
 - **标签归类**：将任务关联到标签
 - **拖拽排序**：手动排序模式下自由调整任务顺序
 
-![任务详情面板](images/02-task-detail.png)
+![任务详情面板](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/02-task-detail.png)
 
 ### 📑 子任务系统
 
@@ -88,9 +88,9 @@
 | **便签墙视图** | 自由排列的卡片式布局，视觉化思维，适合头脑风暴 |
 | **一体式视图** | 左右分栏，可调节分隔线，键盘 `↑↓` 切换选中，适合高频操作 |
 
-![便签墙视图](images/03-sticky-wall.png)
+![便签墙视图](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/03-sticky-wall.png)
 
-![一体式视图](images/04-unified-view.png)
+![一体式视图](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/04-unified-view.png)
 
 ### 📅 日历视图
 
@@ -100,7 +100,7 @@
 - 点击日期查看当天任务列表
 - 与任务截止日期无缝联动
 
-![日历月视图](images/05-calendar-month.png)
+![日历月视图](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/05-calendar-month.png)
 
 ### 🏷 标签系统
 
@@ -119,7 +119,7 @@
 - 手动管理：支持「加入我的一天」和「移除」
 - 暂不推荐 / 重新推荐
 
-![我的一天](images/08-myday.png)
+![我的一天](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/08-myday.png)
 
 ### 🎯 四象限矩阵
 
@@ -130,13 +130,13 @@
 - **紧急不重要** → 委派他人
 - **不重要不紧急** → 删除或推迟
 
-![四象限矩阵](images/06-matrix.png)
+![四象限矩阵](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/06-matrix.png)
 
 ### 📊 看板视图
 
 按标签 / 优先级 / 完成状态分列展示任务，一目了然：
 
-![看板视图](images/07-kanban.png)
+![看板视图](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/07-kanban.png)
 
 ### ✅ 习惯追踪
 
@@ -147,7 +147,7 @@
 - 支持目标计数（如「每天8杯水」）
 - 日历热力图展示坚持情况
 
-![习惯追踪](images/09-habits.png)
+![习惯追踪](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/09-habits.png)
 
 ### 📈 数据看板
 
@@ -157,7 +157,7 @@
 - 数字卡片点击可直接跳转到对应列表
 - 一眼掌握整体状态
 
-![数据看板](images/10-dashboard.png)
+![数据看板](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/10-dashboard.png)
 
 ### 🔍 全局搜索 & 命令面板
 
@@ -165,9 +165,9 @@
 - **高级搜索页**：按标签、日期、优先级等条件综合筛选
 - **命令面板**：按 `?` 键打开，键盘导航，快速跳转到任意页面或切换主题
 
-![搜索](images/13-search.png)
+![搜索](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/13-search.png)
 
-![命令面板](images/11-command-palette.png)
+![命令面板](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/11-command-palette.png)
 
 ### 🫧 悬浮窗
 
@@ -194,7 +194,7 @@
 | **玻璃** | 毛玻璃半透明效果，现代感十足 |
 | **跟随系统** | 自动匹配 Windows 明/暗主题 |
 
-![深色主题](images/12-dark-theme.png)
+![深色主题](https://gitcode.com/CorN0r/todo-flow/raw/master/docs/images/12-dark-theme.png)
 
 ### 🔒 隐私优先
 
