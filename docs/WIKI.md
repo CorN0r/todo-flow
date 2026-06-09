@@ -82,10 +82,17 @@
 
 一键切换三种视图模式，适应不同工作场景：
 
-| 列表视图 | 便签墙视图 | 一体式视图 |
-|---------|----------|----------|
-| ![列表](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/03-list-view.png) | ![便签墙](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/04-sticky-wall.png) | ![一体式](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/05-unified-view.png) |
-| 传统清晰的线性展示，适合批量处理 | 自由排列卡片式布局，适合头脑风暴 | 左右分栏可调节，键盘 `↑↓` 高效切换 |
+**📋 列表视图** — 传统清晰的线性展示，适合批量处理和精确管理
+
+![列表视图](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/03-list-view.png)
+
+**📌 便签墙视图** — 自由排列的卡片式布局，视觉化思维，适合头脑风暴
+
+![便签墙视图](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/04-sticky-wall.png)
+
+**🗂 一体式视图** — 左右分栏，可调节分隔线，键盘 `↑↓` 切换选中，适合高频操作
+
+![一体式视图](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/05-unified-view.png)
 
 ### 📅 日历视图
 
@@ -180,15 +187,27 @@
 
 点击标题栏最左侧按钮一键切换，总有适合你的风格：
 
-| 浅色 | 深色 | 浮光 |
-|------|------|------|
-| ![浅色](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/16-theme-light.png) | ![深色](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/17-theme-dark.png) | ![浮光](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/20-theme-lumina.png) |
-| 经典明亮白底 | 护眼深色，夜间首选 | 弥散阴影，高级亮色视觉 |
+**☀️ 浅色** — 经典明亮白底，适合白天使用
 
-| 玻璃 | 温暖石炭 | 跟随系统 |
-|------|---------|---------|
-| ![玻璃](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/18-theme-glass.png) | ![温暖石炭](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/19-theme-warm.png) | *自动匹配 Windows 主题* |
-| 毛玻璃半透明，现代感十足 | 暖炭底色 + 哑金琥珀，沉稳有温度 | 与系统明暗模式保持同步 |
+![浅色主题](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/16-theme-light.png)
+
+**🌙 深色** — 护眼深色，适合夜间和低光环境
+
+![深色主题](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/17-theme-dark.png)
+
+**✨ 浮光** — 去纯白、弥散阴影、高级亮色视觉
+
+![浮光主题](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/20-theme-lumina.png)
+
+**🪟 玻璃** — 毛玻璃半透明效果，现代感十足
+
+![玻璃主题](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/18-theme-glass.png)
+
+**🔥 温暖石炭** — 暖炭底色 #161514 + 哑金琥珀强调色，沉稳有温度
+
+![温暖石炭主题](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/19-theme-warm.png)
+
+**🔄 跟随系统** — 自动匹配 Windows 明/暗主题
 
 ### 🔒 隐私优先
 
