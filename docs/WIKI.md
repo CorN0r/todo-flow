@@ -169,8 +169,6 @@
 
 ![搜索](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/13-search.png)
 
-![命令面板](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/12-command-palette.png)
-
 ### 🫧 悬浮窗
 
 独立小窗口，始终保持在其他窗口之上：
@@ -178,6 +176,10 @@
 - **气泡态**：收缩为一个小圆点，不干扰工作
 - **展开态**：点击展开查看任务列表
 - 支持拖拽移动位置
+
+![悬浮球](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/15-floating-bubble.png)
+
+![悬浮窗](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/12-floating-widget.png)
 
 ---
 
