@@ -102,7 +102,7 @@
 - 点击日期查看当天任务列表
 - 与任务截止日期无缝联动
 
-![日历月视图](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/05-calendar-month.png)
+![日历月视图](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/06-calendar-month.png)
 
 ### 🏷 标签系统
 
@@ -121,7 +121,7 @@
 - 手动管理：支持「加入我的一天」和「移除」
 - 暂不推荐 / 重新推荐
 
-![我的一天](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/08-myday.png)
+![我的一天](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/09-myday.png)
 
 ### 🎯 四象限矩阵
 
@@ -132,13 +132,13 @@
 - **紧急不重要** → 委派他人
 - **不重要不紧急** → 删除或推迟
 
-![四象限矩阵](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/06-matrix.png)
+![四象限矩阵](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/07-matrix.png)
 
 ### 📊 看板视图
 
 按标签 / 优先级 / 完成状态分列展示任务，一目了然：
 
-![看板视图](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/07-kanban.png)
+![看板视图](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/08-kanban.png)
 
 ### ✅ 习惯追踪
 
@@ -149,7 +149,7 @@
 - 支持目标计数（如「每天8杯水」）
 - 日历热力图展示坚持情况
 
-![习惯追踪](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/09-habits.png)
+![习惯追踪](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/10-habits.png)
 
 ### 📈 数据看板
 
@@ -159,7 +159,7 @@
 - 数字卡片点击可直接跳转到对应列表
 - 一眼掌握整体状态
 
-![数据看板](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/10-dashboard.png)
+![数据看板](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/11-dashboard.png)
 
 ### 🔍 全局搜索 & 命令面板
 
@@ -169,7 +169,7 @@
 
 ![搜索](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/13-search.png)
 
-![命令面板](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/11-command-palette.png)
+![命令面板](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/12-command-palette.png)
 
 ### 🫧 悬浮窗
 
