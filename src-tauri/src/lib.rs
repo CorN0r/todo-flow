@@ -330,6 +330,34 @@ pub fn run() {
                 }
             }
 
+            // ---- Pomodoro standalone window ----
+            let pomodoro_win = tauri::WebviewWindowBuilder::new(
+                app,
+                "pomodoro",
+                tauri::WebviewUrl::App("/?pomodoro=1".into()),
+            )
+            .title("TodoFlow Pomodoro")
+            .inner_size(190.0, 200.0)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(true)
+            .visible(false)
+            .transparent(true)
+            .shadow(false)
+            .build()?;
+
+            // Position: bottom-right above widget area
+            if let Ok(monitors) = pomodoro_win.available_monitors() {
+                if let Some(monitor) = monitors.into_iter().next() {
+                    let size = monitor.size();
+                    let scale = monitor.scale_factor();
+                    let x = (size.width as f64 / scale) - 240.0;
+                    let y = (size.height as f64 / scale) - 540.0;
+                    let _ = pomodoro_win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+                }
+            }
+
             // ---- Global shortcuts ----
             // 使用动态注册，从 settings 表中读取用户自定义的快捷键配置
             {
@@ -383,6 +411,8 @@ pub fn run() {
             commands::widget_commands::hide_to_tray,
             commands::widget_commands::show_main_from_widget,
             commands::widget_commands::show_widget_context_menu,
+            commands::widget_commands::show_pomodoro_window,
+            commands::widget_commands::hide_pomodoro_window,
             commands::stats_commands::get_dashboard_stats,
             commands::habit_commands::create_habit,
             commands::habit_commands::get_habits,

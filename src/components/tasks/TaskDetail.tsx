@@ -7,7 +7,8 @@ import { useUIStore } from '../../stores/uiStore';
 import { todayISO, isOverdue } from '../../lib/date';
 import { cn } from '../../lib/cn';
 import type { UpdateTaskInput } from '../../types/task';
-import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus } from 'lucide-react';
+import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer } from 'lucide-react';
+import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
 import { ReminderList } from '../shared/ReminderList';
@@ -232,6 +233,11 @@ export function TaskDetail() {
               task.is_pinned ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
             <Pin size={13} />
             置顶
+          </button>
+          <button onClick={() => { usePomodoroStore.getState().startTimer(task.id, task.title); }}
+            className="inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12] hover:bg-[#7C72F6]/[0.12] dark:hover:bg-[#7C72F6]/[0.2]">
+            <Timer size={13} />
+            番茄钟
           </button>
           {isOverdue(task.due_date) && !task.is_completed && !task.is_suspended && !task.is_abandoned && (
             <span className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium text-[#F97316] bg-[#FFF7ED] dark:bg-orange-950/30">超期</span>

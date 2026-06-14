@@ -5,6 +5,7 @@ import { eventToNormalizedKeys, normalizeKeys, SHORTCUT_DEFS } from '../types/sh
 
 interface ShortcutCallbacks {
   onNewTask?: () => void;
+  onPomodoroStart?: () => void;
 }
 
 /**
@@ -39,6 +40,9 @@ export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
         return;
       case 'new-task':
         cb?.onNewTask?.();
+        return;
+      case 'pomodoro-toggle':
+        cb?.onPomodoroStart?.();
         return;
       default:
         return;

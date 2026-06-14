@@ -64,3 +64,20 @@ pub fn show_widget_context_menu(app: AppHandle, state: State<AppState>, _x: f64,
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn show_pomodoro_window(app: AppHandle) -> Result<(), AppError> {
+    if let Some(win) = app.get_webview_window("pomodoro") {
+        win.show().map_err(|e| AppError::Generic(e.to_string()))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_pomodoro_window(app: AppHandle) -> Result<(), AppError> {
+    if let Some(win) = app.get_webview_window("pomodoro") {
+        win.hide().map_err(|e| AppError::Generic(e.to_string()))?;
+    }
+    Ok(())
+}
+

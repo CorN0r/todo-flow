@@ -21,14 +21,18 @@ import { HabitPage } from './pages/HabitPage';
 import { SearchPage } from './pages/SearchPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { WidgetPage } from './pages/WidgetPage';
+import { PomodoroWidgetPage } from './pages/PomodoroWidgetPage';
+import { FocusStatsPage } from './pages/FocusStatsPage';
 import { CommandPalette } from './components/shared/CommandPalette';
 import { BulkActionBar } from './components/shared/BulkActionBar';
 import { OnboardingOverlay } from './components/shared/OnboardingOverlay';
-import { PomodoroTimer } from './components/shared/PomodoroTimer';
+import { PomodoroFullscreen } from './components/shared/PomodoroFullscreen';
+import { usePomodoroSync } from './hooks/usePomodoroSync';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useUIStore } from './stores/uiStore';
+import { usePomodoroStore } from './stores/pomodoroStore';
 import { useShortcutStore } from './stores/shortcutStore';
 
 const queryClient = new QueryClient({
@@ -40,12 +44,18 @@ const queryClient = new QueryClient({
   },
 });
 
+function PomodoroSync() {
+  usePomodoroSync();
+  return null;
+}
+
 function AppLayout() {
   useTheme();
 
   return (
     <Routes>
       <Route path="/widget" element={<WidgetPage />} />
+      <Route path="/pomodoro-widget" element={<PomodoroWidgetPage />} />
       <Route path="*" element={<MainLayout />} />
     </Routes>
   );
@@ -60,6 +70,13 @@ function MainLayout() {
 
   useKeyboardShortcuts({
     onNewTask: () => setShowQuickAdd(true),
+    onPomodoroStart: () => {
+      const store = usePomodoroStore.getState();
+      if (!store.sessionStartTime) {
+        const selectedId = useUIStore.getState().selectedTaskId;
+        store.startTimer(selectedId, selectedId ? '' : '番茄钟');
+      }
+    },
   });
 
   useEffect(() => {
@@ -103,6 +120,7 @@ function MainLayout() {
       unlisten2?.();
     };
   }, []);
+
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -167,6 +185,8 @@ function MainLayout() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/pomodoro" element={<PomodoroFullscreen />} />
+              <Route path="/focus-stats" element={<FocusStatsPage />} />
             </Routes>
             </ErrorBoundary>
             </div>
@@ -176,8 +196,8 @@ function MainLayout() {
         <ErrorBoundary><CommandPalette /></ErrorBoundary>
         <ErrorBoundary><BulkActionBar /></ErrorBoundary>
         <ErrorBoundary><OnboardingOverlay /></ErrorBoundary>
-        <PomodoroTimer />
       </div>
+      <PomodoroSync />
       <Toaster position="bottom-right" richColors />
     </div>
   );
@@ -192,7 +212,12 @@ function App() {
   useEffect(() => { loadShortcuts(); }, [loadShortcuts]);
 
   return (
-    <MemoryRouter initialEntries={[new URLSearchParams(window.location.search).has('widget') ? '/widget' : '/date/all']}>
+    <MemoryRouter initialEntries={[(() => {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.has('widget')) return '/widget';
+      if (sp.has('pomodoro')) return '/pomodoro-widget';
+      return '/date/all';
+    })()]}>
       <QueryClientProvider client={queryClient}>
         <AppLayout />
       </QueryClientProvider>

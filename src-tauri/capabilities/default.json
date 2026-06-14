@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capability for the main window",
-  "windows": ["main", "widget"],
+  "windows": ["main", "widget", "pomodoro"],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",
@@ -11,6 +11,9 @@
     "core:window:allow-start-dragging",
     "core:window:allow-set-size",
     "core:window:allow-outer-position",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-fullscreen",
     "core:window:allow-set-position",
     "dialog:default",
     "dialog:allow-open",
@@ -21,6 +24,7 @@
     "fs:default",
     "global-shortcut:default",
     "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister"
+    "global-shortcut:allow-unregister",
+    "notification:default"
   ]
 }

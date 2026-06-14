@@ -4,10 +4,11 @@ import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import type { Task } from '../../types/task';
 import { formatDate, isOverdue } from '../../lib/date';
-import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X, PauseCircle, Play, XCircle, Pin } from 'lucide-react';
+import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X, PauseCircle, Play, XCircle, Pin, Timer } from 'lucide-react';
 import { useUpdateTask, useDeleteTask, useCreateTask, useReorderTasks } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { useUIStore } from '../../stores/uiStore';
+import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { todayISO } from '../../lib/date';
 import { priorityColors, priorityLabels, hexToRgba } from '../../lib/priority';
 import { Portal } from '../shared/Portal';
@@ -372,6 +373,10 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
             <button onClick={handleToggleComplete}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               {task.is_completed ? <><RotateCcw size={15} className="text-[#6B7280]" /> 标记未完成</> : <><Check size={15} className="text-[#7C72F6]" /> 标记完成</>}
+            </button>
+            <button onClick={() => { usePomodoroStore.getState().startTimer(task.id, task.title); setContextMenu(null); toast.success('番茄钟已开始'); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <Timer size={15} className="text-[#7C72F6]" /> 开始番茄钟
             </button>
             <button onClick={() => { const isMyDay = task.my_day_date === todayISO(); updateTask.mutate({ id: task.id, my_day_date: isMyDay ? '' : todayISO() }); toast.success(isMyDay ? '已移出我的一天' : '已加入我的一天'); setContextMenu(null); }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">

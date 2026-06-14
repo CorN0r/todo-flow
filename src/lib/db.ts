@@ -169,6 +169,14 @@ export async function showWidgetContextMenu(x: number, y: number): Promise<void>
   return invoke('show_widget_context_menu', { x, y });
 }
 
+export async function showPomodoroWindow(): Promise<void> {
+  return invoke('show_pomodoro_window');
+}
+
+export async function hidePomodoroWindow(): Promise<void> {
+  return invoke('hide_pomodoro_window');
+}
+
 // Habit commands
 import type { Habit, HabitWithStats, HabitLog, CreateHabitInput, UpdateHabitInput, ReorderHabitsItem } from '../types/habit';
 

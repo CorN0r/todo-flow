@@ -3,6 +3,7 @@ import { Upload, Download, Database, PanelBottom, ChevronRight, ChevronDown } fr
 import { toast } from 'sonner';
 import { emit } from '@tauri-apps/api/event';
 import { getTasks, backupDatabase, exportCsv, importDatabase, getSetting, setSetting } from '../lib/db';
+import { usePomodoroStore } from '../stores/pomodoroStore';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { ShortcutEditor } from '../components/shared/ShortcutEditor';
 
@@ -33,6 +34,8 @@ export function SettingsPage() {
   const [widgetEnabled, setWidgetEnabled] = useState(true);
   const [bubbleColors, setBubbleColors] = useState<BubbleColors>(DEFAULT_BUBBLE_COLORS);
   const [showCustom, setShowCustom] = useState(false);
+  const pomodoroConfig = usePomodoroStore((s) => s.config);
+  const updatePomodoroConfig = usePomodoroStore((s) => s.updateConfig);
 
   useEffect(() => {
     getSetting('widget_enabled').then((v) => {
@@ -235,6 +238,76 @@ export function SettingsPage() {
             )}
           </div>
           )}
+        </div>
+      </div>
+
+      {/* Pomodoro settings */}
+      <div className="mb-6">
+        <h4 className="section-label mb-3">番茄钟</h4>
+        <div className="rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] divide-y divide-[#F3F4F6] dark:divide-white/[0.06]">
+          {/* Focus duration */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">专注时长</span>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => updatePomodoroConfig({ focusMinutes: Math.max(5, pomodoroConfig.focusMinutes - 5) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">−</button>
+              <span className="w-8 text-center text-[13px] font-semibold tabular-nums text-[#111827] dark:text-white/90">{pomodoroConfig.focusMinutes}</span>
+              <button onClick={() => updatePomodoroConfig({ focusMinutes: Math.min(120, pomodoroConfig.focusMinutes + 5) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">+</button>
+              <span className="text-[11px] text-[#9CA3AF] ml-1">分钟</span>
+            </div>
+          </div>
+          {/* Short break */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">短休息</span>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => updatePomodoroConfig({ shortBreakMinutes: Math.max(1, pomodoroConfig.shortBreakMinutes - 1) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">−</button>
+              <span className="w-8 text-center text-[13px] font-semibold tabular-nums text-[#111827] dark:text-white/90">{pomodoroConfig.shortBreakMinutes}</span>
+              <button onClick={() => updatePomodoroConfig({ shortBreakMinutes: Math.min(30, pomodoroConfig.shortBreakMinutes + 1) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">+</button>
+              <span className="text-[11px] text-[#9CA3AF] ml-1">分钟</span>
+            </div>
+          </div>
+          {/* Long break */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">长休息</span>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => updatePomodoroConfig({ longBreakMinutes: Math.max(5, pomodoroConfig.longBreakMinutes - 5) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">−</button>
+              <span className="w-8 text-center text-[13px] font-semibold tabular-nums text-[#111827] dark:text-white/90">{pomodoroConfig.longBreakMinutes}</span>
+              <button onClick={() => updatePomodoroConfig({ longBreakMinutes: Math.min(60, pomodoroConfig.longBreakMinutes + 5) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">+</button>
+              <span className="text-[11px] text-[#9CA3AF] ml-1">分钟</span>
+            </div>
+          </div>
+          {/* Sessions until long break */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">长休间隔</span>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => updatePomodoroConfig({ sessionsUntilLongBreak: Math.max(1, pomodoroConfig.sessionsUntilLongBreak - 1) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">−</button>
+              <span className="w-8 text-center text-[13px] font-semibold tabular-nums text-[#111827] dark:text-white/90">{pomodoroConfig.sessionsUntilLongBreak}</span>
+              <button onClick={() => updatePomodoroConfig({ sessionsUntilLongBreak: Math.min(10, pomodoroConfig.sessionsUntilLongBreak + 1) })}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors text-sm">+</button>
+              <span className="text-[11px] text-[#9CA3AF] ml-1">轮</span>
+            </div>
+          </div>
+          {/* Auto-start toggles */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">自动开始休息</span>
+            <button onClick={() => updatePomodoroConfig({ autoStartBreak: !pomodoroConfig.autoStartBreak })}
+              className={`relative w-9 h-5 rounded-full transition-colors ${pomodoroConfig.autoStartBreak ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${pomodoroConfig.autoStartBreak ? 'left-[18px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">自动开始专注</span>
+            <button onClick={() => updatePomodoroConfig({ autoStartFocus: !pomodoroConfig.autoStartFocus })}
+              className={`relative w-9 h-5 rounded-full transition-colors ${pomodoroConfig.autoStartFocus ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${pomodoroConfig.autoStartFocus ? 'left-[18px]' : 'left-0.5'}`} />
+            </button>
+          </div>
         </div>
       </div>
 

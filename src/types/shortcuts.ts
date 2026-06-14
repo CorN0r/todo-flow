@@ -31,6 +31,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
 
   // 任务操作
   { id: 'new-task', label: '快速添加任务', category: 'task', scope: 'frontend' },
+  { id: 'pomodoro-toggle', label: '启动番茄钟', category: 'task', scope: 'frontend' },
 
 ];
 
@@ -40,6 +41,7 @@ export function getDefaultShortcutMap(): ShortcutMap {
     'command-palette': 'Ctrl+K',
     'toggle-sidebar': 'Ctrl+B',
     'new-task': 'N',
+    'pomodoro-toggle': 'Ctrl+Shift+P',
   };
   const map: ShortcutMap = {};
   for (const [id, keys] of Object.entries(defaults)) {
@@ -53,6 +55,7 @@ const SORT_ORDER: Record<string, number> = {
   'command-palette': 1,
   'toggle-sidebar': 2,
   'new-task': 3,
+  'pomodoro-toggle': 4,
 };
 
 export function getShortcutDefsSorted(): ShortcutDef[] {

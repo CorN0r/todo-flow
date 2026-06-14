@@ -49,6 +49,17 @@ export function WidgetPage() {
   const DEFAULT_BUBBLE: BubbleColors = { from: '#818CF8', via: '#A855F7', to: '#EC4899' };
   const [bubbleColors, setBubbleColors] = useState<BubbleColors>(DEFAULT_BUBBLE);
 
+  // Block browser shortcuts (Ctrl+P / Ctrl+Shift+P = print)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   useEffect(() => {
     getSetting('widget_bubble_color').then((raw) => {
       if (raw) {
@@ -102,6 +113,22 @@ export function WidgetPage() {
         setTheme(t);
         setResolvedTheme(getResolvedTheme(t));
       }
+    }).then((u) => {
+      if (cancelled) { u(); return; }
+      unlisten = u;
+    }).catch(() => {});
+    return () => { cancelled = true; unlisten?.(); };
+  }, []);
+
+  // Pomodoro state sync from main window
+  interface WidgetPomodoro { mode: string; minutes: number; seconds: number; isRunning: boolean; taskTitle: string; sessionStartTime: string | null; sessionsInCycle: number; config: { focusMinutes: number; sessionsUntilLongBreak: number }; }
+  const [pomo, setPomo] = useState<WidgetPomodoro | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    listen<WidgetPomodoro>('pomodoro-state', (event) => {
+      if (cancelled) return;
+      setPomo(event.payload);
     }).then((u) => {
       if (cancelled) { u(); return; }
       unlisten = u;
@@ -414,7 +441,7 @@ export function WidgetPage() {
   return (
     <div className={cn(
       'h-screen w-screen select-none flex flex-col',
-      sizeMode !== 'compact' && (resolvedTheme === 'dark' ? 'bg-[#1e1e32]' : 'bg-white'),
+      sizeMode !== 'compact' && (resolvedTheme === 'dark' ? 'bg-[#1e1e32]' : 'bg-[#F6F6FA]'),
       sizeMode === 'compact' && 'items-center justify-center',
     )} onContextMenu={(e) => e.preventDefault()}
       onMouseDown={(e) => {
@@ -493,6 +520,25 @@ export function WidgetPage() {
           </>
         ) : (
           <>
+            {/* Pomodoro bar */}
+            {pomo && pomo.sessionStartTime && (
+              <div className={cn(
+                'mx-3 mt-2 px-2.5 py-1.5 rounded-lg flex items-center gap-2 text-[11px] font-semibold',
+                resolvedTheme === 'dark' ? 'bg-white/[0.06]' : 'bg-[#F3F4F6]',
+              )}>
+                <span className={pomo.mode === 'focus' ? 'text-[#7C72F6]' : 'text-[#10B981]'}>
+                  {pomo.mode === 'focus' ? '🍅' : '☕'}
+                </span>
+                <span className={cn('tabular-nums', resolvedTheme === 'dark' ? 'text-white/90' : 'text-[#111827]')}>
+                  {String(pomo.minutes).padStart(2, '0')}:{String(pomo.seconds).padStart(2, '0')}
+                </span>
+                <span className="text-[#6B7280] truncate flex-1">{pomo.taskTitle || '专注中'}</span>
+                <span className="text-[10px] text-[#6B7280] tabular-nums">
+                  第 {Math.min(pomo.sessionsInCycle + 1, pomo.config.sessionsUntilLongBreak)}/{pomo.config.sessionsUntilLongBreak} 轮
+                </span>
+                {!pomo.isRunning && <span className="text-[10px] text-amber-500">已暂停</span>}
+              </div>
+            )}
             {/* Tabs */}
             <div className="flex items-center gap-1 px-3 pb-1 flex-shrink-0">
               {TABS.map((tab) => (
@@ -530,7 +576,7 @@ export function WidgetPage() {
                     <div key={task.id}
                       className={cn(
                         'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs group transition-colors',
-                        resolvedTheme === 'dark' ? 'bg-white/5 hover:bg-white/[0.08]' : 'bg-[#F9FAFB] hover:bg-[#F3F4F6]',
+                        resolvedTheme === 'dark' ? 'bg-white/5 hover:bg-white/[0.08]' : 'bg-white shadow-sm hover:bg-[#F9FAFB]',
                         updateTaskMutation.isPending && updateTaskMutation.variables?.id === task.id && 'opacity-50',
                       )}>
                       <button
@@ -571,7 +617,7 @@ export function WidgetPage() {
             <div className="px-2.5 pb-2.5 flex-shrink-0">
               <div className={cn(
                 'flex items-center gap-1.5 px-2.5 py-2 rounded-xl border transition-colors focus-within:border-[#7C72F6]/50',
-                resolvedTheme === 'dark' ? 'bg-white/[0.06] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E7EB]',
+                resolvedTheme === 'dark' ? 'bg-white/[0.06] border-white/[0.08]' : 'bg-white border-[#E5E7EB]',
               )}>
                 <Plus size={12} className="text-[#6B7280] flex-shrink-0" />
                 <input

@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getDashboardStats, type DashboardStats } from '../lib/db';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { cn } from '../lib/cn';
-import { BarChart3, CheckCircle2, Clock, List, AlertTriangle, TrendingUp } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, List, AlertTriangle, TrendingUp, Zap, Flame } from 'lucide-react';
+import { usePomodoroStore } from '../stores/pomodoroStore';
+import { useUIStore } from '../stores/uiStore';
 
 function StatCard({ icon, label, value, color, onClick }: {
   icon: React.ReactNode;
@@ -129,7 +132,193 @@ function TagDistribution({ data }: { data: DashboardStats['tasks_by_tag'] }) {
   );
 }
 
+function PomodoroSection() {
+  const dailyFocusMinutes = usePomodoroStore((s) => s.dailyFocusMinutes);
+  const taskFocusMinutes = usePomodoroStore((s) => s.taskFocusMinutes);
+  const config = usePomodoroStore((s) => s.config);
+  const isDark = useUIStore((s) => s.resolvedTheme) === 'dark';
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayMinutes = dailyFocusMinutes[today] || 0;
+  const todaySessions = Math.round(todayMinutes / config.focusMinutes);
+
+  const totalMinutes = Object.values(dailyFocusMinutes).reduce((s, v) => s + v, 0);
+  const totalSessions = Math.round(totalMinutes / config.focusMinutes);
+
+  // Streak
+  let streak = 0;
+  const checkDate = new Date();
+  while (true) {
+    const d = checkDate.toISOString().split('T')[0];
+    if (dailyFocusMinutes[d] && dailyFocusMinutes[d] > 0) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else if (d === today) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else break;
+  }
+
+  // Week chart
+  const weekDays: { date: string; label: string; minutes: number }[] = [];
+  const now = new Date();
+  const dayLabels = ['日', '一', '二', '三', '四', '五', '六'];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    weekDays.push({
+      date: key,
+      label: i === 0 ? '今' : dayLabels[d.getDay()],
+      minutes: dailyFocusMinutes[key] || 0,
+    });
+  }
+  const maxMin = Math.max(...weekDays.map((d) => d.minutes), 1);
+
+  if (totalSessions === 0) return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="w-16 h-16 rounded-full bg-[#F5F3FF] dark:bg-violet-950/50 flex items-center justify-center mb-4">
+        <Clock size={28} className="text-[#7C72F6]/50" />
+      </div>
+      <p className="text-[14px] font-medium text-[#111827] dark:text-white/90 mb-1">暂无专注数据</p>
+      <p className="text-[12px] text-[#9CA3AF]">右键任务卡片，选择"开始番茄钟"来启动第一次专注</p>
+    </div>
+  );
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-3 mb-3 mt-1">
+        <div className="w-7 h-7 rounded-lg bg-[#FFF7ED] dark:bg-orange-950 flex items-center justify-center">
+          <Flame size={14} className="text-[#F97316]" />
+        </div>
+        <span className="text-[13px] font-semibold text-[#111827] dark:text-white/90">专注统计</span>
+        <span className="text-[11px] text-[#6B7280] ml-auto">
+          {streak > 0 && `🔥 连续 ${streak} 天`}
+        </span>
+      </div>
+
+      {/* Pomodoro stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="rounded-[10px] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] flex items-center gap-3"
+          style={{ padding: '14px 16px', boxShadow: 'var(--card-shadow)' }}>
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[#7C72F6]">
+            <Clock className="text-white" size={18} />
+          </div>
+          <div>
+            <p className="text-[22px] font-bold tabular-nums text-[#111827] dark:text-white">{todayMinutes}</p>
+            <p className="text-[11px] text-[#6B7280]">今日分钟</p>
+          </div>
+        </div>
+        <div className="rounded-[10px] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] flex items-center gap-3"
+          style={{ padding: '14px 16px', boxShadow: 'var(--card-shadow)' }}>
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[#22C55E]">
+            <Zap className="text-white" size={18} />
+          </div>
+          <div>
+            <p className="text-[22px] font-bold tabular-nums text-[#111827] dark:text-white">{todaySessions}</p>
+            <p className="text-[11px] text-[#6B7280]">今日轮数</p>
+          </div>
+        </div>
+        <div className="rounded-[10px] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] flex items-center gap-3"
+          style={{ padding: '14px 16px', boxShadow: 'var(--card-shadow)' }}>
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[#F97316]">
+            <Flame className="text-white" size={18} />
+          </div>
+          <div>
+            <p className="text-[22px] font-bold tabular-nums text-[#111827] dark:text-white">{streak}</p>
+            <p className="text-[11px] text-[#6B7280]">连续天数</p>
+          </div>
+        </div>
+        <div className="rounded-[10px] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] flex items-center gap-3"
+          style={{ padding: '14px 16px', boxShadow: 'var(--card-shadow)' }}>
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[#3B82F6]">
+            <BarChart3 className="text-white" size={18} />
+          </div>
+          <div>
+            <p className="text-[22px] font-bold tabular-nums text-[#111827] dark:text-white">{totalSessions}</p>
+            <p className="text-[11px] text-[#6B7280]">总计轮数</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Week bar */}
+      <div className="rounded-[10px] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06]"
+        style={{ padding: '16px 16px 12px 16px', boxShadow: 'var(--card-shadow)' }}>
+        <span className="text-[11px] text-[#6B7280] mb-2 block">本周专注时长</span>
+        <div className="flex items-end gap-2 h-[130px]">
+          {weekDays.map((d) => {
+            const barH = maxMin > 0 ? Math.max(4, (d.minutes / maxMin) * 100) : 4;
+            const isToday = d.date === today;
+            return (
+              <div key={d.date} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                <span className={cn(
+                  'text-[11px] font-semibold tabular-nums',
+                  isToday ? 'text-[#7C72F6]' : d.minutes > 0 ? 'text-[#111827] dark:text-white/90' : 'text-[#9CA3AF]',
+                )}>
+                  {d.minutes > 0 ? `${d.minutes}m` : ''}
+                </span>
+                <div
+                  className="w-full rounded-t-lg transition-all duration-500"
+                  style={{
+                    height: barH,
+                    background: isToday
+                      ? 'linear-gradient(180deg, #7C72F6 0%, #A78BFA 100%)'
+                      : d.minutes > 0
+                        ? 'linear-gradient(180deg, #C4B5FD 0%, #DDD6FE 100%)'
+                        : isDark ? 'rgba(255,255,255,0.04)' : '#F3F4F6',
+                  }}
+                />
+                <span className={isToday ? 'text-[10px] text-[#7C72F6] font-semibold' : 'text-[10px] text-[#9CA3AF]'}>
+                  {d.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Per-task breakdown */}
+      {(() => {
+        const tasks = Object.entries(taskFocusMinutes)
+          .filter(([id]) => id !== '__none__')
+          .sort(([, a], [, b]) => b.minutes - a.minutes)
+          .slice(0, 5);
+        if (tasks.length === 0) return null;
+        const maxTaskMin = Math.max(...tasks.map(([, t]) => t.minutes), 1);
+        return (
+          <div className="rounded-[10px] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] mt-3"
+            style={{ padding: '16px', boxShadow: 'var(--card-shadow)' }}>
+            <span className="text-[11px] text-[#6B7280] mb-3 block">按任务排行</span>
+            <div className="space-y-2.5">
+              {tasks.map(([id, t], i) => (
+                <div key={id} className="flex items-center gap-2.5">
+                  <span className={cn('text-[11px] font-semibold tabular-nums w-5', i < 3 ? 'text-[#7C72F6]' : 'text-[#9CA3AF]')}>
+                    {i + 1}
+                  </span>
+                  <span className="text-[12px] flex-1 truncate text-[#111827] dark:text-white/90">{t.title}</span>
+                  <span className="text-[11px] font-medium tabular-nums text-[#6B7280]">{t.minutes}min</span>
+                  <div className="w-16 h-1.5 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] overflow-hidden flex-shrink-0">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.round((t.minutes / maxTaskMin) * 100)}%`,
+                        background: i === 0 ? 'linear-gradient(90deg, #7C72F6, #A78BFA)' : '#DDD6FE',
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+type DashboardTab = 'tasks' | 'focus';
+
 export function DashboardPage() {
+  const [tab, setTab] = useState<DashboardTab>('tasks');
   const navigate = useNavigate();
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['dashboard-stats'],
@@ -153,6 +342,29 @@ export function DashboardPage() {
           <p className="text-[12px] text-[#9CA3AF]">效率概览</p>
         </div>
       </div>
+
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 mb-5">
+        <button onClick={() => setTab('tasks')}
+          className={cn('px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-colors',
+            tab === 'tasks'
+              ? 'bg-[#7C72F6] text-white'
+              : 'text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]',
+          )}>
+          任务
+        </button>
+        <button onClick={() => setTab('focus')}
+          className={cn('px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-colors',
+            tab === 'focus'
+              ? 'bg-[#7C72F6] text-white'
+              : 'text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]',
+          )}>
+          专注
+        </button>
+      </div>
+
+      {tab === 'tasks' && (
+      <>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -187,6 +399,10 @@ export function DashboardPage() {
         style={{ padding: '16px', boxShadow: 'var(--card-shadow)' }}>
         <TagDistribution data={stats.tasks_by_tag} />
       </div>
+      </>
+      )}
+
+      {tab === 'focus' && <PomodoroSection />}
     </div>
   );
 }
