@@ -21,7 +21,9 @@ TodoFlow is a Windows desktop TODO app built with **Tauri v2** (Rust backend + R
 | Database | SQLite via rusqlite (bundled, WAL mode) |
 | Icons | lucide-react |
 | Toast | sonner |
-| i18n | react-i18next (infrastructure ready, not yet deployed) |
+| Animation | motion (framer-motion successor) |
+| Notification | tauri-plugin-notification |
+| i18n | react-i18next (keys defined, components use hardcoded Chinese) |
 
 ---
 
@@ -43,7 +45,32 @@ Port 1420 frequently conflicts. Kill the lingering process before launching:
 taskkill /F /IM todo-flow.exe; Start-Sleep -Seconds 1; npx tauri dev
 ```
 
-**Important**: Vite HMR does NOT reliably update the widget window (separate WebView). After any changes to `WidgetPage.tsx`, kill the process and restart `npm run tauri dev` — the widget loads stale code otherwise.
+**Important**: Vite HMR does NOT reliably update the widget or pomodoro windows (separate WebViews). After changes to `WidgetPage.tsx` or `PomodoroWidgetPage.tsx`, kill the process and restart — these windows load stale code otherwise.
+
+---
+
+## Multi-Window Architecture
+
+TodoFlow has THREE Tauri WebView windows, all created in `src-tauri/src/lib.rs`:
+
+| Window | Label | Size | Flags |
+|--------|-------|------|-------|
+| **main** | `"main"` | 1200×800 | Default window, resizeable, can hide to tray |
+| **widget** | `"widget"` | 300×420 (min 80×80) | `decorations(false)`, `always_on_top(true)`, `transparent(true)`, `skip_taskbar(true)` |
+| **pomodoro** | `"pomodoro"` | 190×200 | `decorations(false)`, `always_on_top(true)`, `transparent(true)`, `skip_taskbar(true)`, `resizable(true)` |
+
+The widget window loads `/?widget=1`, pomodoro loads `/?pomodoro=1`. MemoryRouter detects these query params in `App.tsx` to route to the correct page.
+
+**Cross-window communication** uses Tauri events (`emit`/`listen`):
+
+| Event | Direction | Purpose |
+|-------|-----------|---------|
+| `theme-changed` | main → widget, pomodoro | Sync theme across windows |
+| `pomodoro-state` | main → widget, pomodoro | Sync timer state (every second) |
+| `pomodoro-control` | pomodoro → main | Control actions (pause/resume/skip/reset/stop) |
+| `bubble-color-changed` | main → widget | Sync custom bubble gradient |
+
+Windows that are separate WebViews have their own React instances, Zustand stores, and DOM. They do NOT share state — all state sync is via Tauri events.
 
 ---
 
@@ -55,21 +82,22 @@ src/
 │   ├── layout/       Sidebar, Header, TaskDetailPanel
 │   ├── tasks/        TaskCard, TaskList, TaskDetail, TaskQuickAdd, UnifiedLayout
 │   ├── calendar/     MonthView, WeekView, DayView
-│   ├── shared/       CommandPalette, SearchBar, DatePicker, KeyCapture, ShortcutEditor, ErrorBoundary, ...
+│   ├── shared/       CommandPalette, SearchBar, DatePicker, KeyCapture, ShortcutEditor,
+│   │                 ErrorBoundary, PomodoroFullscreen, Portal, ...
 │   └── attachments/  AttachmentZone, ImageLightbox
 ├── pages/            TodayPage, CalendarPage, TagPage, SearchPage, DashboardPage,
-│                     SettingsPage, MyDayPage, DateFilterPage, MatrixPage, KanbanPage,
-│                     HabitPage, WidgetPage
-├── hooks/            useTasks, useTags, useTheme, useKeyboardShortcuts
-├── stores/           uiStore.ts, shortcutStore.ts
+│                     SettingsPage, WidgetPage, PomodoroWidgetPage, FocusStatsPage, ...
+├── hooks/            useTasks, useTags, useTheme, useKeyboardShortcuts, usePomodoroSync
+├── stores/           uiStore.ts, shortcutStore.ts, pomodoroStore.ts, calendarStore.ts
 ├── lib/              db.ts (Tauri invoke wrappers), date.ts, cn.ts, priority.ts, ...
-├── types/            task.ts, tag.ts, attachment.ts, shortcuts.ts
-└── i18n/             locales/zh-CN.json, locales/en-US.json (dormant)
+├── types/            task.ts, tag.ts, attachment.ts, shortcuts.ts, pomodoro.ts
+└── i18n/             locales/zh-CN.json, locales/en-US.json
 src-tauri/
 ├── src/
 │   ├── commands/     task_commands, reminder_commands, tag_commands, settings_commands,
 │   │                 shortcut_commands, widget_commands, stats_commands, habit_commands
-│   ├── db/           task_repo, reminder_repo, tag_repo, attachment_repo, habit_repo, migrations, connection
+│   ├── db/           task_repo, reminder_repo, tag_repo, attachment_repo, habit_repo,
+│   │                 migrations, connection
 │   ├── models/       task, task_reminder, tag, attachment, settings, habit
 │   ├── shortcuts.rs  Dynamic global shortcut registration + handler dispatch
 │   └── reminders.rs  Background polling thread (60s interval)
@@ -83,15 +111,16 @@ src-tauri/
 
 | Default | ID | Scope |
 |---------|-----|-------|
-| Ctrl+Shift+T | global-show-window | Rust global — toggle main window show/hide; hides widget when showing, shows widget when hiding |
+| Ctrl+Shift+T | global-show-window | Rust global — toggle main window show/hide |
 | Ctrl+K | command-palette | Frontend — open command palette |
 | Ctrl+B | toggle-sidebar | Frontend — toggle sidebar |
 | N | new-task | Frontend — focus quick-add input |
+| Ctrl+Shift+P | pomodoro-toggle | Frontend — start pomodoro (no-op if already running) |
 
-### Hardcoded (not in configurable list)
+### Hardcoded
 
-- **Escape** — exit selection mode or deselect task (works inside inputs too)
-- **Browser shortcuts blocked**: Ctrl+P/S/U/R/H/J/D/O/T/W/N, F1/F3/F5/F11/F12, Alt+←/→, Backspace (outside inputs). Editing combos (Ctrl+C/V/X/A/Z/Y) only work inside inputs.
+- **Escape** — exit selection mode, deselect task, or exit fullscreen (pomodoro window)
+- **Browser shortcuts blocked**: Ctrl+P/S/U/R/H/J/D/O/T/W/N, F1/F3/F5/F11/F12, Alt+←/→, Backspace (outside inputs). Widget and pomodoro windows also block Ctrl+P/Shift+P to prevent print dialog.
 
 ### Shortcut Architecture
 
@@ -99,17 +128,62 @@ src-tauri/
 Settings UI (ShortcutEditor → KeyCapture)
        │ update shortcut
        ▼
-shortcutStore (Zustand, persisted to SQLite settings table key='keyboard_shortcuts')
+shortcutStore (Zustand, persisted to SQLite settings key='keyboard_shortcuts')
        │
-       ├── Frontend: useKeyboardShortcuts hook reads shortcutMap → builds actionMap → keydown handler dispatches
+       ├── Frontend: useKeyboardShortcuts hook → actionMap → keydown handler dispatches
        │
-       └── Rust: shortcuts::register_global_shortcuts() reads JSON → filters RUST_SCOPE_IDS → registers OS hotkeys
-            └── with_handler → looks up shortcut in global_shortcut_map → handle_global_shortcut_action()
+       └── Rust: shortcuts::register_global_shortcuts() → OS hotkeys for RUST_SCOPE_IDS
 ```
 
-**Rust global shortcut registration** (`src-tauri/src/shortcuts.rs`): Only shortcuts listed in `RUST_SCOPE_IDS` are registered as OS-level global hotkeys. Frontend shortcuts are NOT registered at the OS level (this was a critical bug fix — see below).
+`src/types/shortcuts.ts` is canonical: `SHORTCUT_DEFS`, defaults (`getDefaultShortcutMap`), normalization (`normalizeKeys`, `eventToNormalizedKeys`), conflict detection, validation. `scope: 'rust'` = OS-level global, `scope: 'frontend'` = app-level keydown listener.
 
-`src/types/shortcuts.ts` is the canonical source of shortcut definitions (`SHORTCUT_DEFS`), default key mappings, key normalization (`normalizeKeys`, `eventToNormalizedKeys`), conflict detection, and validation. The `ShortcutDef.scope` field determines which layer processes the shortcut: `'rust'` = OS global, `'frontend'` = app-level keydown listener.
+---
+
+## Pomodoro System
+
+### Architecture
+
+```
+pomodoroStore (Zustand + localStorage persistence)
+    │
+    ├──→ Timer loop (store-managed setInterval, NOT per-component)
+    │
+    ├──→ usePomodoroSync hook (main window, invisible)
+    │       · emits pomodoro-state to widget + pomodoro windows
+    │       · listens for pomodoro-control from pomodoro window
+    │       · shows/hides pomodoro standalone window
+    │       · plays beep + sends Windows notification on completion
+    │
+    ├──→ PomodoroWidgetPage (standalone always-on-top window)
+    │       · compact card (170px) with SVG ring + hover controls
+    │       · drag-to-move
+    │       · fullscreen toggle (setFullscreen) with 400px ring
+    │       · sends pomodoro-control events back to main window
+    │
+    └──→ PomodoroFullscreen (optional, main window)
+            · route /pomodoro
+            · calls win.setFullscreen(true) for true fullscreen
+            · read-only display, no controls
+```
+
+### Key Design Decisions
+
+- **Timer loop lives in the store** (`pomodoroStore.ts`). A Zustand `subscribe` watches `isRunning` and starts/stops a single `setInterval`. Components never create their own intervals — this prevents double-tick bugs when multiple components mount.
+- **Completion detection** uses a `lastCompleted` signal field. Store sets `lastCompleted: 'focus'` when a phase ends. The sync hook watches this field → fires notification → clears it. This avoids the broken `minutes===0 && seconds===0` check (which never fires because `tick()` sets `minutes` to the next phase value in the same `set()` call).
+- **Controls are on the standalone window only**. Main window has zero pomodoro UI. The sync hook (`<PomodoroSync />` in App.tsx) handles all cross-window logic invisibly.
+- **sessionStartTime** determines window visibility. Only `stopTimer()` clears it. Phase transitions update it to a new ISO string — the window never disappears between phases.
+
+### State Persistence
+
+- `pomodoroConfig` → localStorage `pomodoroConfig`
+- `dailyFocusMinutes` + `taskFocusMinutes` → localStorage `pomodoroHistory`
+- Current timer state (taskId, minutes, seconds, etc.) → memory only, lost on restart
+
+### Start Entries
+
+1. TaskCard right-click → "开始番茄钟"
+2. TaskDetail pill button → "番茄钟"
+3. Ctrl+Shift+P (with or without selected task)
 
 ---
 
@@ -121,91 +195,62 @@ shortcutStore (Zustand, persisted to SQLite settings table key='keyboard_shortcu
 - **attachments**: id, task_id, original_name, storage_name, mime_type, file_size, created_at
 - **habits**: id, name, color, icon, frequency, target_count, sort_order
 - **habit_logs**: id, habit_id (FK CASCADE), log_date, count, note. UNIQUE(habit_id, log_date)
-- **settings**: key TEXT PRIMARY KEY, value TEXT — stores serialized preferences including `keyboard_shortcuts` (v11)
+- **settings**: key TEXT PRIMARY KEY, value TEXT — stores serialized preferences
+
+### Settings Keys
+
+| Key | Value | Used By |
+|-----|-------|---------|
+| `theme` | `light`/`dark`/`system`/`glass`/`warm`/`lumina` | useTheme, WidgetPage |
+| `widget_enabled` | `"0"`/`"1"` | SettingsPage, WidgetPage, lib.rs |
+| `widget_x`/`widget_y` | pixel strings | WidgetPage, lib.rs |
+| `widget_size` | `"compact"`/`"normal"` | WidgetPage |
+| `widget_bubble_color` | JSON `{from, via, to}` hex colors | WidgetPage, SettingsPage |
+| `keyboard_shortcuts` | JSON `ShortcutMap` | shortcutStore |
+| `pomodoroConfig` | localStorage, not DB | pomodoroStore |
 
 ---
 
 ## Key Architecture Patterns
 
 ### Scroll Container Clipping (App.tsx)
-`<main>` wraps an inner `<div className="h-full overflow-y-auto">` (App.tsx:153). Per CSS spec, setting `overflow-y: auto` forces `overflow-x: auto` too, creating a **clipping container** that clips:
-- `absolute` positioned children (use Portal for dropdowns)
-- `ring` (box-shadow) on element edges → ring appears cut off
-- `outline` extending outside the element
-
-This affects every page rendered inside `<Routes>`.
+`<main>` wraps an inner `<div className="h-full overflow-y-auto">`. Per CSS spec, `overflow-y: auto` forces `overflow-x: auto` too, creating a **clipping container**. Use `<Portal>` (renders to `document.body`) for dropdowns/popups that must escape this container.
 
 ### Page Height — Never calc(100vh - Npx)
-Pages inside the scroll container must NOT use `calc(100vh - Npx)`. The layout is:
-```
-h-screen → flex → Sidebar | flex-1 flex-col | TaskDetailPanel
-                                → Header
-                                → main flex-1 → div.h-full.overflow-y-auto → <Routes>
-```
-Use `h-full flex flex-col` on page root + `flex-1 min-h-0` on the scrollable area. The hardcoded `N` never matches the actual consumed height (Header, padding, title bar vary).
-
-### Drag-over Highlight
-Do NOT put `ring` directly on a droppable container with `overflow-hidden` — the ring gets clipped by the scroll container and hidden behind child backgrounds. Instead use an absolutely-positioned **overlay div**:
-```tsx
-{isOver && (
-  <div className="absolute inset-0 rounded-xl ring-2 ring-inset ring-[#7C72F6]
-               pointer-events-none z-10" />
-)}
-```
-Container needs `relative`. Overlay's `z-10` ensures ring is above all children.
-
-### Bottom Spacing
-All page-level `overflow-y-auto` containers should have `pb-6` so content doesn't touch the bottom edge when scrolled to end. This replaces global bottom padding on the outer scroll container (which caused unwanted gaps on `h-full` pages).
-
-### Portal Dropdown Positioning
-ALL dropdowns/popups MUST use `<Portal>` (renders to `document.body`) + `fixed` positioning with `getBoundingClientRect()`. Context menus use `z-[200]`, confirm dialogs use `z-[300]`.
+Layout: `h-screen → flex → Sidebar | flex-1 flex-col | TaskDetailPanel → Header → main flex-1 → div.h-full.overflow-y-auto → <Routes>`. Use `h-full flex flex-col` + `flex-1 min-h-0` on scrollable areas.
 
 ### Tauri invoke Parameters — CRITICAL
-Tauri v2 defaults to **camelCase** for `invoke()` parameter names. Every `#[tauri::command]` MUST have explicit `rename_all = "snake_case"` to keep JS keys matching Rust parameter names. Without it, snake_case JS keys (e.g. `parent_tag_id`) are silently ignored → received as `None` on the Rust side. This caused the sub-tag bug — tags with `parent_tag_id` were created as root tags because Tauri expected `parentTagId`.
+Tauri v2 defaults to **camelCase** for `invoke()` parameter names. Every `#[tauri::command]` MUST have explicit `rename_all = "snake_case"`.
+
+### Portal Dropdown Positioning
+ALL dropdowns/popups MUST use `<Portal>` + `fixed` positioning with `getBoundingClientRect()`. Context menus: `z-[200]`, confirm dialogs: `z-[300]`, pomodoro fullscreen: `z-[300]`.
 
 ### TanStack Query Invalidation
-Use `predicate` for cross-page reliability:
 ```tsx
 queryClient.invalidateQueries({
   predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks'
 });
 ```
 
-### Auto-Save (TaskDetail)
-800ms debounce on all edits. When clearing a field, send `''` (empty string) — NOT `undefined` or `null`. The Rust `UpdateTaskRequest` treats empty strings as "clear this optional field" (maps to `None`). `undefined` values are stripped during JSON serialization.
-
 ### Due Date Format
-`due_date` stores `"YYYY-MM-DD"` (date-only) or `"YYYY-MM-DD HH:mm"` (with time, space separator). All comparisons use `.slice(0, 10)` to extract date part. `parseISO()` needs `.replace(' ', 'T')` first.
+`due_date` stores `"YYYY-MM-DD"` (date-only) or `"YYYY-MM-DD HH:mm"` (with time). Comparisons use `.slice(0, 10)`. `parseISO()` needs `.replace(' ', 'T')` first.
 
 ### Delete Flow & Undo
-Call `setSelectedTaskId(null)` BEFORE `deleteTask.mutate(id)` to prevent "Not found" errors. Undo via toast with 8s duration, recreating via `createTask.mutateAsync`.
-
-### Task View Modes
-Three modes in `useUIStore.taskViewMode` (`'list' | 'wall' | 'unified'`), persisted to localStorage. Every task page supports all three via conditional rendering.
-
-### UnifiedLayout Scroll Architecture
-Parent container must use `flex flex-col overflow-hidden` (NOT `overflow-y-auto`). Left and right panels each have `flex-1 min-h-0 overflow-y-auto`.
-
-### Single Instance Detection
-`src-tauri/src/lib.rs` contains a `single_instance` module (Windows-only). At startup, creates a named mutex (`TodoFlow_SingleInstance_Global_Mutex`). If the mutex already exists, finds the existing window by title ("TodoFlow") via `FindWindowW`, restores + focuses it, then exits. Prevents crash-on-relaunch when app is minimized to tray.
+Call `setSelectedTaskId(null)` BEFORE `deleteTask.mutate(id)`. Undo via toast with 8s duration, recreating via `createTask.mutateAsync`.
 
 ### Tag Nesting — Two Levels Max
-Tags support `parent_tag_id` (self-referencing FK). The backend builds a recursive tree in `tag_repo::get_all_with_counts`. UI restriction: `TagTreeItem` only shows the "添加子标签" context menu item when `depth === 0`, limiting nesting to root → child (no grandchildren).
-
-### Database Import — Covers All Tables
-`settings_commands::import_database` selectively imports 6 tables from a backup `.db`: tasks, tags, task_reminders, attachments, habits, habit_logs. After import, emits `task-changed` which the frontend listens to — must invalidate `tasks`, `tags`, `habits`, and `dashboard-stats` caches. `backup_database` does a raw file copy (complete), and now overwrites existing destination files.
+Tags support `parent_tag_id` (self-ref FK). UI only shows "添加子标签" when `depth === 0`.
 
 ### Widget Window — Edge Snapping & Screen Clamping
+Bubble drag triggers `shouldSnapRef.current = true`. The `onMoved` event (400ms debounce) calls `snapToEdge()` — checks distance to screen edges (< 30px threshold) and snaps. `clampInScreen()` prevents widget from moving off-screen during expand/collapse. Multi-monitor: `getScreenBounds()` falls back to `availableMonitors()` if `currentMonitor()` returns null for the transparent window.
 
-The widget (`WidgetPage.tsx`, compact bubble 60×60, expanded 300×420) runs in the `"widget"` WebView window (label: `"widget"`), created in `lib.rs` with `decorations(false)`, `always_on_top(true)`, `transparent(true)`.
+---
 
-**Edge snapping**: Bubble drag triggers `shouldSnapRef.current = true` in `onMove` (line. The `onMoved` event debounce (400ms) checks this ref and calls `snapToEdge()`. The function uses `getScreenBounds()` (which falls back to `availableMonitors()` if `currentMonitor()` returns null for the transparent window) and snaps to the nearest edge within 30px.
+## Theme System
 
-**Screen clamping**: `expandToNormal()` saves `preExpandPos.current` before moving, calls `clampInScreen(300, 420)` to shift the bubble into bounds, then expands. A post-expand 300ms delay re-runs `clampInScreen` in case the OS auto-nudged the window. `collapseToBubble()` and the `onFocusChanged` auto-collapse restore `preExpandPos` so the bubble returns to its original edge position.
+6 themes: `light`, `dark`, `system`, `glass`, `warm`, `lumina`. CSS variables defined in `src/index.css` per theme class (`.dark`, `.glass`, `.warm`, `.lumina`). The `.glass`/`.warm`/`.lumina` sections also contain Tailwind arbitrary value overrides for explicit hex colors (e.g., `.warm .text-[#7C72F6] { color: #C9A84C; }`).
 
-**Position permission**: `setPosition` requires `core:window:allow-set-position` in `src-tauri/capabilities/default.json` (was missing, added).
-
-**Debug logging**: `write_debug_log` Rust command in `settings_commands.rs` writes timestamped lines to an arbitrary file path via `invoke('write_debug_log', { path, content })`. Used during development only; not wired into production UI.
+WidgetPage uses JS ternary (`resolvedTheme === 'dark' ? X : Y`) instead of Tailwind `dark:` variants — so CSS theme overrides for widget must target direct classes (no `dark:` prefix). Widget bubble gradient is user-customizable via Settings (5 presets + custom color pickers, stored in `widget_bubble_color` setting).
 
 ---
 
