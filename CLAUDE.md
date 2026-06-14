@@ -43,6 +43,8 @@ Port 1420 frequently conflicts. Kill the lingering process before launching:
 taskkill /F /IM todo-flow.exe; Start-Sleep -Seconds 1; npx tauri dev
 ```
 
+**Important**: Vite HMR does NOT reliably update the widget window (separate WebView). After any changes to `WidgetPage.tsx`, kill the process and restart `npm run tauri dev` — the widget loads stale code otherwise.
+
 ---
 
 ## Project Structure
@@ -192,6 +194,18 @@ Tags support `parent_tag_id` (self-referencing FK). The backend builds a recursi
 
 ### Database Import — Covers All Tables
 `settings_commands::import_database` selectively imports 6 tables from a backup `.db`: tasks, tags, task_reminders, attachments, habits, habit_logs. After import, emits `task-changed` which the frontend listens to — must invalidate `tasks`, `tags`, `habits`, and `dashboard-stats` caches. `backup_database` does a raw file copy (complete), and now overwrites existing destination files.
+
+### Widget Window — Edge Snapping & Screen Clamping
+
+The widget (`WidgetPage.tsx`, compact bubble 60×60, expanded 300×420) runs in the `"widget"` WebView window (label: `"widget"`), created in `lib.rs` with `decorations(false)`, `always_on_top(true)`, `transparent(true)`.
+
+**Edge snapping**: Bubble drag triggers `shouldSnapRef.current = true` in `onMove` (line. The `onMoved` event debounce (400ms) checks this ref and calls `snapToEdge()`. The function uses `getScreenBounds()` (which falls back to `availableMonitors()` if `currentMonitor()` returns null for the transparent window) and snaps to the nearest edge within 30px.
+
+**Screen clamping**: `expandToNormal()` saves `preExpandPos.current` before moving, calls `clampInScreen(300, 420)` to shift the bubble into bounds, then expands. A post-expand 300ms delay re-runs `clampInScreen` in case the OS auto-nudged the window. `collapseToBubble()` and the `onFocusChanged` auto-collapse restore `preExpandPos` so the bubble returns to its original edge position.
+
+**Position permission**: `setPosition` requires `core:window:allow-set-position` in `src-tauri/capabilities/default.json` (was missing, added).
+
+**Debug logging**: `write_debug_log` Rust command in `settings_commands.rs` writes timestamped lines to an arbitrary file path via `invoke('write_debug_log', { path, content })`. Used during development only; not wired into production UI.
 
 ---
 
