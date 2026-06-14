@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { emit } from '@tauri-apps/api/event';
 import { useUIStore } from '../stores/uiStore';
 import { getSetting, setSetting } from '../lib/db';
 
@@ -40,6 +41,7 @@ export function useTheme() {
   const changeTheme = (newTheme: 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina') => {
     setTheme(newTheme);
     setSetting('theme', newTheme);
+    emit('theme-changed', { theme: newTheme }).catch(() => {});
   };
 
   return { theme, resolvedTheme, setTheme: changeTheme };

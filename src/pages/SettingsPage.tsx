@@ -1,24 +1,57 @@
 ﻿import { useState, useEffect } from 'react';
-import { Upload, Download, Database, PanelBottom } from 'lucide-react';
+import { Upload, Download, Database, PanelBottom, ChevronRight, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { emit } from '@tauri-apps/api/event';
 import { getTasks, backupDatabase, exportCsv, importDatabase, getSetting, setSetting } from '../lib/db';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { ShortcutEditor } from '../components/shared/ShortcutEditor';
+
+type BubbleColors = { from: string; via: string; to: string };
+
+const DEFAULT_BUBBLE_COLORS: BubbleColors = { from: '#818CF8', via: '#A855F7', to: '#EC4899' };
+
+const PRESETS: { label: string; colors: BubbleColors }[] = [
+  { label: '默认紫', colors: { from: '#818CF8', via: '#A855F7', to: '#EC4899' } },
+  { label: '海洋蓝', colors: { from: '#38BDF8', via: '#3B82F6', to: '#6366F1' } },
+  { label: '翡翠绿', colors: { from: '#34D399', via: '#10B981', to: '#059669' } },
+  { label: '日落橙', colors: { from: '#FB923C', via: '#F97316', to: '#EF4444' } },
+  { label: '樱花粉', colors: { from: '#F9A8D4', via: '#F472B6', to: '#EC4899' } },
+];
+
+function parseBubbleColors(raw: string | null): BubbleColors {
+  if (!raw) return DEFAULT_BUBBLE_COLORS;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.from && parsed.via && parsed.to) return parsed as BubbleColors;
+  } catch {}
+  return DEFAULT_BUBBLE_COLORS;
+}
 
 export function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
   const [widgetEnabled, setWidgetEnabled] = useState(true);
+  const [bubbleColors, setBubbleColors] = useState<BubbleColors>(DEFAULT_BUBBLE_COLORS);
+  const [showCustom, setShowCustom] = useState(false);
 
   useEffect(() => {
     getSetting('widget_enabled').then((v) => {
       setWidgetEnabled(v !== '0');
+    }).catch(() => {});
+    getSetting('widget_bubble_color').then((raw) => {
+      setBubbleColors(parseBubbleColors(raw));
     }).catch(() => {});
   }, []);
 
   const toggleWidget = (enabled: boolean) => {
     setWidgetEnabled(enabled);
     setSetting('widget_enabled', enabled ? '1' : '0');
+  };
+
+  const saveBubbleColors = (colors: BubbleColors) => {
+    setBubbleColors(colors);
+    setSetting('widget_bubble_color', JSON.stringify(colors));
+    emit('bubble-color-changed', colors).catch(() => {});
   };
 
   const handleBackup = async () => {
@@ -118,15 +151,90 @@ export function SettingsPage() {
 
       <div className="mb-6">
         <h4 className="section-label mb-3">悬浮窗</h4>
-        <div className="flex items-center justify-between px-4 py-3 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32]">
-          <div className="flex items-center gap-3">
-            <PanelBottom size={16} className="text-[#6B7280]" />
-            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">显示悬浮窗</span>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-4 py-3 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32]">
+            <div className="flex items-center gap-3">
+              <PanelBottom size={16} className="text-[#6B7280]" />
+              <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">显示悬浮窗</span>
+            </div>
+            <button onClick={() => toggleWidget(!widgetEnabled)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${widgetEnabled ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${widgetEnabled ? 'left-[18px]' : 'left-0.5'}`} />
+            </button>
           </div>
-          <button onClick={() => toggleWidget(!widgetEnabled)}
-            className={`relative w-9 h-5 rounded-full transition-colors ${widgetEnabled ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]'}`}>
-            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${widgetEnabled ? 'left-[18px]' : 'left-0.5'}`} />
-          </button>
+
+          {/* Bubble gradient colors — only when widget is enabled */}
+          {widgetEnabled && (
+          <div className="px-4 py-3 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32]">
+            <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium mb-3 block">气泡颜色</span>
+
+            {/* Preset chips */}
+            <div className="flex items-start justify-between gap-1 mb-2">
+              {PRESETS.map((p) => {
+                const isSelected = bubbleColors.from === p.colors.from && bubbleColors.to === p.colors.to;
+                return (
+                  <div
+                    key={p.label}
+                    onClick={() => saveBubbleColors(p.colors)}
+                    className="flex flex-col items-center gap-1 cursor-pointer group"
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full transition-all ${isSelected ? 'ring-2 ring-[#7C72F6] ring-offset-1 ring-offset-white dark:ring-offset-[#1e1e32]' : ''}`}
+                      style={{
+                        background: `linear-gradient(135deg, ${p.colors.from}, ${p.colors.via}, ${p.colors.to})`,
+                      }}
+                    />
+                    <span className="text-[10px] text-[#6B7280] group-hover:text-[#111827] dark:group-hover:text-white/80 transition-colors">
+                      {p.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Custom expand toggle */}
+            <button
+              onClick={() => setShowCustom(!showCustom)}
+              className="flex items-center gap-1 text-[11px] text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80 transition-colors mt-1"
+            >
+              {showCustom ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              自定义
+            </button>
+
+            {/* Custom color inputs */}
+            {showCustom && (
+              <div className="mt-2 pt-2 border-t border-[#F3F4F6] dark:border-white/[0.06]">
+                {/* Live preview bar */}
+                <div
+                  className="w-full h-5 rounded-full mb-2.5"
+                  style={{
+                    background: `linear-gradient(135deg, ${bubbleColors.from}, ${bubbleColors.via}, ${bubbleColors.to})`,
+                  }}
+                />
+                <div className="flex items-center gap-4">
+                  {(['from', 'via', 'to'] as const).map((key) => (
+                    <div key={key} className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-[#6B7280]">
+                        {key === 'from' ? '起' : key === 'via' ? '中' : '终'}
+                      </span>
+                      <label
+                        className="w-6 h-6 rounded-full cursor-pointer block relative border border-black/10 dark:border-white/15"
+                        style={{ backgroundColor: bubbleColors[key] }}
+                      >
+                        <input
+                          type="color"
+                          value={bubbleColors[key]}
+                          onChange={(e) => saveBubbleColors({ ...bubbleColors, [key]: e.target.value })}
+                          className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          )}
         </div>
       </div>
 

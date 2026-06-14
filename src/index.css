@@ -297,6 +297,79 @@
     border-bottom-color: rgba(255, 255, 255, 0.06);
   }
 
+  /* ===== WidgetPage glass overrides (WidgetPage uses JS ternary, not dark: prefix) ===== */
+  /* Panel background — mimic main window's gradient base for glass depth */
+  .glass .bg-\[\#1e1e32\] {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.94), rgba(22, 33, 62, 0.94), rgba(15, 52, 96, 0.94));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .glass .text-white\/90 {
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .glass .bg-violet-500\/20 {
+    background-color: rgba(124, 114, 246, 0.18);
+  }
+  .glass .text-violet-300 {
+    color: #b4a5fb;
+  }
+  /* Task rows — frosted cards on dark base */
+  .glass .bg-white\/5 {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+  .glass .hover\:bg-white\/5:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+  .glass .hover\:bg-white\/10:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+  .glass .hover\:bg-white\/\[0\.08\]:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  /* Input area — slightly raised */
+  .glass .bg-white\/\[0\.06\] {
+    background-color: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  }
+  .glass .border-white\/\[0\.08\] {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  /* Tabs — muted glass text */
+  .glass .text-zinc-500 {
+    color: rgba(180, 180, 200, 0.6);
+  }
+  .glass .hover\:text-zinc-300:hover {
+    color: rgba(210, 210, 230, 0.85);
+  }
+  .glass .border-zinc-500 {
+    border-color: rgba(180, 180, 200, 0.3);
+  }
+  .glass .border-zinc-600 {
+    border-color: rgba(180, 180, 200, 0.25);
+  }
+  /* Checkbox */
+  .glass .bg-\[\#7C72F6\] {
+    background-color: #8678f8;
+  }
+  .glass .border-\[\#7C72F6\] {
+    border-color: #8678f8;
+  }
+  .glass .hover\:border-\[\#7C72F6\]:hover {
+    border-color: #9b8ff9;
+  }
+  .glass .focus-within\:border-\[\#7C72F6\]\/50:focus-within {
+    border-color: rgba(124, 114, 246, 0.5);
+  }
+  .glass .text-\[\#6B7280\] {
+    color: rgba(200, 200, 215, 0.7);
+  }
+
   /* ===== Warm theme ===== */
   /* Primary accent: #7C72F6 → #C9A84C */
   .warm .bg-\[\#7C72F6\],
@@ -372,6 +445,29 @@
   /* Section label */
   .warm .section-label { color: #9e947a; }
 
+  /* ===== WidgetPage warm overrides (WidgetPage uses JS ternary, not dark: prefix) ===== */
+  /* Dark-mode classes — WidgetPage applies these directly when resolvedTheme === 'dark' */
+  .warm .bg-\[\#1e1e32\] { background-color: #1c1a17; }
+  .warm .text-white\/90 { color: rgba(235, 222, 190, 0.9); }
+  .warm .hover\:bg-white\/10:hover { background-color: rgba(201, 168, 76, 0.12); }
+  .warm .bg-violet-500\/20 { background-color: rgba(201, 168, 76, 0.2); }
+  .warm .text-violet-300 { color: #DDC87A; }
+  .warm .text-zinc-500 { color: #9e947a; }
+  .warm .hover\:text-zinc-300:hover { color: #c8bc98; }
+  .warm .hover\:bg-white\/5:hover { background-color: rgba(201, 168, 76, 0.06); }
+  .warm .border-zinc-500 { border-color: rgba(158, 148, 122, 0.4); }
+  .warm .bg-white\/5 { background-color: rgba(201, 168, 76, 0.04); }
+  .warm .hover\:bg-white\/\[0\.08\]:hover { background-color: rgba(201, 168, 76, 0.1); }
+  .warm .border-zinc-600 { border-color: rgba(201, 168, 76, 0.2); }
+  .warm .bg-white\/\[0\.06\] { background-color: rgba(201, 168, 76, 0.06); }
+  .warm .border-white\/\[0\.08\] { border-color: rgba(201, 168, 76, 0.12); }
+  /* Light-mode classes — WidgetPage applies these directly when resolvedTheme !== 'dark' */
+  .warm .bg-\[\#7C72F6\]\/15 { background-color: rgba(201, 168, 76, 0.15); }
+  .warm .hover\:text-\[\#111827\]:hover { color: #e0d5b8; }
+  /* Unconditional classes */
+  .warm .text-violet-500 { color: #DDC87A; }
+  .warm .focus-within\:border-\[\#7C72F6\]\/50:focus-within { border-color: rgba(201, 168, 76, 0.5); }
+
   /* ===== Lumina light theme ===== */
   /* Base background — no pure white */
   .lumina body {
@@ -427,6 +523,29 @@
   .lumina button.bg-\[\#7C72F6\]:not(.hover\:bg-\[\#6C63E6\]) {
     box-shadow: 0 2px 8px rgba(107, 127, 160, 0.25), inset 0 1px 0 rgba(255,255,255,0.2);
   }
+
+  /* ===== WidgetPage lumina overrides (WidgetPage uses JS ternary, not dark: prefix) ===== */
+  /* Dark-mode classes — lumina is a light theme, so these map to light equivalents */
+  .lumina .bg-\[\#1e1e32\] { background-color: #FFFFFF; }
+  .lumina .text-white\/90 { color: #1D2129; }
+  .lumina .hover\:bg-white\/10:hover { background-color: #F0EFEC; }
+  .lumina .bg-violet-500\/20 { background-color: rgba(107, 127, 160, 0.2); }
+  .lumina .text-violet-300 { color: #8FA0B8; }
+  .lumina .text-zinc-500 { color: #6B7A8A; }
+  .lumina .hover\:text-zinc-300:hover { color: #5F6C7A; }
+  .lumina .hover\:bg-white\/5:hover { background-color: #F4F3F1; }
+  .lumina .border-zinc-500 { border-color: rgba(107, 122, 138, 0.4); }
+  .lumina .bg-white\/5 { background-color: #F4F3F1; }
+  .lumina .hover\:bg-white\/\[0\.08\]:hover { background-color: #E8E5E0; }
+  .lumina .border-zinc-600 { border-color: #C8C4BD; }
+  .lumina .bg-white\/\[0\.06\] { background-color: #F0EFEC; }
+  .lumina .border-white\/\[0\.08\] { border-color: #DEDBD6; }
+  /* Light-mode classes — these get lumina's subtle color tweaks */
+  .lumina .bg-\[\#7C72F6\]\/15 { background-color: rgba(107, 127, 160, 0.15); }
+  .lumina .hover\:text-\[\#111827\]:hover { color: #1D2129; }
+  /* Unconditional classes */
+  .lumina .text-violet-500 { color: #8FA0B8; }
+  .lumina .focus-within\:border-\[\#7C72F6\]\/50:focus-within { border-color: rgba(107, 127, 160, 0.5); }
 }
 
 @layer base {

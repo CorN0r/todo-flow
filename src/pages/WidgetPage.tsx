@@ -18,18 +18,110 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: '全部任务' },
 ];
 
+const VALID_THEMES = ['light', 'dark', 'system', 'glass', 'warm', 'lumina'] as const;
+type Theme = typeof VALID_THEMES[number];
+type BubbleColors = { from: string; via: string; to: string };
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function getResolvedTheme(t: Theme): 'light' | 'dark' {
+  if (t === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  if (t === 'glass' || t === 'warm') return 'dark';
+  if (t === 'lumina') return 'light';
+  return t;
+}
+
 export function WidgetPage() {
   const today = todayISO();
   const yesterday = subDays(new Date(), 1).toISOString().split('T')[0];
   const queryClient = useQueryClient();
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setTheme] = useState<Theme>('system');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  );
+
+  const DEFAULT_BUBBLE: BubbleColors = { from: '#818CF8', via: '#A855F7', to: '#EC4899' };
+  const [bubbleColors, setBubbleColors] = useState<BubbleColors>(DEFAULT_BUBBLE);
+
+  useEffect(() => {
+    getSetting('widget_bubble_color').then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.from && parsed.via && parsed.to) {
+            setBubbleColors(parsed);
+          }
+        } catch {}
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     getSetting('theme').then((saved) => {
-      if (saved === 'dark' || saved === 'glass' || saved === 'warm') setIsDark(true);
-      else if (saved === 'light') setIsDark(false);
-      else setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
-    }).catch(() => setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches));
+      if (saved && (VALID_THEMES as readonly string[]).includes(saved)) {
+        const t = saved as Theme;
+        setTheme(t);
+        setResolvedTheme(getResolvedTheme(t));
+      }
+    });
+  }, []);
+
+  // Apply theme classes to document.documentElement (widget runs in separate WebView)
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', resolvedTheme === 'dark');
+    root.classList.toggle('glass', theme === 'glass');
+    root.classList.toggle('warm', theme === 'warm');
+    root.classList.toggle('lumina', theme === 'lumina');
+
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = (e: MediaQueryListEvent) => {
+        setResolvedTheme(e.matches ? 'dark' : 'light');
+      };
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+  }, [resolvedTheme, theme]);
+
+  // Listen for theme changes from main window (cross-WebView sync)
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    listen<{ theme: string }>('theme-changed', (event) => {
+      if (cancelled) return;
+      const newTheme = event.payload.theme;
+      if (newTheme && (VALID_THEMES as readonly string[]).includes(newTheme)) {
+        const t = newTheme as Theme;
+        setTheme(t);
+        setResolvedTheme(getResolvedTheme(t));
+      }
+    }).then((u) => {
+      if (cancelled) { u(); return; }
+      unlisten = u;
+    }).catch(() => {});
+    return () => { cancelled = true; unlisten?.(); };
+  }, []);
+
+  // Listen for bubble color changes from settings (cross-WebView sync)
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    listen<BubbleColors>('bubble-color-changed', (event) => {
+      if (cancelled) return;
+      const c = event.payload;
+      if (c && c.from && c.via && c.to) setBubbleColors(c);
+    }).then((u) => {
+      if (cancelled) { u(); return; }
+      unlisten = u;
+    }).catch(() => {});
+    return () => { cancelled = true; unlisten?.(); };
   }, []);
 
   const createTaskMutation = useMutation({
@@ -322,7 +414,7 @@ export function WidgetPage() {
   return (
     <div className={cn(
       'h-screen w-screen select-none flex flex-col',
-      sizeMode !== 'compact' && (isDark ? 'bg-[#1e1e32]' : 'bg-white'),
+      sizeMode !== 'compact' && (resolvedTheme === 'dark' ? 'bg-[#1e1e32]' : 'bg-white'),
       sizeMode === 'compact' && 'items-center justify-center',
     )} onContextMenu={(e) => e.preventDefault()}
       onMouseDown={(e) => {
@@ -340,15 +432,15 @@ export function WidgetPage() {
             <div className="w-5 h-5 rounded-md flex items-center justify-center bg-violet-500/20">
               <ListChecks size={12} className="text-violet-500" />
             </div>
-            <span className={cn('text-[11px] font-semibold', isDark ? 'text-white/90' : 'text-[#111827]')}>TodoFlow</span>
+            <span className={cn('text-[11px] font-semibold', resolvedTheme === 'dark' ? 'text-white/90' : 'text-[#111827]')}>TodoFlow</span>
           </div>
           <button onClick={() => showMainFromWidget()}
-            className={cn('w-5 h-5 rounded-full flex items-center justify-center text-[#6B7280] transition-colors flex-shrink-0', isDark ? 'hover:bg-white/10' : 'hover:bg-[#F3F4F6]')}
+            className={cn('w-5 h-5 rounded-full flex items-center justify-center text-[#6B7280] transition-colors flex-shrink-0', resolvedTheme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-[#F3F4F6]')}
             title="打开主界面">
             <ExternalLink size={11} />
           </button>
           <button onClick={collapseToBubble}
-            className={cn('w-5 h-5 rounded-full flex items-center justify-center text-[#6B7280] transition-colors flex-shrink-0 ml-1', isDark ? 'hover:bg-white/10' : 'hover:bg-[#F3F4F6]')}
+            className={cn('w-5 h-5 rounded-full flex items-center justify-center text-[#6B7280] transition-colors flex-shrink-0 ml-1', resolvedTheme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-[#F3F4F6]')}
             title="还原为气泡">
             <X size={11} />
           </button>
@@ -370,7 +462,7 @@ export function WidgetPage() {
                   getCurrentWindow().startDragging().catch(() => {});
                 }
               };
-              const onUp = (ev: MouseEvent) => {
+              const onUp = (_ev: MouseEvent) => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('mouseup', onUp);
                 if (!dragged) { setSetting('widget_enabled', '1').catch(() => {}); expandToNormal(); }
@@ -389,7 +481,7 @@ export function WidgetPage() {
             whileHover={{ scale: 1.15 }}
             className="w-12 h-12 rounded-full flex items-center justify-center cursor-pointer pointer-events-auto select-none"
             style={{
-              background: 'linear-gradient(135deg, rgba(129,140,248,0.85), rgba(168,85,247,0.85), rgba(236,72,153,0.85))',
+              background: `linear-gradient(135deg, ${hexToRgba(bubbleColors.from, 0.85)}, ${hexToRgba(bubbleColors.via, 0.85)}, ${hexToRgba(bubbleColors.to, 0.85)})`,
               clipPath: 'circle(50% at 50% 50%)',
             }}
           >
@@ -408,8 +500,8 @@ export function WidgetPage() {
                   className={cn(
                     'px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors',
                     activeTab === tab.key
-                      ? (isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-[#7C72F6]/15 text-[#7C72F6]')
-                      : (isDark ? 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5' : 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6]'),
+                      ? (resolvedTheme === 'dark' ? 'bg-violet-500/20 text-violet-300' : 'bg-[#7C72F6]/15 text-[#7C72F6]')
+                      : (resolvedTheme === 'dark' ? 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5' : 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6]'),
                   )}>
                   {tab.label}
                 </button>
@@ -420,7 +512,7 @@ export function WidgetPage() {
             <div className="flex-1 min-h-0 px-3 overflow-y-auto pb-6">
               {isLoading ? (
                 <div className="h-full flex items-center justify-center">
-                  <div className={cn('w-4 h-4 border-2 rounded-full animate-spin border-t-transparent', isDark ? 'border-zinc-500' : 'border-[#D1D5DB]')} />
+                  <div className={cn('w-4 h-4 border-2 rounded-full animate-spin border-t-transparent', resolvedTheme === 'dark' ? 'border-zinc-500' : 'border-[#D1D5DB]')} />
                 </div>
               ) : isError ? (
                 <div className="h-full flex items-center justify-center">
@@ -438,7 +530,7 @@ export function WidgetPage() {
                     <div key={task.id}
                       className={cn(
                         'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs group transition-colors',
-                        isDark ? 'bg-white/5 hover:bg-white/[0.08]' : 'bg-[#F9FAFB] hover:bg-[#F3F4F6]',
+                        resolvedTheme === 'dark' ? 'bg-white/5 hover:bg-white/[0.08]' : 'bg-[#F9FAFB] hover:bg-[#F3F4F6]',
                         updateTaskMutation.isPending && updateTaskMutation.variables?.id === task.id && 'opacity-50',
                       )}>
                       <button
@@ -447,13 +539,13 @@ export function WidgetPage() {
                           'w-[15px] h-[15px] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors',
                           task.is_completed
                             ? 'bg-[#7C72F6] border-[#7C72F6] text-white'
-                            : (isDark ? 'border-zinc-600 hover:border-[#7C72F6]' : 'border-[#D1D5DB] hover:border-[#7C72F6]'),
+                            : (resolvedTheme === 'dark' ? 'border-zinc-600 hover:border-[#7C72F6]' : 'border-[#D1D5DB] hover:border-[#7C72F6]'),
                         )}>
                         {task.is_completed && <Check size={9} style={{ strokeWidth: 3 }} />}
                       </button>
                       <span className={cn(
                         'truncate flex-1',
-                        task.is_completed ? 'line-through text-[#9CA3AF]' : (isDark ? 'text-white/90' : 'text-[#111827]'),
+                        task.is_completed ? 'line-through text-[#9CA3AF]' : (resolvedTheme === 'dark' ? 'text-white/90' : 'text-[#111827]'),
                       )}>
                         {task.title}
                       </span>
@@ -479,7 +571,7 @@ export function WidgetPage() {
             <div className="px-2.5 pb-2.5 flex-shrink-0">
               <div className={cn(
                 'flex items-center gap-1.5 px-2.5 py-2 rounded-xl border transition-colors focus-within:border-[#7C72F6]/50',
-                isDark ? 'bg-white/[0.06] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E7EB]',
+                resolvedTheme === 'dark' ? 'bg-white/[0.06] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E7EB]',
               )}>
                 <Plus size={12} className="text-[#6B7280] flex-shrink-0" />
                 <input
@@ -488,7 +580,7 @@ export function WidgetPage() {
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleQuickAdd(); }}
                   placeholder="添加任务..."
-                  className={cn('flex-1 bg-transparent text-xs placeholder:text-[#9CA3AF] outline-none', isDark ? 'text-white/90' : 'text-[#111827]')}
+                  className={cn('flex-1 bg-transparent text-xs placeholder:text-[#9CA3AF] outline-none', resolvedTheme === 'dark' ? 'text-white/90' : 'text-[#111827]')}
                 />
               </div>
             </div>
