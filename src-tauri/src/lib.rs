@@ -377,6 +377,7 @@ pub fn run() {
             commands::settings_commands::backup_database,
             commands::settings_commands::export_csv,
             commands::settings_commands::import_database,
+            commands::settings_commands::write_debug_log,
             commands::shortcut_commands::update_global_shortcuts,
             commands::shortcut_commands::get_all_shortcuts,
             commands::widget_commands::hide_to_tray,

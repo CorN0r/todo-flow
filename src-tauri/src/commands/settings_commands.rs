@@ -273,3 +273,16 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
         imported_attachments, imported_habits, imported_habit_logs,
     ))
 }
+
+#[tauri::command]
+pub fn write_debug_log(path: String, content: String) -> Result<(), String> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| e.to_string())?;
+    let ts = chrono::Local::now().format("%H:%M:%S%.3f");
+    writeln!(file, "[{}] {}", ts, content).map_err(|e| e.to_string())?;
+    Ok(())
+}

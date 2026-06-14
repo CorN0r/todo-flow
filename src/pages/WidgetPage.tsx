@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import { getCurrentWindow, LogicalSize, PhysicalPosition, currentMonitor, availableMonitors } from '@tauri-apps/api/window';
 import { motion } from 'motion/react';
 import { getTasks, createTask, updateTask, getSetting, setSetting, showMainFromWidget, showWidgetContextMenu } from '../lib/db';
 import { todayISO, isOverdue, subDays } from '../lib/date';
@@ -64,23 +64,46 @@ export function WidgetPage() {
       if (s === 'compact' || s === 'normal') setSizeMode(s);
     }).catch(() => {});
   }, []);
+
   const collapsingRef = useRef(false);
+  const draggingRef = useRef(false);
+  const preExpandPos = useRef<{ x: number; y: number } | null>(null);
+  const shouldSnapRef = useRef(false);
+
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     const win = getCurrentWindow();
     win.onFocusChanged(async ({ payload: focused }) => {
-      if (focused || sizeMode !== 'normal' || collapsingRef.current) return;
+      if (focused || sizeMode !== 'normal' || collapsingRef.current || draggingRef.current) return;
       try {
-        const pos = await win.outerPosition();
+        const pos = preExpandPos.current ?? await win.outerPosition();
+        preExpandPos.current = null;
         setSetting('widget_x', String(Math.round(pos.x))).catch(() => {});
         setSetting('widget_y', String(Math.round(pos.y))).catch(() => {});
         setSizeMode('compact');
         await win.setSize(new LogicalSize(60, 60));
         await new Promise(r => setTimeout(r, 50));
-        await win.setPosition(pos);
+        await win.setPosition(new PhysicalPosition(pos.x, pos.y));
       } catch {}
     }).then((u) => { unlisten = u; }).catch(() => {});
     return () => { unlisten?.(); };
+  }, [sizeMode]);
+
+  useEffect(() => {
+    if (sizeMode === 'compact') return;
+    const onDragStart = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('[data-tauri-drag-region]') && !t.closest('button, input, textarea, a')) {
+        draggingRef.current = true;
+      }
+    };
+    const onDragEnd = () => { draggingRef.current = false; };
+    document.addEventListener('mousedown', onDragStart, true);
+    window.addEventListener('mouseup', onDragEnd);
+    return () => {
+      document.removeEventListener('mousedown', onDragStart, true);
+      window.removeEventListener('mouseup', onDragEnd);
+    };
   }, [sizeMode]);
 
   const filters = useMemo(() => {
@@ -125,7 +148,8 @@ export function WidgetPage() {
       timer = setTimeout(() => {
         setSetting('widget_x', String(Math.round(event.payload.x))).catch(() => {});
         setSetting('widget_y', String(Math.round(event.payload.y))).catch(() => {});
-      }, 300);
+        if (shouldSnapRef.current) { shouldSnapRef.current = false; snapToEdge(); }
+      }, 400);
     }).then((u) => {
       if (cancelled) { u(); return; }
       unlisten = u;
@@ -176,12 +200,88 @@ export function WidgetPage() {
   const count = tasksList.length;
   const overdueCount = tasksList.filter((t) => isOverdue(t.due_date)).length;
 
+  // ====== 屏幕适配 ======
+
+  const getScreenBounds = async () => {
+    let mon = await currentMonitor();
+    if (!mon) {
+      const win = getCurrentWindow();
+      const pos = await win.outerPosition();
+      const monitors = await availableMonitors();
+      mon = monitors.find(m =>
+        pos.x >= m.position.x && pos.x < m.position.x + m.size.width &&
+        pos.y >= m.position.y && pos.y < m.position.y + m.size.height
+      ) || monitors[0] || null;
+    }
+    if (!mon) return null;
+    const s = mon.scaleFactor;
+    return {
+      left: mon.position.x / s, top: mon.position.y / s,
+      right: (mon.position.x + mon.size.width) / s,
+      bottom: (mon.position.y + mon.size.height) / s,
+      scale: s,
+    };
+  };
+
+  const clampInScreen = async (winW: number, winH: number) => {
+    try {
+      const bounds = await getScreenBounds();
+      if (!bounds) return;
+      const win = getCurrentWindow();
+      const { scale: s, left, top, right, bottom } = bounds;
+      const pos = await win.outerPosition();
+      let lx = pos.x / s, ly = pos.y / s;
+      let moved = false;
+      if (lx + winW > right) { lx = right - winW - 8; moved = true; }
+      if (ly + winH > bottom) { ly = bottom - winH - 8; moved = true; }
+      if (lx < left) { lx = left + 8; moved = true; }
+      if (ly < top) { ly = top + 8; moved = true; }
+      if (moved) await win.setPosition(new PhysicalPosition(Math.round(lx * s), Math.round(ly * s)));
+    } catch {}
+  };
+
+  const snapToEdge = async () => {
+    try {
+      const bounds = await getScreenBounds();
+      if (!bounds) return;
+      const win = getCurrentWindow();
+      const { scale: s, left, top, right, bottom } = bounds;
+      const pos = await win.outerPosition();
+      const size = 60, threshold = 30, margin = 8;
+      let nx = pos.x / s, ny = pos.y / s;
+      const ox = nx, oy = ny;
+      const distL = Math.abs(nx - left), distR = Math.abs(right - (nx + size));
+      const distT = Math.abs(ny - top), distB = Math.abs(bottom - (ny + size));
+      const minD = Math.min(distL, distR, distT, distB);
+      if (minD < threshold) {
+        if (minD === distL) nx = left + margin;
+        else if (minD === distR) nx = right - size - margin;
+        else if (minD === distT) ny = top + margin;
+        else if (minD === distB) ny = bottom - size - margin;
+      }
+      if (nx < left) nx = left + margin;
+      if (nx + size > right) nx = right - size - margin;
+      if (ny < top) ny = top + margin;
+      if (ny + size > bottom) ny = bottom - size - margin;
+      if (nx !== ox || ny !== oy) {
+        const px = Math.round(nx * s), py = Math.round(ny * s);
+        await win.setPosition(new PhysicalPosition(px, py));
+        setSetting('widget_x', String(px)).catch(() => {});
+        setSetting('widget_y', String(py)).catch(() => {});
+      }
+    } catch {}
+  };
+
   const expandToNormal = async () => {
     if (sizeMode !== 'compact') return;
-    setSizeMode('normal');
     try {
-      await getCurrentWindow().setSize(new LogicalSize(300, 420));
+      const pos = await getCurrentWindow().outerPosition();
+      preExpandPos.current = { x: pos.x, y: pos.y };
     } catch {}
+    try { await clampInScreen(300, 420); } catch {}
+    setSizeMode('normal');
+    try { await getCurrentWindow().setSize(new LogicalSize(300, 420)); } catch {}
+    try { await new Promise(r => setTimeout(r, 300)); await clampInScreen(300, 420); } catch {}
     setSetting('widget_size', 'normal').catch(() => {});
   };
 
@@ -190,13 +290,15 @@ export function WidgetPage() {
     collapsingRef.current = true;
     try {
       const win = getCurrentWindow();
-      const pos = await win.outerPosition();
+      const pos = preExpandPos.current ?? await win.outerPosition();
+      preExpandPos.current = null;
       setSetting('widget_x', String(Math.round(pos.x))).catch(() => {});
       setSetting('widget_y', String(Math.round(pos.y))).catch(() => {});
       setSizeMode('compact');
       await win.setSize(new LogicalSize(60, 60));
       await new Promise(r => setTimeout(r, 50));
-      await win.setPosition(pos);
+      await win.setPosition(new PhysicalPosition(pos.x, pos.y));
+      setTimeout(() => snapToEdge(), 150);
     } catch {}
     setSetting('widget_size', 'compact').catch(() => {});
     setTimeout(() => { collapsingRef.current = false; }, 500);
@@ -222,11 +324,19 @@ export function WidgetPage() {
       'h-screen w-screen select-none flex flex-col',
       sizeMode !== 'compact' && (isDark ? 'bg-[#1e1e32]' : 'bg-white'),
       sizeMode === 'compact' && 'items-center justify-center',
-    )} onContextMenu={(e) => e.preventDefault()}>
+    )} onContextMenu={(e) => e.preventDefault()}
+      onMouseDown={(e) => {
+        if (sizeMode === 'compact') return;
+        const t = e.target as HTMLElement;
+        if (t.closest('button, input, textarea, a, [data-tauri-drag-region]')) return;
+        if (e.button !== 0) return;
+        draggingRef.current = true;
+        getCurrentWindow().startDragging().catch(() => {});
+      }}>
         {/* Header — hidden in compact mode */}
         {sizeMode !== 'compact' && (
         <div className="flex items-center justify-between px-3.5 pt-3 pb-1 flex-shrink-0">
-          <div className="flex items-center gap-2 flex-1" data-tauri-drag-region>
+          <div className="flex items-center gap-2 flex-1" data-tauri-drag-region="deep">
             <div className="w-5 h-5 rounded-md flex items-center justify-center bg-violet-500/20">
               <ListChecks size={12} className="text-violet-500" />
             </div>
@@ -256,13 +366,14 @@ export function WidgetPage() {
               const onMove = (ev: MouseEvent) => {
                 if (!dragged && (Math.abs(ev.clientX - sx) > 3 || Math.abs(ev.clientY - sy) > 3)) {
                   dragged = true;
+                  shouldSnapRef.current = true;
                   getCurrentWindow().startDragging().catch(() => {});
                 }
               };
               const onUp = (ev: MouseEvent) => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('mouseup', onUp);
-                if (!dragged && Math.abs(ev.clientX - sx) < 4 && Math.abs(ev.clientY - sy) < 4) { setSetting('widget_enabled', '1').catch(() => {}); expandToNormal(); }
+                if (!dragged) { setSetting('widget_enabled', '1').catch(() => {}); expandToNormal(); }
               };
               window.addEventListener('mousemove', onMove);
               window.addEventListener('mouseup', onUp);
