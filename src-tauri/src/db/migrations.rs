@@ -189,5 +189,14 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 10)?;
     }
 
+    if current_version < 11 {
+        let default_shortcuts = r#"{"global-show-window":{"keys":"Ctrl+Shift+T","enabled":true},"command-palette":{"keys":"Ctrl+K","enabled":true},"toggle-sidebar":{"keys":"Ctrl+B","enabled":true},"new-task":{"keys":"N","enabled":true}}"#;
+        conn.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES ('keyboard_shortcuts', ?1)",
+            rusqlite::params![default_shortcuts],
+        )?;
+        conn.pragma_update(None, "user_version", 11)?;
+    }
+
     Ok(())
 }

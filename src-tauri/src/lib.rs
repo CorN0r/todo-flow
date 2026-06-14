@@ -3,7 +3,9 @@ pub mod db;
 pub mod error;
 pub mod models;
 mod reminders;
+pub mod shortcuts;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -12,11 +14,12 @@ use tauri::Emitter;
 use tauri::Manager;
 use tauri::tray::TrayIconBuilder;
 use tauri::image::Image;
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
     pub data_dir: PathBuf,
+    pub global_shortcut_map: Arc<Mutex<HashMap<Shortcut, String>>>,
 }
 
 impl AppState {
@@ -35,24 +38,13 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new()
             .with_handler(|app, shortcut, event| {
                 if event.state == ShortcutState::Pressed {
-                    let ctrl_shift_t = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyT);
-                    let ctrl_shift_w = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyW);
-                    if *shortcut == ctrl_shift_t {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                        if let Some(widget) = app.get_webview_window("widget") {
-                            let _ = widget.hide();
-                        }
-                        let _ = app.emit_to("main", "global-shortcut-new-task", ());
-                    } else if *shortcut == ctrl_shift_w {
-                        if let Some(widget) = app.get_webview_window("widget") {
-                            if widget.is_visible().unwrap_or(false) {
-                                let _ = widget.hide();
-                            } else {
-                                let _ = widget.show();
-                                let _ = widget.set_focus();
+                    // 从 AppState 中查找当前快捷键对应的操作 ID
+                    if let Some(state) = app.try_state::<AppState>() {
+                        if let Ok(map) = state.global_shortcut_map.lock() {
+                            if let Some(id) = map.get(shortcut) {
+                                let id = id.clone();
+                                drop(map);
+                                crate::shortcuts::handle_global_shortcut_action(app, &id);
                             }
                         }
                     }
@@ -92,9 +84,11 @@ pub fn run() {
 
             let db = Arc::new(Mutex::new(conn));
             let db_for_widget = db.clone();
+            let global_shortcut_map = Arc::new(Mutex::new(HashMap::new()));
             let state = AppState {
                 db: db.clone(),
                 data_dir: app_dir,
+                global_shortcut_map: global_shortcut_map.clone(),
             };
 
             // Start reminder polling
@@ -256,12 +250,14 @@ pub fn run() {
             }
 
             // ---- Global shortcuts ----
-            app.handle().global_shortcut().register(
-                Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyT),
-            ).expect("Failed to register global shortcut Ctrl+Shift+T");
-            app.handle().global_shortcut().register(
-                Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyW),
-            ).expect("Failed to register global shortcut Ctrl+Shift+W");
+            // 使用动态注册，从 settings 表中读取用户自定义的快捷键配置
+            {
+                let app_state = app.state::<AppState>();
+                let conn = app_state.db.lock().map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+                if let Err(e) = crate::shortcuts::register_global_shortcuts(app.handle(), &conn) {
+                    eprintln!("Warning: Failed to register global shortcuts: {}", e);
+                }
+            }
 
             // Clicking X closes the app; use the tray menu "Quit" or Ctrl+Shift+T to reopen
             // Hide-to-widget is available via the hide_to_tray command (called from frontend)
@@ -300,6 +296,8 @@ pub fn run() {
             commands::settings_commands::backup_database,
             commands::settings_commands::export_csv,
             commands::settings_commands::import_database,
+            commands::shortcut_commands::update_global_shortcuts,
+            commands::shortcut_commands::get_all_shortcuts,
             commands::widget_commands::hide_to_tray,
             commands::widget_commands::show_main_from_widget,
             commands::widget_commands::show_widget_context_menu,

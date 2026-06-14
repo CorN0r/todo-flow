@@ -3,6 +3,7 @@ import { Upload, Download, Database, PanelBottom } from 'lucide-react';
 import { toast } from 'sonner';
 import { getTasks, backupDatabase, exportCsv, importDatabase, getSetting, setSetting } from '../lib/db';
 import { save, open } from '@tauri-apps/plugin-dialog';
+import { ShortcutEditor } from '../components/shared/ShortcutEditor';
 
 export function SettingsPage() {
   const [exporting, setExporting] = useState(false);
@@ -132,22 +133,7 @@ export function SettingsPage() {
       {/* Keyboard shortcuts */}
       <div>
         <h4 className="section-label mb-3">快捷键</h4>
-        <div className="space-y-1.5">
-          {[
-            { label: '今天页面', key: '1' },
-            { label: '日历页面', key: '2' },
-            { label: '设置页面', key: '3' },
-            { label: '显示所有快捷键', key: '?' },
-            { label: '搜索任务', key: 'Ctrl+K' },
-            { label: '切换侧栏', key: 'Ctrl+B' },
-            { label: '关闭详情面板', key: 'Esc' },
-          ].map(({ label, key }) => (
-            <div key={label} className="flex justify-between items-center">
-              <span className="text-[13px] text-[#111827] dark:text-white/80">{label}</span>
-              <kbd className="text-[11px] px-2 py-0.5 rounded-[4px] bg-[#F3F4F6] dark:bg-white/[0.06] border border-[#E5E7EB] dark:border-white/[0.07] text-[#6B7280] font-medium">{key}</kbd>
-            </div>
-          ))}
-        </div>
+        <ShortcutEditor />
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { getDashboardStats, type DashboardStats } from '../lib/db';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { cn } from '../lib/cn';
-import { BarChart3, CheckCircle2, Clock, Flame, AlertTriangle, TrendingUp } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, List, AlertTriangle, TrendingUp } from 'lucide-react';
 
 function StatCard({ icon, label, value, color, onClick }: {
   icon: React.ReactNode;
@@ -156,14 +156,14 @@ export function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard icon={<CheckCircle2 size={18} />} label="已完成" value={stats.completed_tasks} color="#7C72F6"
+        <StatCard icon={<List size={18} />} label="全部任务" value={stats.total_tasks} color="#7C72F6"
+          onClick={() => navigate('/date/all')} />
+        <StatCard icon={<CheckCircle2 size={18} />} label="已完成" value={stats.completed_tasks} color="#22C55E"
           onClick={() => navigate('/date/all', { state: { filterMode: 'completed' } })} />
         <StatCard icon={<Clock size={18} />} label="未完成" value={stats.incomplete_tasks} color="#7C72F6"
           onClick={() => navigate('/date/all', { state: { filterMode: 'incomplete' } })} />
         <StatCard icon={<AlertTriangle size={18} />} label="超期" value={stats.overdue_tasks} color="#EF4444"
           onClick={() => navigate('/date/all', { state: { filterMode: 'overdue' } })} />
-        <StatCard icon={<Flame size={18} />} label="连续天数" value={stats.streak_days} color="#F59E0B"
-          onClick={() => navigate('/habits')} />
       </div>
 
       {/* Progress & Chart row */}

@@ -27,7 +27,8 @@ export function TagPage() {
   const setTaskViewMode = useUIStore((s) => s.setTaskViewMode);
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
-  const [showNewTask, setShowNewTask] = useState(false);
+  const showNewTask = useUIStore((s) => s.showQuickAdd);
+  const setShowNewTask = useUIStore((s) => s.setShowQuickAdd);
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);

@@ -14,7 +14,6 @@ pub struct DashboardStats {
     pub abandoned_tasks: i64,
     pub today_completed: i64,
     pub today_total: i64,
-    pub streak_days: i64,
     pub completion_by_date: Vec<DayCount>,
     pub tasks_by_tag: Vec<TagCount>,
 }
@@ -117,9 +116,6 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppErro
         rows.flatten().collect()
     };
 
-    // Streak (consecutive days completing at least 1 task)
-    let streak_days = compute_streak(conn, &today)?;
-
     // Tasks by tag
     let tasks_by_tag: Vec<TagCount> = {
         let mut stmt = conn.prepare(
@@ -149,7 +145,6 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppErro
         abandoned_tasks,
         today_completed,
         today_total,
-        streak_days,
         completion_by_date,
         tasks_by_tag,
     })
@@ -178,7 +173,6 @@ mod tests {
         assert_eq!(stats.overdue_tasks, 0);
         assert_eq!(stats.suspended_tasks, 0);
         assert_eq!(stats.abandoned_tasks, 0);
-        assert_eq!(stats.streak_days, 0);
         assert!(stats.tasks_by_tag.is_empty());
     }
 
@@ -263,45 +257,4 @@ mod tests {
         assert_eq!(stats.total_tasks, 1);
     }
 
-    #[test]
-    fn test_streak_with_no_completions() {
-        let conn = setup();
-        let streak = compute_streak(&conn, "2026-05-25").unwrap();
-        assert_eq!(streak, 0);
-    }
-}
-
-fn compute_streak(conn: &Connection, today: &str) -> Result<i64, AppError> {
-    // Fetch all completion dates in descending order, up to 366 days back.
-    // Then count consecutive days from today backwards.
-    let mut stmt = conn.prepare(
-        "SELECT DISTINCT date(updated_at)
-         FROM tasks
-         WHERE is_archived = 0 AND is_completed = 1 AND parent_task_id IS NULL
-           AND date(updated_at) BETWEEN date(?1, '-366 days') AND date(?1)
-         ORDER BY 1 DESC",
-    )?;
-    let dates: Vec<String> = stmt
-        .query_map(rusqlite::params![today], |row| row.get(0))?
-        .flatten()
-        .collect();
-
-    use std::collections::HashSet;
-    let set: HashSet<&str> = dates.iter().map(|s| s.as_str()).collect();
-
-    let today_dt = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
-        .map_err(|e| AppError::Generic(format!("Invalid date format: {}", e)))?;
-
-    let mut streak: i64 = 0;
-    for offset in 0i64..366 {
-        let day = today_dt - chrono::Duration::days(offset);
-        let key = day.format("%Y-%m-%d").to_string();
-        if set.contains(key.as_str()) {
-            streak += 1;
-        } else {
-            break;
-        }
-    }
-
-    Ok(streak)
 }

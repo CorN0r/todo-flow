@@ -6,13 +6,14 @@ import {
   ChevronDown, ChevronRight, CalendarCheck, CalendarDays, Globe,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { useTags, useCreateTag, useUpdateTag, useDeleteTag } from '../../hooks/useTags';
+import { useTags, useCreateTag, useUpdateTag, useDeleteTag, useReorderTags } from '../../hooks/useTags';
 import { useUpdateTask } from '../../hooks/useTasks';
 import type { TagWithCount } from '../../types/tag';
 
 import { useUIStore } from '../../stores/uiStore';
 import { useState, useEffect, useRef } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 /* ─── Style constants matching Pixso design ─── */
@@ -156,7 +157,23 @@ export function Sidebar() {
   const createTag = useCreateTag();
   const updateTag = useUpdateTag();
   const deleteTag = useDeleteTag();
+  const reorderTags = useReorderTags();
   const { sidebarOpen, toggleSidebar, theme } = useUIStore();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const handleTagsDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const rootTags = tags ?? [];
+    const oldIndex = rootTags.findIndex((t) => t.id === active.id);
+    const newIndex = rootTags.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(rootTags, oldIndex, newIndex);
+    reorderTags.mutate(reordered.map((t, i) => ({ id: t.id, sort_order: i })));
+  };
   const isGlass = theme === 'glass';
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -179,7 +196,6 @@ export function Sidebar() {
           <NavLink to="/date/all" className={collapsedBtnCls} aria-label="全部任务"><span className="w-4 h-4 flex items-center justify-center text-xs font-bold">☰</span></NavLink>
           <NavLink to="/myday" className={collapsedBtnCls} aria-label="我的一天"><Sun size={16} /></NavLink>
           <NavLink to="/" end className={collapsedBtnCls} aria-label="今天"><CalendarCheck size={16} /></NavLink>
-          <NavLink to="/calendar" className={collapsedBtnCls} aria-label="日历"><CalendarRange size={16} /></NavLink>
           <NavLink to="/calendar" className={collapsedBtnCls} aria-label="日历"><CalendarRange size={16} /></NavLink>
           <NavLink to="/matrix" className={collapsedBtnCls} aria-label="四象限"><LayoutGrid size={16} /></NavLink>
           <NavLink to="/kanban" className={collapsedBtnCls} aria-label="看板"><Layout size={16} /></NavLink>
@@ -248,8 +264,8 @@ export function Sidebar() {
           {[
             { to: '/', end: true, label: '今天', icon: <CalendarCheck size={14} /> },
             { to: '/date/tomorrow', label: '明天', icon: <CalendarRange size={14} /> },
-            { to: '/date/this-week', label: '本周', icon: <CalendarDays size={14} /> },
-            { to: '/date/this-month', label: '本月', icon: <Globe size={14} /> },
+            { to: '/date/this-week', label: '未来7天', icon: <CalendarDays size={14} /> },
+            { to: '/date/this-month', label: '未来30天', icon: <Globe size={14} /> },
           ].map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end}
               className={({ isActive }) => cn(NAV_STYLE, 'h-[36px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
@@ -277,20 +293,28 @@ export function Sidebar() {
               onBlur={() => { if (!newName.trim()) setIsCreating(false); }}
               placeholder="标签名称..." className="mt-1 w-full text-[13px] px-2 py-1 rounded border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.04] text-[#111827] dark:text-white outline-none focus:ring-1 focus:ring-[#7C72F6] placeholder:text-[#9CA3AF]" />
           )}
-          {tags?.map((tag) => (
-            <TagTreeItem
-              key={tag.id}
-              tag={tag}
-              depth={0}
-              editingTagId={editingTagId}
-              editName={editName}
-              setEditName={setEditName}
-              setEditingTagId={setEditingTagId}
-              updateTag={updateTag}
-              deleteTag={deleteTag}
-            />
-          ))}
           {tags?.length === 0 && !isCreating && <p className="text-xs text-[#9CA3AF] px-3 py-1 italic">暂无标签</p>}
+          {tags && tags.length > 0 && (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTagsDragEnd}>
+              <SortableContext items={tags.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="flex flex-col gap-[4px]">
+                  {tags.map((tag) => (
+                    <TagTreeItem
+                      key={tag.id}
+                      tag={tag}
+                      depth={0}
+                      editingTagId={editingTagId}
+                      editName={editName}
+                      setEditName={setEditName}
+                      setEditingTagId={setEditingTagId}
+                      updateTag={updateTag}
+                      deleteTag={deleteTag}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
         </div>
       </div>
 

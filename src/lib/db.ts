@@ -153,7 +153,6 @@ export interface DashboardStats {
   abandoned_tasks: number;
   today_completed: number;
   today_total: number;
-  streak_days: number;
   completion_by_date: { date: string; completed: number }[];
   tasks_by_tag: { tag_id: string; tag_name: string; tag_color: string; count: number }[];
 }

@@ -32,6 +32,9 @@ interface UIState {
   globalSubtasksExpanded: boolean;
   toggleGlobalSubtasksExpanded: () => void;
 
+  showQuickAdd: boolean;
+  setShowQuickAdd: (show: boolean) => void;
+
   selectionMode: boolean;
   selectedTaskIds: Set<string>;
   selectableIds: string[];
@@ -68,9 +71,9 @@ export const useUIStore = create<UIState>((set) => ({
   commandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
 
-  theme: 'system',
-  setTheme: (theme) => set({ theme, resolvedTheme: getResolvedTheme(theme) }),
-  resolvedTheme: 'light',
+  theme: (localStorage.getItem('theme') as Theme) || 'system',
+  setTheme: (theme) => { localStorage.setItem('theme', theme); set({ theme, resolvedTheme: getResolvedTheme(theme) }); },
+  resolvedTheme: getResolvedTheme((localStorage.getItem('theme') as Theme) || 'system'),
 
   sortMode: 'manual',
   setSortMode: (sortMode) => set({ sortMode }),
@@ -80,6 +83,9 @@ export const useUIStore = create<UIState>((set) => ({
 
   globalSubtasksExpanded: false,
   toggleGlobalSubtasksExpanded: () => set((s) => ({ globalSubtasksExpanded: !s.globalSubtasksExpanded })),
+
+  showQuickAdd: false,
+  setShowQuickAdd: (show) => set({ showQuickAdd: show }),
 
   selectionMode: false,
   selectedTaskIds: new Set<string>(),

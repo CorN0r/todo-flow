@@ -6,8 +6,10 @@ import {
   PanelLeft, PanelLeftClose, Plus, Search, Sparkles, Flame, Lightbulb,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
+import { useShortcutStore } from '../../stores/shortcutStore';
 import { useCreateTask } from '../../hooks/useTasks';
 import { useTheme } from '../../hooks/useTheme';
+import { getShortcutDisplay } from '../../types/shortcuts';
 import { todayISO } from '../../lib/date';
 
 interface Command {
@@ -22,6 +24,7 @@ interface Command {
 export function CommandPalette() {
   const navigate = useNavigate();
   const { commandPaletteOpen, setCommandPaletteOpen, sidebarOpen, toggleSidebar } = useUIStore();
+  const shortcutMap = useShortcutStore((s) => s.shortcutMap);
   const { setTheme } = useTheme();
   const createTask = useCreateTask();
   const [query, setQuery] = useState('');
@@ -47,11 +50,13 @@ export function CommandPalette() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [commandPaletteOpen, setCommandPaletteOpen]);
 
-  const commands = useMemo<Command[]>(() => [
-    { id: 'today', label: '今天', icon: <House size={16} />, shortcut: '1', action: () => navigate('/'), category: '导航' },
-    { id: 'calendar', label: '日历', icon: <CalendarDays size={16} />, shortcut: '2', action: () => navigate('/calendar'), category: '导航' },
-    { id: 'settings', label: '设置', icon: <Settings size={16} />, shortcut: '3', action: () => navigate('/settings'), category: '导航' },
-    { id: 'toggle-sidebar', label: sidebarOpen ? '收起侧栏' : '展开侧栏', icon: sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />, shortcut: '⌘B', action: toggleSidebar, category: '视图' },
+  const commands = useMemo<Command[]>(() => {
+    const sidebar = shortcutMap['toggle-sidebar']?.keys || 'Ctrl+B';
+    return [
+    { id: 'today', label: '今天', icon: <House size={16} />, action: () => navigate('/'), category: '导航' },
+    { id: 'calendar', label: '日历', icon: <CalendarDays size={16} />, action: () => navigate('/calendar'), category: '导航' },
+    { id: 'settings', label: '设置', icon: <Settings size={16} />, action: () => navigate('/settings'), category: '导航' },
+    { id: 'toggle-sidebar', label: sidebarOpen ? '收起侧栏' : '展开侧栏', icon: sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />, shortcut: getShortcutDisplay(sidebar), action: toggleSidebar, category: '视图' },
     { id: 'light', label: '浅色主题', icon: <Sun size={16} />, action: () => setTheme('light'), category: '视图' },
     { id: 'dark', label: '深色主题', icon: <Moon size={16} />, action: () => setTheme('dark'), category: '视图' },
     { id: 'system-theme', label: '系统主题', icon: <Monitor size={16} />, action: () => setTheme('system'), category: '视图' },
@@ -59,7 +64,7 @@ export function CommandPalette() {
     { id: 'warm', label: '温暖石炭', icon: <Flame size={16} />, action: () => setTheme('warm'), category: '视图' },
     { id: 'glass', label: '玻璃主题', icon: <Sparkles size={16} />, action: () => setTheme('glass'), category: '视图' },
     { id: 'new-task', label: '新建任务', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: '新建任务', due_date: todayISO() }); setCommandPaletteOpen(false); }, category: '操作' },
-  ], [navigate, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen]);
+  ]}, [navigate, shortcutMap, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands;

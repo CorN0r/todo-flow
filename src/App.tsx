@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster, toast } from 'sonner';
@@ -28,9 +28,8 @@ import { PomodoroTimer } from './components/shared/PomodoroTimer';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useCreateTask, useUpdateTask, useDeleteTask } from './hooks/useTasks';
 import { useUIStore } from './stores/uiStore';
-import { todayISO } from './lib/date';
+import { useShortcutStore } from './stores/shortcutStore';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,46 +52,23 @@ function AppLayout() {
 }
 
 function MainLayout() {
-  const createTask = useCreateTask();
-  const updateTask = useUpdateTask();
-  const deleteTask = useDeleteTask();
-  const createTaskRef = useRef(createTask);
-  useEffect(() => { createTaskRef.current = createTask; });
-
-  const selectedTaskId = useUIStore((s) => s.selectedTaskId);
-  const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
   const isWarm = theme === 'warm';
+  const setShowQuickAdd = useUIStore((s) => s.setShowQuickAdd);
   const navigate = useNavigate();
 
   useKeyboardShortcuts({
-    onNewTask: () => createTaskRef.current.mutate({ title: 'New task', due_date: todayISO() }),
-    onToggleComplete: () => {
-      if (selectedTaskId) updateTask.mutate({ id: selectedTaskId, is_completed: true });
-    },
-    onDeleteTask: () => {
-      if (selectedTaskId) {
-        deleteTask.mutate(selectedTaskId);
-        setSelectedTaskId(null);
-      }
-    },
-    onToggleMyDay: () => {
-      if (selectedTaskId) updateTask.mutate({ id: selectedTaskId, my_day_date: todayISO() });
-    },
+    onNewTask: () => setShowQuickAdd(true),
   });
 
   useEffect(() => {
     let unlisten1: (() => void) | null = null;
     let unlisten2: (() => void) | null = null;
-    let unlisten3: (() => void) | null = null;
     let cancelled = false;
 
     (async () => {
-      const u1 = await listen('global-shortcut-new-task', () => {
-        createTaskRef.current.mutate({ title: 'New task', due_date: todayISO() });
-      });
-      const u2 = await listen<{ task_id: string; title: string }>('reminder-triggered', (event) => {
+      const u1 = await listen<{ task_id: string; title: string }>('reminder-triggered', (event) => {
         toast(event.payload.title, {
           description: '提醒时间到',
           duration: 10000,
@@ -106,26 +82,23 @@ function MainLayout() {
           ),
         });
       });
-      const u3 = await listen('task-changed', () => {
+      const u2 = await listen('task-changed', () => {
         queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
         queryClient.invalidateQueries({ queryKey: ['tags'] });
       });
       if (cancelled) {
         u1();
         u2();
-        u3();
         return;
       }
       unlisten1 = u1;
       unlisten2 = u2;
-      unlisten3 = u3;
     })();
 
     return () => {
       cancelled = true;
       unlisten1?.();
       unlisten2?.();
-      unlisten3?.();
     };
   }, []);
 
@@ -211,6 +184,10 @@ function MainLayout() {
 function App() {
   const { loadSavedLanguage } = useLanguage();
   useEffect(() => { loadSavedLanguage(); }, [loadSavedLanguage]);
+
+  // 在应用启动时加载快捷键配置
+  const loadShortcuts = useShortcutStore((s) => s.load);
+  useEffect(() => { loadShortcuts(); }, [loadShortcuts]);
 
   return (
     <MemoryRouter initialEntries={[new URLSearchParams(window.location.search).has('widget') ? '/widget' : '/date/all']}>

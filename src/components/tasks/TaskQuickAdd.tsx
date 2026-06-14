@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Portal } from '../shared/Portal';
 import { Plus, Tag, Flag, X, Bell } from 'lucide-react';
@@ -71,6 +71,12 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
   const tagBtnRef = useRef<HTMLDivElement>(null);
   const priorityBtnRef = useRef<HTMLDivElement>(null);
   const reminderBtnRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // 被 N 快捷键唤醒后自动聚焦
+  useEffect(() => {
+    titleInputRef.current?.focus();
+  }, []);
   const { data: tags } = useTags();
 
   const nlp = useMemo(() => parseTaskTitle(title), [title]);
@@ -134,6 +140,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
       style={{ border: '1.5px solid rgba(124, 114, 246, 0.25)' }}>
       <div className="flex items-center" style={{ height: '56px', padding: '0px 10px', gap: '6px' }}>
         <input
+          ref={titleInputRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); } if (e.key === 'Escape') handleCancel(); }}

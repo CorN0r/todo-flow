@@ -18,8 +18,8 @@ const filterConfig: Record<string, { label: string; days: number; showDates: boo
   all: { label: '全部任务', days: 0, showDates: false, fromOffset: 0, icon: Hash, iconBg: 'bg-indigo-100 dark:bg-indigo-900/50', iconColor: 'text-indigo-500' },
   today: { label: '今天', days: 0, showDates: false, fromOffset: 0, icon: CalendarCheck, iconBg: 'bg-emerald-100 dark:bg-emerald-900/50', iconColor: 'text-emerald-500' },
   tomorrow: { label: '明天', days: 1, showDates: false, fromOffset: 1, icon: Sunrise, iconBg: 'bg-sky-100 dark:bg-sky-900/50', iconColor: 'text-sky-500' },
-  'this-week': { label: '本周', days: 7, showDates: true, fromOffset: 0, icon: CalendarRange, iconBg: 'bg-blue-100 dark:bg-blue-900/50', iconColor: 'text-blue-500' },
-  'this-month': { label: '本月', days: 31, showDates: false, fromOffset: 0, icon: CalendarDays, iconBg: 'bg-violet-100 dark:bg-violet-900/50', iconColor: 'text-violet-500' },
+  'this-week': { label: '未来7天', days: 7, showDates: true, fromOffset: 0, icon: CalendarRange, iconBg: 'bg-blue-100 dark:bg-blue-900/50', iconColor: 'text-blue-500' },
+  'this-month': { label: '未来30天', days: 30, showDates: false, fromOffset: 0, icon: CalendarDays, iconBg: 'bg-violet-100 dark:bg-violet-900/50', iconColor: 'text-violet-500' },
 };
 
 export function DateFilterPage() {
@@ -49,7 +49,8 @@ export function DateFilterPage() {
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
 
-  const [showNewTask, setShowNewTask] = useState(false);
+  const showNewTask = useUIStore((s) => s.showQuickAdd);
+  const setShowNewTask = useUIStore((s) => s.setShowQuickAdd);
 
   const handleToggleSelection = () => {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }

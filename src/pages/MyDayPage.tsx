@@ -51,7 +51,8 @@ export function MyDayPage() {
   const setTaskViewMode = useUIStore((s) => s.setTaskViewMode);
   const selectionMode = useUIStore((s) => s.selectionMode);
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
-  const [showNewTask, setShowNewTask] = useState(false);
+  const showNewTask = useUIStore((s) => s.showQuickAdd);
+  const setShowNewTask = useUIStore((s) => s.setShowQuickAdd);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [showYesterday, setShowYesterday] = useState(true);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
