@@ -7,7 +7,7 @@ use crate::models::tag::{
 };
 use crate::AppState;
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn create_tag(
     state: State<AppState>,
     name: String,
@@ -19,13 +19,13 @@ pub fn create_tag(
     tag_repo::create(&conn, CreateTagRequest { name, color, icon, parent_tag_id })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_tags(state: State<AppState>) -> Result<Vec<TagWithCount>, AppError> {
     let conn = state.db()?;
     tag_repo::get_all_with_counts(&conn)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn update_tag(
     state: State<AppState>,
     id: String,
@@ -38,13 +38,13 @@ pub fn update_tag(
     tag_repo::update(&conn, &id, UpdateTagRequest { name, color, icon, parent_tag_id })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_tag(state: State<AppState>, id: String) -> Result<(), AppError> {
     let conn = state.db()?;
     tag_repo::delete(&conn, &id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn reorder_tags(state: State<AppState>, items: Vec<ReorderTagsItem>) -> Result<(), AppError> {
     let conn = state.db()?;
     tag_repo::reorder(&conn, items)

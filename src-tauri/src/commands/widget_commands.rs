@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::AppState;
 use rusqlite::params;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
 #[tauri::command]

@@ -142,7 +142,7 @@ export function DateFilterPage() {
         </div>
       )}
 
-      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto')}>
+      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
         {taskViewMode === 'wall' ? <StickyWall tasks={filtered} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filtered} /> : <TaskList tasks={filtered} />}
         {sorted.length === 0 && !showNewTask && (
           <EmptyState

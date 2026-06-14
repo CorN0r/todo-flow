@@ -171,13 +171,15 @@ function KanbanColumn({ column, isGlass }: { column: ColumnDef; isGlass: boolean
     <div
       ref={setNodeRef}
       className={cn(
-        'flex-1 min-w-[260px] max-w-[380px] rounded-xl border flex flex-col h-full transition-shadow',
+        'flex-1 min-w-[260px] max-w-[380px] rounded-xl border flex flex-col h-full transition-shadow relative',
         isGlass
           ? 'glass-card border-white/[0.06]'
           : column.bgClass + ' border-[#F3F4F6] dark:border-white/[0.06]',
-        isOver && 'ring-2 ring-inset ring-[#7C72F6] shadow-lg',
       )}
     >
+      {isOver && (
+        <div className="absolute inset-0 rounded-xl ring-2 ring-inset ring-[#7C72F6] shadow-[inset_0_0_12px_rgba(124,114,246,0.15)] pointer-events-none z-10" />
+      )}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#F3F4F6] dark:border-white/[0.06] shrink-0">
         <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: column.color + '20' }}>
           {column.icon}
@@ -190,7 +192,7 @@ function KanbanColumn({ column, isGlass }: { column: ColumnDef; isGlass: boolean
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden rounded-b-xl p-2 space-y-1.5">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden rounded-b-xl pt-2 px-2 pb-6 space-y-1.5">
         {column.tasks.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[12px] text-[#D1D5DB] dark:text-white/[0.08]">
             拖拽任务到此处
@@ -301,7 +303,7 @@ export function KanbanPage() {
   if (isLoading) return <LoadingSkeleton count={8} />;
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 100px)' }}>
+    <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">

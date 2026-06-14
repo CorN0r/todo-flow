@@ -133,7 +133,7 @@ export function DayView() {
   };
 
   return (
-    <div>
+    <div className="pb-6">
       <div className="text-center mb-4">
         <div className="flex items-center justify-center gap-2 flex-wrap">
           <div className={cn(

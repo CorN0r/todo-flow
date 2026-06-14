@@ -16,6 +16,79 @@ use tauri::tray::TrayIconBuilder;
 use tauri::image::Image;
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
+#[cfg(target_os = "windows")]
+mod single_instance {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateMutexW(
+            lpMutexAttributes: *mut std::ffi::c_void,
+            bInitialOwner: i32,
+            lpName: *const u16,
+        ) -> *mut std::ffi::c_void;
+        fn GetLastError() -> u32;
+        fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn FindWindowW(
+            lpClassName: *const u16,
+            lpWindowName: *const u16,
+        ) -> *mut std::ffi::c_void;
+        fn ShowWindow(hWnd: *mut std::ffi::c_void, nCmdShow: i32) -> i32;
+        fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
+        fn IsIconic(hWnd: *mut std::ffi::c_void) -> i32;
+    }
+
+    const SW_RESTORE: i32 = 9;
+    const ERROR_ALREADY_EXISTS: u32 = 183;
+
+    /// Returns true if another instance is already running.
+    /// If so, finds the existing window and brings it to front.
+    pub fn detect_and_show_existing() -> bool {
+        let mutex_name: Vec<u16> = OsStr::new("TodoFlow_SingleInstance_Global_Mutex")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, mutex_name.as_ptr()) };
+        let last_error = unsafe { GetLastError() };
+
+        if last_error == ERROR_ALREADY_EXISTS {
+            // Find the existing TodoFlow window by title
+            let title: Vec<u16> = OsStr::new("TodoFlow")
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect();
+
+            let hwnd = unsafe { FindWindowW(std::ptr::null(), title.as_ptr()) };
+
+            if !hwnd.is_null() {
+                // If minimized, restore it
+                if unsafe { IsIconic(hwnd) } != 0 {
+                    unsafe { ShowWindow(hwnd, SW_RESTORE) };
+                }
+                unsafe {
+                    ShowWindow(hwnd, 5); // SW_SHOW
+                    SetForegroundWindow(hwnd);
+                }
+            }
+
+            // Close the mutex handle before exiting
+            if !handle.is_null() {
+                unsafe { CloseHandle(handle) };
+            }
+
+            return true;
+        }
+
+        false
+    }
+}
+
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
     pub data_dir: PathBuf,
@@ -30,6 +103,14 @@ impl AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 单实例检测：如果已有实例在运行，激活已有窗口并退出
+    #[cfg(target_os = "windows")]
+    {
+        if single_instance::detect_and_show_existing() {
+            std::process::exit(0);
+        }
+    }
+
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

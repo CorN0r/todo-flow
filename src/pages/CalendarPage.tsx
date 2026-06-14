@@ -14,7 +14,7 @@ export function CalendarPage() {
   const viewMode: ViewMode = (segments[segments.length - 1] as ViewMode) || 'month';
 
   return (
-    <div>
+    <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center">

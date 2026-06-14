@@ -306,7 +306,7 @@ export function WidgetPage() {
             </div>
 
             {/* Task list */}
-            <div className="flex-1 min-h-0 px-3 overflow-y-auto">
+            <div className="flex-1 min-h-0 px-3 overflow-y-auto pb-6">
               {isLoading ? (
                 <div className="h-full flex items-center justify-center">
                   <div className={cn('w-4 h-4 border-2 rounded-full animate-spin border-t-transparent', isDark ? 'border-zinc-500' : 'border-[#D1D5DB]')} />

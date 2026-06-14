@@ -82,12 +82,15 @@ function DroppableDay({ dateKey, isCurrentMonth, isWeekend, children }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'min-h-[80px] border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-1.5 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors',
+        'min-h-[80px] border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-1.5 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors relative',
         !isCurrentMonth && 'bg-[#F3F4F6]/50 dark:bg-white/[0.01]',
         isCurrentMonth && isWeekend && 'bg-[#FAFAFA] dark:bg-white/[0.015]',
-        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6] relative z-10',
+        isOver && 'bg-[#7C72F6]/[0.08] z-10',
       )}
     >
+      {isOver && (
+        <div className="absolute inset-0 ring-2 ring-inset ring-[#7C72F6] pointer-events-none z-10" />
+      )}
       {children}
     </div>
   );
@@ -162,7 +165,7 @@ export function MonthView() {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div>
+      <div className="pb-6">
         {/* Day headers */}
         <div className="grid grid-cols-7 mb-1">
           {dayNames.map((name) => (

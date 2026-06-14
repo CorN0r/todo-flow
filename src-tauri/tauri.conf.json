@@ -47,7 +47,8 @@
         "displayLanguageSelector": true
       },
       "wix": {
-        "language": ["en-US", "zh-CN"]
+        "language": ["en-US", "zh-CN"],
+        "upgradeCode": "D5A8C3F2-9B6E-4A7D-8C1F-3E5A2B7D9F4C"
       }
     }
   },

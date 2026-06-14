@@ -133,7 +133,7 @@ export function MyDayPage() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         {/* 昨日未完成 */}
         {yesterdayList.length > 0 && showYesterday && (
           <div className="mb-3">
@@ -220,7 +220,7 @@ export function MyDayPage() {
             重新推荐 &middot; {dismissedIds.size} 项
           </button>
         )}
-        <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto')}>
+        <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
           {taskViewMode === 'wall' ? <StickyWall tasks={filtered} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filtered} /> : <TaskList tasks={filtered} />}
         </div>
         {sorted.length === 0 && !showNewTask && (

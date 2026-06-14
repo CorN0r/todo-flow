@@ -74,7 +74,7 @@ export function TagPage() {
         </div>
       )}
 
-      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto')}>
+      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
         {taskViewMode === 'wall' ? <StickyWall tasks={topLevel} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={topLevel} /> : <TaskList tasks={topLevel} />}
         {sorted.length === 0 && !showNewTask && (
           <EmptyState icon={<Tag size={40} />} title="此标签下暂无任务"

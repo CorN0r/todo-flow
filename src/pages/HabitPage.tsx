@@ -39,7 +39,7 @@ export function HabitPage() {
   if (isLoading) return <LoadingSkeleton count={5} />;
 
   return (
-    <div>
+    <div className="pb-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center">

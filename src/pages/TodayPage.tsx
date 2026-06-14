@@ -74,7 +74,7 @@ export function TodayPage() {
         </div>
       )}
 
-      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto')}>
+      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
         {taskViewMode === 'wall' ? <StickyWall tasks={filtered} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filtered} /> : <TaskList tasks={filtered} />}
         {sorted.length === 0 && !showNewTask && taskViewMode !== 'unified' && (
           <EmptyState icon={<CalendarCheck size={40} />} title="今天没有到期任务" description="点击右上角「新建任务」开始添加" />

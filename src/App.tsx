@@ -85,6 +85,8 @@ function MainLayout() {
       const u2 = await listen('task-changed', () => {
         queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
         queryClient.invalidateQueries({ queryKey: ['tags'] });
+        queryClient.invalidateQueries({ queryKey: ['habits'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       });
       if (cancelled) {
         u1();

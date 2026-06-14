@@ -54,11 +54,6 @@ pub fn backup_database(state: State<AppState>, destination: String) -> Result<()
     drop(conn);
     let src = state.data_dir.join("todo.db");
     let dest = PathBuf::from(&destination);
-    if dest.exists() {
-        return Err(AppError::Validation(
-            "Destination file already exists".to_string(),
-        ));
-    }
     if let Some(parent) = dest.parent() {
         if !parent.exists() {
             return Err(AppError::Validation(format!(
@@ -66,6 +61,11 @@ pub fn backup_database(state: State<AppState>, destination: String) -> Result<()
                 parent.display()
             )));
         }
+    }
+    // 如果目标文件已存在，先删除再复制（覆盖导出）
+    if dest.exists() {
+        std::fs::remove_file(&dest)
+            .map_err(|e| AppError::Generic(format!("无法覆盖已有文件: {}", e)))?;
     }
     std::fs::copy(&src, &dest).map_err(|e| AppError::Generic(format!("Backup failed: {}", e)))?;
     Ok(())
@@ -155,8 +155,121 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
         count
     };
 
+    let imported_reminders: usize = {
+        let mut stmt = src_conn.prepare(
+            "SELECT id, task_id, offset, reminder_time, reminded, created_at FROM task_reminders"
+        )?;
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
+            Ok(vec![
+                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                Box::new(row.get::<_, String>(1)?),
+                Box::new(row.get::<_, String>(2)?),
+                Box::new(row.get::<_, String>(3)?),
+                Box::new(row.get::<_, i32>(4)?),
+                Box::new(row.get::<_, String>(5)?),
+            ])
+        })?.flatten().collect();
+
+        let mut count = 0;
+        for row in &rows {
+            let result = conn.execute(
+                "INSERT OR IGNORE INTO task_reminders (id, task_id, offset, reminder_time, reminded, created_at)
+                 VALUES (?1,?2,?3,?4,?5,?6)",
+                rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
+            );
+            if let Ok(n) = result { if n > 0 { count += 1; } }
+        }
+        count
+    };
+
+    let imported_attachments: usize = {
+        let mut stmt = src_conn.prepare(
+            "SELECT id, task_id, original_name, storage_name, mime_type, file_size, created_at FROM attachments"
+        )?;
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
+            Ok(vec![
+                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                Box::new(row.get::<_, String>(1)?),
+                Box::new(row.get::<_, String>(2)?),
+                Box::new(row.get::<_, String>(3)?),
+                Box::new(row.get::<_, String>(4)?),
+                Box::new(row.get::<_, i64>(5)?),
+                Box::new(row.get::<_, String>(6)?),
+            ])
+        })?.flatten().collect();
+
+        let mut count = 0;
+        for row in &rows {
+            let result = conn.execute(
+                "INSERT OR IGNORE INTO attachments (id, task_id, original_name, storage_name, mime_type, file_size, created_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7)",
+                rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
+            );
+            if let Ok(n) = result { if n > 0 { count += 1; } }
+        }
+        count
+    };
+
+    let imported_habits: usize = {
+        let mut stmt = src_conn.prepare(
+            "SELECT id, name, color, icon, frequency, target_count, sort_order FROM habits"
+        )?;
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
+            Ok(vec![
+                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                Box::new(row.get::<_, String>(1)?),
+                Box::new(row.get::<_, String>(2)?),
+                Box::new(row.get::<_, String>(3)?),
+                Box::new(row.get::<_, String>(4)?),
+                Box::new(row.get::<_, i32>(5)?),
+                Box::new(row.get::<_, i32>(6)?),
+            ])
+        })?.flatten().collect();
+
+        let mut count = 0;
+        for row in &rows {
+            let result = conn.execute(
+                "INSERT OR IGNORE INTO habits (id, name, color, icon, frequency, target_count, sort_order)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7)",
+                rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
+            );
+            if let Ok(n) = result { if n > 0 { count += 1; } }
+        }
+        count
+    };
+
+    let imported_habit_logs: usize = {
+        let mut stmt = src_conn.prepare(
+            "SELECT id, habit_id, log_date, count, note FROM habit_logs"
+        )?;
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
+            Ok(vec![
+                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                Box::new(row.get::<_, String>(1)?),
+                Box::new(row.get::<_, String>(2)?),
+                Box::new(row.get::<_, i32>(3)?),
+                Box::new(row.get::<_, String>(4)?),
+            ])
+        })?.flatten().collect();
+
+        let mut count = 0;
+        for row in &rows {
+            let result = conn.execute(
+                "INSERT OR IGNORE INTO habit_logs (id, habit_id, log_date, count, note)
+                 VALUES (?1,?2,?3,?4,?5)",
+                rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
+            );
+            if let Ok(n) = result { if n > 0 { count += 1; } }
+        }
+        count
+    };
+
     drop(conn);
     let _ = app.emit("task-changed", ());
 
-    Ok(format!("已导入 {} 个任务、{} 个标签", imported_tasks, imported_tags))
+    Ok(format!(
+        "已导入 {} 个任务、{} 个标签、{} 个提醒、{} 个附件、{} 个习惯、{} 条打卡记录",
+        imported_tasks, imported_tags, imported_reminders,
+        imported_attachments, imported_habits, imported_habit_logs,
+    ))
 }

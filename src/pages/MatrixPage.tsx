@@ -121,11 +121,13 @@ function QuadrantColumn({ index, q, tasks, isGlass }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'rounded-xl border flex flex-col overflow-hidden h-full transition-shadow',
+        'rounded-xl border flex flex-col overflow-hidden h-full transition-shadow relative',
         isGlass ? 'glass-card border-white/[0.06]' : q.bgClass + ' border-[#F3F4F6] dark:border-white/[0.06]',
-        isOver && 'ring-2 ring-[#7C72F6] shadow-lg',
       )}
     >
+      {isOver && (
+        <div className="absolute inset-0 rounded-xl ring-2 ring-inset ring-[#7C72F6] shadow-[inset_0_0_12px_rgba(124,114,246,0.15)] pointer-events-none z-10" />
+      )}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#F3F4F6] dark:border-white/[0.06] shrink-0">
         <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: q.color + '20', color: q.color }}>
           {q.icon}
@@ -139,7 +141,7 @@ function QuadrantColumn({ index, q, tasks, isGlass }: {
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pt-2 px-2 pb-6 space-y-1">
         {tasks.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[12px] text-[#D1D5DB]">
             拖拽任务到此处
@@ -263,11 +265,11 @@ export function MatrixPage() {
   }
 
   return (
-    <div>
+    <div className="h-full flex flex-col pb-4">
       {header}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-2 gap-4" style={{ height: 'calc(100vh - 180px)' }}>
+        <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
           {QUADRANTS.map((q, i) => (
             <QuadrantColumn key={i} index={i} q={q} tasks={buckets[i]} isGlass={isGlass} />
           ))}

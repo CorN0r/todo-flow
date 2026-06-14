@@ -24,10 +24,11 @@ const INACTIVE_NAV = 'text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] dar
 
 /* ─── Sortable tag item ─── */
 
-function SortableTagItem({ tag, onEdit, onDelete }: {
+function SortableTagItem({ tag, onEdit, onDelete, onAddChild }: {
   tag: { id: string; name: string; color: string; incomplete_count: number };
   onEdit: () => void;
   onDelete: () => void;
+  onAddChild?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tag.id });
   const updateTask = useUpdateTask();
@@ -80,6 +81,12 @@ function SortableTagItem({ tag, onEdit, onDelete }: {
             className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#C4C4CC] hover:bg-white/10">
             <Pencil size={13} /> 重命名
           </button>
+          {onAddChild && (
+            <button onClick={(e) => { e.stopPropagation(); setCtxMenu(null); onAddChild(); }}
+              className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#C4C4CC] hover:bg-white/10">
+              <Plus size={13} /> 添加子标签
+            </button>
+          )}
           <button onClick={(e) => { e.stopPropagation(); setCtxMenu(null); onDelete(); }}
             className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-[13px] text-red-400 hover:bg-white/10">
             <Trash2 size={13} /> 删除
@@ -92,13 +99,18 @@ function SortableTagItem({ tag, onEdit, onDelete }: {
 
 /* ─── Recursive tag tree item ─── */
 
-function TagTreeItem({ tag, depth, editingTagId, editName, setEditName, setEditingTagId, updateTag, deleteTag }: {
+function TagTreeItem({ tag, depth, editingTagId, editName, setEditName, setEditingTagId, creatingChildUnder, setCreatingChildUnder, newChildName, setNewChildName, handleCreateChild, updateTag, deleteTag }: {
   tag: TagWithCount;
   depth: number;
   editingTagId: string | null;
   editName: string;
   setEditName: (v: string) => void;
   setEditingTagId: (v: string | null) => void;
+  creatingChildUnder: string | null;
+  setCreatingChildUnder: (v: string | null) => void;
+  newChildName: string;
+  setNewChildName: (v: string) => void;
+  handleCreateChild: (parentId: string) => void;
   updateTag: ReturnType<typeof useUpdateTag>;
   deleteTag: ReturnType<typeof useDeleteTag>;
 }) {
@@ -128,11 +140,30 @@ function TagTreeItem({ tag, depth, editingTagId, editName, setEditName, setEditi
                 tag={tag}
                 onEdit={() => { setEditingTagId(tag.id); setEditName(tag.name); }}
                 onDelete={() => { if (confirm(`确定删除"${tag.name}"？`)) deleteTag.mutate(tag.id); }}
+                onAddChild={depth === 0 ? () => { setCreatingChildUnder(tag.id); setNewChildName(''); setExpanded(true); } : undefined}
               />
             </div>
           </div>
         )}
       </div>
+      {/* Inline input for creating child tag */}
+      {creatingChildUnder === tag.id && (
+        <div style={{ paddingLeft: (depth + 1) * 12 }} className="flex items-center gap-[10px] px-3 h-[34px] mt-[2px]">
+          <span className="w-[10px] h-[10px] rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+          <input
+            autoFocus
+            value={newChildName}
+            onChange={(e) => setNewChildName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCreateChild(tag.id);
+              if (e.key === 'Escape') setCreatingChildUnder(null);
+            }}
+            onBlur={() => { if (!newChildName.trim()) setCreatingChildUnder(null); }}
+            placeholder="子标签名称..."
+            className="flex-1 text-[13px] px-1 py-0.5 rounded border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.04] text-[#111827] dark:text-white outline-none focus:ring-1 focus:ring-[#7C72F6] placeholder:text-[#9CA3AF]"
+          />
+        </div>
+      )}
       {hasChildren && expanded && tag.children.map((child) => (
         <TagTreeItem
           key={child.id}
@@ -142,6 +173,11 @@ function TagTreeItem({ tag, depth, editingTagId, editName, setEditName, setEditi
           editName={editName}
           setEditName={setEditName}
           setEditingTagId={setEditingTagId}
+          creatingChildUnder={creatingChildUnder}
+          setCreatingChildUnder={setCreatingChildUnder}
+          newChildName={newChildName}
+          setNewChildName={setNewChildName}
+          handleCreateChild={handleCreateChild}
           updateTag={updateTag}
           deleteTag={deleteTag}
         />
@@ -177,12 +213,21 @@ export function Sidebar() {
   const isGlass = theme === 'glass';
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [creatingChildUnder, setCreatingChildUnder] = useState<string | null>(null);
+  const [newChildName, setNewChildName] = useState('');
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
   const [scheduledExpanded, setScheduledExpanded] = useState(true);
 
   const handleCreateTag = () => { if (newName.trim()) { createTag.mutate({ name: newName.trim() }); setNewName(''); setIsCreating(false); } };
+  const handleCreateChild = (parentId: string) => {
+    if (newChildName.trim()) {
+      createTag.mutate({ name: newChildName.trim(), parent_tag_id: parentId });
+      setNewChildName('');
+      setCreatingChildUnder(null);
+    }
+  };
   const secHeaderCls = 'section-label';
 
   if (!sidebarOpen) {
@@ -307,6 +352,11 @@ export function Sidebar() {
                       editName={editName}
                       setEditName={setEditName}
                       setEditingTagId={setEditingTagId}
+                      creatingChildUnder={creatingChildUnder}
+                      setCreatingChildUnder={setCreatingChildUnder}
+                      newChildName={newChildName}
+                      setNewChildName={setNewChildName}
+                      handleCreateChild={handleCreateChild}
                       updateTag={updateTag}
                       deleteTag={deleteTag}
                     />

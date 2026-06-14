@@ -363,7 +363,7 @@ export function SearchPage() {
       </div>
 
       {/* Results */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         {loading ? (
           <LoadingSkeleton count={5} />
         ) : hasSearched && results.length > 0 ? (

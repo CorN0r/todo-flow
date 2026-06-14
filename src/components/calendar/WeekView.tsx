@@ -67,12 +67,15 @@ function DroppableWeekDay({ dateKey, isTodayDate, isWeekend, children }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'h-full border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-2 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors flex flex-col',
+        'h-full border-r border-[#E5E7EB] dark:border-white/[0.06] last:border-r-0 p-2 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.02] transition-colors flex flex-col relative',
         isTodayDate && 'bg-[#F3F4F6] dark:bg-white/[0.02]',
         isWeekend && !isTodayDate && 'bg-[#FAFAFA] dark:bg-white/[0.015]',
-        isOver && 'bg-[#7C72F6]/[0.08] ring-2 ring-[#7C72F6] relative z-10',
+        isOver && 'bg-[#7C72F6]/[0.08] z-10',
       )}
     >
+      {isOver && (
+        <div className="absolute inset-0 ring-2 ring-inset ring-[#7C72F6] pointer-events-none z-10" />
+      )}
       {children}
     </div>
   );
@@ -132,7 +135,7 @@ export function WeekView() {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl bg-white dark:bg-[#1e1e32] flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
+      <div className="border border-[#E5E7EB] dark:border-white/[0.08] rounded-xl bg-white dark:bg-[#1e1e32] flex flex-col flex-1 min-h-0">
         <div className="grid grid-cols-7 flex-1">
           {days.map((d) => {
             const dateKey = format(d, 'yyyy-MM-dd');
@@ -167,7 +170,7 @@ export function WeekView() {
                     )}
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-1" onClick={(e) => e.stopPropagation()}>
+                <div className="flex-1 overflow-y-auto pb-6 space-y-1" onClick={(e) => e.stopPropagation()}>
                   {dayEvents.slice(0, 5).map((ev) => (
                     <DraggableWeekTask key={ev.task.id} ev={ev} dateKey={dateKey}
                       tagColor={ev.task.tag_id ? tagColorMap.get(ev.task.tag_id) : undefined} />
