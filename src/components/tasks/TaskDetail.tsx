@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTags } from '../../hooks/useTags';
 import { useUIStore } from '../../stores/uiStore';
-import { todayISO, isOverdue } from '../../lib/date';
+import { todayISO, isOverdue, formatLocalTime } from '../../lib/date';
 import { cn } from '../../lib/cn';
 import type { UpdateTaskInput } from '../../types/task';
 import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer } from 'lucide-react';
@@ -12,6 +12,7 @@ import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
 import { ReminderList } from '../shared/ReminderList';
+import { RichTextEditor } from '../shared/RichTextEditor';
 import { Portal } from '../shared/Portal';
 import { toast } from 'sonner';
 import { hexToRgba, PRIORITY_HEX, priorityLabels } from '../../lib/priority';
@@ -102,7 +103,9 @@ export function TaskDetail() {
   const originalRef = useRef<LocalState | null>(null);
   const taskRef = useRef(detail?.task);
   const mutateRef = useRef(updateTask.mutate);
+  const localRef = useRef<LocalState | null>(null);
   useEffect(() => { mutateRef.current = updateTask.mutate; });
+  useEffect(() => { localRef.current = local; });
 
   const [openPriority, setOpenPriority] = useState(false);
   const [openTag, setOpenTag] = useState(false);
@@ -118,10 +121,27 @@ export function TaskDetail() {
   }, [selectedTaskId, queryClient]);
   useEffect(() => {
     if (detail && selectedTaskId) {
-      const next = { title: detail.task.title, description: detail.task.description, priority: detail.task.priority,
+      const server = { title: detail.task.title, description: detail.task.description, priority: detail.task.priority,
         due_date: detail.task.due_date || '', tag_id: detail.task.tag_id || '',
         recurrence: detail.task.recurrence || '', is_completed: detail.task.is_completed };
-      setLocal(next); originalRef.current = next;
+      // 使用函数式更新，在运行时保留本地已修改但尚未保存的字段，
+      // 防止异步 doSave 返回后旧服务器数据覆盖用户新输入（快速连续选择时的回弹问题）
+      setLocal((prev) => {
+        if (!prev) return server;
+        const orig = originalRef.current;
+        if (!orig) return server;
+        const merged = { ...server };
+        for (const key of Object.keys(merged) as (keyof LocalState)[]) {
+          if (prev[key] !== orig[key]) {
+            (merged as any)[key] = prev[key];
+          }
+        }
+        return merged;
+      });
+      // 🔍 诊断：记录服务器返回的描述
+      const hasImg = /<img[^>]+src="data:/.test(server.description);
+      console.log(`[LOAD] server desc len=${server.description.length} hasImg=${hasImg} content="${server.description.slice(0, 80)}"`);
+      originalRef.current = server;
     }
   }, [detail?.task.id, detail?.task.updated_at, selectedTaskId]);
 
@@ -130,18 +150,24 @@ export function TaskDetail() {
     if (!task) return;
     const input: UpdateTaskInput = { id: task.id };
     if (currentLocal.title !== task.title) input.title = currentLocal.title;
+    if (currentLocal.description !== task.description) input.description = currentLocal.description;
     if (currentLocal.priority !== task.priority) input.priority = currentLocal.priority;
     if (currentLocal.due_date !== (task.due_date || '')) input.due_date = currentLocal.due_date || '';
     if (currentLocal.tag_id !== (task.tag_id || '')) input.tag_id = currentLocal.tag_id || '';
     if (currentLocal.recurrence !== (task.recurrence || '')) input.recurrence = currentLocal.recurrence || '';
     if (Object.keys(input).length === 1) return;
+    // 🔍 诊断：记录描述长度
+    if (input.description !== undefined) {
+      const hasImg = /<img[^>]+src="data:/.test(input.description);
+      console.log(`[SAVE] desc len=${input.description.length} hasImg=${hasImg} changed=${currentLocal.description !== task.description}`);
+    }
     mutateRef.current(input, { onSuccess: () => { originalRef.current = currentLocal; }, onError: () => { toast.error('保存失败'); } });
   }, []);
 
   useEffect(() => {
     if (!local || !originalRef.current) return;
     const orig = originalRef.current;
-    const hasChanges = local.title !== orig.title || local.priority !== orig.priority || local.due_date !== orig.due_date ||
+    const hasChanges = local.title !== orig.title || local.description !== orig.description || local.priority !== orig.priority || local.due_date !== orig.due_date ||
       local.tag_id !== orig.tag_id || local.recurrence !== orig.recurrence;
     if (!hasChanges) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -339,11 +365,22 @@ export function TaskDetail() {
           <AlignLeft size={13} className="text-[#6B7280]" />
           <label className="section-label">描述</label>
         </div>
-        <textarea value={local.description}
-          onChange={(e) => setLocal((prev) => prev ? { ...prev, description: e.target.value } : null)}
-          onBlur={() => { const t = taskRef.current; if (t) { mutateRef.current({ id: t.id, description: local.description }, { onSuccess: () => {}, onError: () => {} }); } }}
-          placeholder="添加描述..." rows={4}
-          className="w-full text-sm px-3 py-2.5 rounded-[10px] border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.03] text-[#111827] dark:text-white/90 outline-none focus:ring-2 focus:ring-[#7C72F6]/30 focus:border-[#7C72F6] resize-y placeholder:text-[#9CA3AF] min-h-[60px]" />
+        <RichTextEditor
+          key={selectedTaskId}
+          value={local.description}
+          onChange={(html) => setLocal((prev) => prev ? { ...prev, description: html } : null)}
+          onBlur={() => {
+            // 编辑器失焦时立即保存，确保内容不丢失
+            if (saveTimerRef.current) {
+              clearTimeout(saveTimerRef.current);
+              saveTimerRef.current = null;
+            }
+            if (localRef.current) {
+              doSave(localRef.current);
+            }
+          }}
+          placeholder="添加描述..."
+        />
       </div>
 
       {/* ── Subtasks ── */}
@@ -373,7 +410,7 @@ export function TaskDetail() {
                     {child.is_completed && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                   </button>
                   <EditableSubtaskTitle child={child} />
-                  <button onClick={() => { deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); } }); }}
+                  <button onClick={() => { const deleted = child; deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutateAsync({ title: deleted.title, parent_task_id: deleted.parent_task_id || undefined }).then(() => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); } }); }}
                     className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[#9CA3AF] hover:text-[#EF4444] transition-all ml-auto">
                     <X size={12} />
                   </button>
@@ -389,12 +426,12 @@ export function TaskDetail() {
       <div className="pt-3 border-t border-[#F3F4F6] dark:border-white/[0.06] flex items-center justify-between">
         <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF]">
           <span>创建于</span>
-          <span className="text-[#6B7280]">{new Date(task.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="text-[#6B7280]">{formatLocalTime(task.created_at)}</span>
           {task.is_completed && (
             <>
               <span className="mx-1 text-[#E5E7EB]">|</span>
               <span>完成于</span>
-              <span className="text-[#6B7280]">{new Date(task.updated_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="text-[#6B7280]">{formatLocalTime(task.updated_at)}</span>
             </>
           )}
         </div>

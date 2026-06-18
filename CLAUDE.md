@@ -156,7 +156,7 @@ pomodoroStore (Zustand + localStorage persistence)
     │
     ├──→ PomodoroWidgetPage (standalone always-on-top window)
     │       · compact card (170px) with SVG ring + hover controls
-    │       · drag-to-move
+    │       · drag-to-move with edge snapping (30px threshold, 400ms debounce)
     │       · fullscreen toggle (setFullscreen) with 400px ring
     │       · sends pomodoro-control events back to main window
     │
@@ -206,6 +206,7 @@ pomodoroStore (Zustand + localStorage persistence)
 | `widget_x`/`widget_y` | pixel strings | WidgetPage, lib.rs |
 | `widget_size` | `"compact"`/`"normal"` | WidgetPage |
 | `widget_bubble_color` | JSON `{from, via, to}` hex colors | WidgetPage, SettingsPage |
+| `pomodoro_x` / `pomodoro_y` | pixel strings | PomodoroWidgetPage, lib.rs |
 | `keyboard_shortcuts` | JSON `ShortcutMap` | shortcutStore |
 | `pomodoroConfig` | localStorage, not DB | pomodoroStore |
 
@@ -244,6 +245,8 @@ Tags support `parent_tag_id` (self-ref FK). UI only shows "添加子标签" when
 ### Widget Window — Edge Snapping & Screen Clamping
 Bubble drag triggers `shouldSnapRef.current = true`. The `onMoved` event (400ms debounce) calls `snapToEdge()` — checks distance to screen edges (< 30px threshold) and snaps. `clampInScreen()` prevents widget from moving off-screen during expand/collapse. Multi-monitor: `getScreenBounds()` falls back to `availableMonitors()` if `currentMonitor()` returns null for the transparent window.
 
+The Pomodoro standalone window uses the same edge snapping pattern (`PomodoroWidgetPage.tsx`) when dragged, and persists position via `pomodoro_x`/`pomodoro_y` settings.
+
 ---
 
 ## Theme System
@@ -269,3 +272,80 @@ WidgetPage uses JS ternary (`resolvedTheme === 'dark' ? X : Y`) instead of Tailw
 - All UI text in Chinese (简体中文)
 - No JSDoc — self-documenting identifiers
 - No premature abstraction — three similar lines beats a shared helper
+
+---
+
+## Rich Text Editor (TipTap/ProseMirror)
+
+Task descriptions use a TipTap WYSIWYG editor (`src/components/shared/RichTextEditor.tsx`) that stores HTML content in the `description` TEXT column. The editor supports: text formatting, images (pasted/dragged), tables, task lists, links, and a fullscreen mode.
+
+### Critical: ProseMirror DOMParser Strips `data:` URLs
+
+**ProseMirror's built-in HTML parser silently discards `<img>` tags with `data:` URL src attributes.** This is the single most important fact about the rich text system:
+
+- **Paste**: Works because `ImagePasteHandler` extension creates ProseMirror nodes directly via `view.dispatch(tr)`, bypassing HTML parsing.
+- **Drag-drop (Tauri)**: Works because `getCurrentWindow().onDragDropEvent()` → `readFile()` → base64 → `insertContentAt({ type: 'image', attrs: { src } })`, bypassing HTML parsing.
+- **Loading saved content / sync / fullscreen exit**: Must use `safeSetHTMLContent()` in `RichTextEditor.tsx`, which parses HTML with browser `DOMParser`, extracts images separately, and inserts them via `view.dispatch(editor.state.tr.insert(pos, imageNode))` — **never through `editor.commands.setContent()` or `insertContentAt()` with raw HTML**.
+
+### Extensions
+
+| Extension | Purpose |
+|-----------|---------|
+| `Image` | Node type + parse/serialize rules (plain TipTap Image) |
+| `ImagePasteHandler` | ProseMirror plugin: paste handler, `handleDOMEvents.dragover` (for focus) |
+| `ImageSelectionHighlight` | ProseMirror decoration plugin: adds `.img-in-selection` class to images within text selection range. Complements `ProseMirror-selectednode` (which only applies to NodeSelection). |
+
+### Tauri Drag-Drop
+
+Desktop file drag-drop bypasses the browser's DOM drop event. Uses:
+```typescript
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { readFile } from '@tauri-apps/plugin-fs';
+
+getCurrentWindow().onDragDropEvent((event) => {
+  if (event.payload.type === 'drop') {
+    // event.payload.paths, event.payload.position
+  }
+});
+```
+The listener is registered ONCE (empty `useEffect` deps) via `editorRef` to prevent duplicate listeners. `readFile` reads file bytes → chunked base64 encoding (`btoa` with 8192-byte chunks to avoid stack overflow) → `insertContentAt` with `{ type: 'image', attrs: { src: dataUrl } }`.
+
+### Multi-Image Paste/Drag
+
+Uses module-level `pendingImageInserts` counter. The sync `useLayoutEffect` checks `pendingImageInserts > 0` and skips syncing to prevent `safeSetHTMLContent` from wiping images that haven't finished loading yet. Counter is incremented at paste/drag start and decremented in each `reader.onload` / `readFile.then` callback.
+
+### Fullscreen Mode
+
+`FullscreenEditor` sub-component with independent TipTap instance. On close, uses `safeSetHTMLContent` to transfer content back. `FullscreenEditor` also uses `safeSetHTMLContent` in a `useLayoutEffect` for initial content loading.
+
+### TaskDetail Auto-Save
+
+Description is included in the debounced auto-save (800ms). Two places must include `description`:
+- `hasChanges` check in the save-triggering `useEffect`
+- `doSave` function diffing against `taskRef.current`
+
+`onBlur` on RichTextEditor flushes pending description saves immediately using `localRef` (a ref tracking latest `local` state) to avoid stale closures.
+
+### Common Mistakes
+
+1. **Never use `useEditor({ content: htmlWithImages })`** — images will be lost because `content` option goes through ProseMirror's DOMParser.
+2. **Never use `editor.commands.setContent(htmlWithImages)`** — same reason.
+3. **Memoize extensions**: `SHARED_EXTENSIONS(placeholder)` returns a new array each call, causing `useEditor` to recreate the editor on every render. Use `useMemo(() => SHARED_EXTENSIONS(placeholder), [placeholder])`.
+4. **React StrictMode**: `useRef` initial values persist across the double-mount (mount → unmount → mount). Don't rely on `useRef(initialValue)` for comparisons; update refs in `useEffect` instead.
+5. **Stale closures in save**: Use `localRef` (updated via `useEffect`) rather than `local` directly in callbacks that fire during unmount.
+
+---
+
+## TaskDetailPanel Resizability
+
+`TaskDetailPanel.tsx` slide-in panel is resizable:
+- Default width 540px, range 400–800px
+- Left edge has a drag handle (5px wide, hover shows blue indicator + `GripVertical` icon)
+- Width persisted to `localStorage` key `taskDetailPanelWidth`
+- `mousemove`/`mouseup` listeners attached to `document` during drag
+
+---
+
+## PageTitle Component
+
+`src/components/shared/PageTitle.tsx` — the header bar with title, filter chips, sort, view mode toggle, expand/collapse subtasks, multi-select, and new-task button. Key props: `filterMode`, `onFilterChange`, `sortMode`, `onSortChange`, `taskViewMode`, `onToggleViewMode`. Uses `globalSubtasksExpanded` from `uiStore` to toggle all subtasks across the current view.

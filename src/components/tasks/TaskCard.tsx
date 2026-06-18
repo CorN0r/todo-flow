@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { todayISO } from '../../lib/date';
 import { priorityColors, priorityLabels, hexToRgba } from '../../lib/priority';
+import { stripHtml } from '../../lib/html';
 import { Portal } from '../shared/Portal';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
@@ -18,14 +19,25 @@ import {
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function SortableSubtaskRow({ child, onToggle, onDelete }: {
-  child: Task; onToggle: () => void; onDelete: () => void;
+function SortableSubtaskRow({ child, onToggle, onDelete, onEditingChange }: {
+  child: Task; onToggle: () => void; onDelete: () => void; onEditingChange?: (editing: boolean) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id });
+  const [isEditing, setIsEditing] = useState(false);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: child.id,
+    disabled: isEditing,
+  });
+
+  const handleEditingChange = useCallback((editing: boolean) => {
+    setIsEditing(editing);
+    onEditingChange?.(editing);
+  }, [onEditingChange]);
+
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} style={style}
+    <div ref={setNodeRef} {...(isEditing ? {} : attributes)} {...(isEditing ? {} : listeners)} style={style}
       className={cn(isDragging && 'opacity-50 z-50', 'cursor-grab active:cursor-grabbing [&_button]:cursor-pointer')}>
       <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
         isDragging ? 'bg-white dark:bg-[#1e1e32] border-[#7C72F6] shadow-lg'
@@ -38,15 +50,15 @@ function SortableSubtaskRow({ child, onToggle, onDelete }: {
             </svg>
           )}
         </button>
-        <SubtaskContent child={child} onDelete={onDelete} />
+        <SubtaskContent child={child} onDelete={onDelete} onEditingChange={handleEditingChange} />
       </div>
     </div>
   );
 }
 
-function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void }) {
+function SubtaskContent({ child, onDelete, onEditingChange }: { child: Task; onDelete: () => void; onEditingChange?: (editing: boolean) => void }) {
   const updateTask = useUpdateTask();
-  const [subMenu, setSubMenu] = useState<{ x: number; y: number } | null>(null);
+  const [subMenu, setSubMenu] = useState<{ x: number; y: number; rawX: number; rawY: number } | null>(null);
   const subMenuRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(child.title);
@@ -65,18 +77,38 @@ function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void
     return () => document.removeEventListener('mousedown', close);
   }, [subMenu]);
 
+  // 测量子菜单实际尺寸并调整位置
+  useLayoutEffect(() => {
+    if (!subMenu || !subMenuRef.current) return;
+    const menu = subMenuRef.current;
+    const rect = menu.getBoundingClientRect();
+    const padding = 8;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    let { x, y } = subMenu;
+
+    if (x + rect.width + padding > viewportW) x = viewportW - rect.width - padding;
+    if (x - padding < 0) x = padding;
+    if (y + rect.height + padding > viewportH) y = viewportH - rect.height - padding;
+    if (y - padding < 0) y = padding;
+
+    if (x !== subMenu.x || y !== subMenu.y) {
+      setSubMenu(prev => prev ? { ...prev, x, y } : null);
+    }
+  }, [subMenu?.x, subMenu?.y]);
+
   return (
     <>
       <div className="flex-1 flex items-center gap-1.5 min-w-0"
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setSubMenu({ x: e.clientX, y: e.clientY }); }}>
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setSubMenu({ x: e.clientX, y: e.clientY, rawX: e.clientX, rawY: e.clientY }); }}>
         {editing ? (
           <input id={`subtask-input-${child.id}`} value={val} onChange={(e) => setVal(e.target.value)}
-            onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { const t = val.trim(); if (t) updateTask.mutate({ id: child.id, title: t }); setEditing(false); } if (e.key === 'Escape') setEditing(false); }}
-            onBlur={() => setEditing(false)}
+            onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { const t = val.trim(); if (t) updateTask.mutate({ id: child.id, title: t }); setEditing(false); onEditingChange?.(false); } if (e.key === 'Escape') { setEditing(false); onEditingChange?.(false); } }}
+            onBlur={() => { setEditing(false); onEditingChange?.(false); }}
             className="flex-1 text-[13px] px-1 py-0.5 rounded bg-[#F3F4F6] dark:bg-white/[0.08] outline-none ring-1 ring-[#7C72F6]/40 text-[#111827] dark:text-white/90" />
         ) : (
           <span className={cn('text-[13px] truncate cursor-text', child.is_completed && 'line-through text-[#9CA3AF]', !child.is_completed && 'text-[#111827] dark:text-white/90')}
-            onClick={() => { setVal(child.title); setEditing(true); }}
+            onClick={() => { setVal(child.title); setEditing(true); onEditingChange?.(true); }}
             title="点击编辑标题">{child.title}</span>
         )}
       </div>
@@ -115,7 +147,7 @@ function SubtaskContent({ child, onDelete }: { child: Task; onDelete: () => void
   );
 }
 
-export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
+export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; depth?: number; onEditingChange?: (editing: boolean) => void }) {
   const { t: _t } = useTranslation();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
@@ -134,7 +166,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
   const overdue = !isSuspended && !isAbandoned && isOverdue(task.due_date);
   const { data: tags } = useTags();
 
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; rawX: number; rawY: number } | null>(null);
   const [subtaskExpanded, setSubtaskExpanded] = useState(false);
   const globalSubtasksExpanded = useUIStore((s) => s.globalSubtasksExpanded);
 
@@ -164,6 +196,39 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
     return () => document.removeEventListener('mousedown', close);
   }, [contextMenu]);
 
+  // 测量菜单实际尺寸并调整位置，确保完全在视口内
+  useLayoutEffect(() => {
+    if (!contextMenu || !menuRef.current) return;
+    const menu = menuRef.current;
+    const rect = menu.getBoundingClientRect();
+    const padding = 8;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    let { x, y } = contextMenu;
+
+    // 右边缘：菜单右侧超出视口
+    if (x + rect.width + padding > viewportW) {
+      x = viewportW - rect.width - padding;
+    }
+    // 左边缘：菜单左侧超出视口
+    if (x - padding < 0) {
+      x = padding;
+    }
+    // 下边缘：菜单底部超出视口
+    if (y + rect.height + padding > viewportH) {
+      y = viewportH - rect.height - padding;
+    }
+    // 上边缘：菜单顶部超出视口
+    if (y - padding < 0) {
+      y = padding;
+    }
+
+    // 只有位置变化时才更新，避免循环
+    if (x !== contextMenu.x || y !== contextMenu.y) {
+      setContextMenu(prev => prev ? { ...prev, x, y } : null);
+    }
+  }, [contextMenu?.x, contextMenu?.y]);
+
   const tagMap = useMemo(() => {
     if (!tags) return new Map();
     return new Map(tags.map((t) => [t.id, t]));
@@ -173,13 +238,33 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
   const children = task.children || [];
   const hasChildren = children.length > 0;
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const doDelete = () => {
+    const deleted = task;
+    const deletedChildren = task.children || [];
+    if (selectedTaskId === task.id) setSelectedTaskId(null);
+    deleteTask.mutate(task.id);
+    toast.success(
+      () => (
+        <span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_id: deleted.tag_id || undefined, parent_task_id: deleted.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
+      ),
+      { duration: 8000 },
+    );
+    setContextMenu(null);
+  };
+
+  const handleDeleteClick = () => {
+    if (children.length > 0) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    doDelete();
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    const menuW = 180, menuH = 250;
-    let x = e.clientX, y = e.clientY;
-    if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 8;
-    if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 8;
-    setContextMenu({ x, y });
+    setContextMenu({ x: e.clientX, y: e.clientY, rawX: e.clientX, rawY: e.clientY });
   };
 
   const handleToggleComplete = () => {
@@ -194,18 +279,20 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
     e.stopPropagation();
     setEditTitleValue(task.title);
     setEditingTitle(true);
+    onEditingChange?.(true);
   };
 
   const handleSaveEdit = () => {
     const trimmed = editTitleValue.trim();
     if (trimmed && trimmed !== task.title) updateTask.mutate({ id: task.id, title: trimmed });
     setEditingTitle(false);
+    onEditingChange?.(false);
   };
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
     e.stopPropagation();
     if (e.key === 'Enter') { e.preventDefault(); handleSaveEdit(); }
-    if (e.key === 'Escape') setEditingTitle(false);
+    if (e.key === 'Escape') { setEditingTitle(false); onEditingChange?.(false); }
   };
 
   const subtaskSensors = useSensors(
@@ -287,8 +374,8 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
           )}
           <div className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer select-none"
             onClick={() => { if (selectionMode) { toggleTaskSelection(task.id); } else { setSelectedTaskId(task.id); } }}
-            role="button" tabIndex={0} draggable={!selectionMode}
-            onDragStart={(e) => { if (selectionMode) return; e.dataTransfer.setData('text/plain', task.id); e.dataTransfer.effectAllowed = 'move'; }}
+            role="button" tabIndex={0} draggable={!selectionMode && !editingTitle}
+            onDragStart={(e) => { if (selectionMode || editingTitle) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', task.id); e.dataTransfer.effectAllowed = 'move'; }}
             onKeyDown={(e) => { if (e.key === 'Enter') setSelectedTaskId(task.id); }}>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -311,7 +398,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
                     style={{ backgroundColor: hexToRgba(taskTag.color, 0.15), color: taskTag.color }}>{taskTag.name}</span>
                 )}
               </div>
-              {task.description && <p className="text-[12px] text-[#9CA3AF] truncate mt-0.5">{task.description}</p>}
+              {task.description && <p className="text-[12px] text-[#9CA3AF] truncate mt-0.5">{stripHtml(task.description)}</p>}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {task.my_day_date === todayISO() && <span className="text-amber-500" title="我的一天"><Sun size={14} /></span>}
@@ -334,7 +421,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
                   {children.map((child) => (
                     <SortableSubtaskRow key={child.id} child={child}
                       onToggle={() => updateTask.mutate({ id: child.id, is_completed: !child.is_completed })}
-                      onDelete={() => deleteTask.mutate(child.id)} />
+                      onDelete={() => { const deleted = child; deleteTask.mutate(child.id); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: deleted.title, parent_task_id: deleted.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); }} />
                   ))}
                 </SortableContext>
               </DndContext>
@@ -426,12 +513,7 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
               </button>
             )}
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] mt-1 pt-1">
-              <button onClick={() => { const deleted = task; if (selectedTaskId === task.id) setSelectedTaskId(null); deleteTask.mutate(task.id); toast.success(
-                () => (
-                  <span>任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_id: deleted.tag_id || undefined, parent_task_id: deleted.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
-                ),
-                { duration: 8000 },
-              ); setContextMenu(null); }}
+              <button onClick={handleDeleteClick}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 text-red-600 transition-colors">
                 <Trash2 size={15} /> 删除
               </button>
@@ -439,6 +521,24 @@ export function TaskCard({ task, depth = 0 }: { task: Task; depth?: number }) {
           </div>
         </Portal>
       )}
+
+    {/* Delete confirm dialog */}
+    {showDeleteConfirm && (
+      <Portal>
+        <div className="fixed inset-0 z-[300] bg-black/40 flex items-center justify-center" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="bg-white dark:bg-[#1e1e32] rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-[#111827] dark:text-white/90 mb-1 font-medium">确认删除</p>
+            <p className="text-[13px] text-[#6B7280] mb-5">此任务包含 {children.length} 个子任务，删除后将一并移除，不可恢复。</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded-lg text-[13px] text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors">取消</button>
+              <button onClick={() => { setShowDeleteConfirm(false); doDelete(); }}
+                className="px-4 py-2 rounded-lg text-[13px] bg-[#EF4444] text-white hover:bg-red-600 transition-colors font-medium">删除</button>
+            </div>
+          </div>
+        </div>
+      </Portal>
+    )}
     </>
   );
 }
