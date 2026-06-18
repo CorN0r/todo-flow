@@ -62,7 +62,7 @@ const ImagePasteHandler = Extension.create({
               return false;
             },
           },
-          handlePaste(view, event) {
+          handlePaste(_view, event) {
             const items = event.clipboardData?.items;
             if (!items) return false;
             // 收集所有图片文件
@@ -189,7 +189,6 @@ function safeSetHTMLContent(editor: ReturnType<typeof useEditor>, html: string) 
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const body = doc.body;
-  const schema = editor.schema;
 
   // 收集顶层节点
   type ParsedNode = { type: 'p'; html: string } | { type: 'img'; src: string; alt?: string };
