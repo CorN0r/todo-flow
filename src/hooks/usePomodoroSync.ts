@@ -25,7 +25,7 @@ export function usePomodoroSync() {
   const mode = usePomodoroStore((s) => s.mode);
   const minutes = usePomodoroStore((s) => s.minutes);
   const seconds = usePomodoroStore((s) => s.seconds);
-  const isPaused = usePomodoroStore((s) => s.isPaused);
+  const isRunning = usePomodoroStore((s) => s.isRunning);
   const taskTitle = usePomodoroStore((s) => s.taskTitle);
   const sessionStartTime = usePomodoroStore((s) => s.sessionStartTime);
   const sessionsInCycle = usePomodoroStore((s) => s.sessionsInCycle);
@@ -42,11 +42,11 @@ export function usePomodoroSync() {
   // Emit state to standalone window
   useEffect(() => {
     emit('pomodoro-state', {
-      mode, minutes, seconds, isRunning: !isPaused,
+      mode, minutes, seconds, isRunning,
       taskTitle, sessionStartTime, sessionsInCycle,
       config: { focusMinutes: config.focusMinutes, sessionsUntilLongBreak: config.sessionsUntilLongBreak },
     }).catch(() => {});
-  }, [mode, minutes, seconds, isPaused, taskTitle, sessionStartTime, sessionsInCycle, config]);
+  }, [mode, minutes, seconds, isRunning, taskTitle, sessionStartTime, sessionsInCycle, config]);
 
   // Receive control events from standalone window
   useEffect(() => {

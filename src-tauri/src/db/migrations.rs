@@ -11,8 +11,8 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
                 color       TEXT NOT NULL DEFAULT '#6366f1',
                 icon        TEXT NOT NULL DEFAULT 'list',
                 sort_order  INTEGER NOT NULL DEFAULT 0,
-                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
             );
 
             CREATE TABLE IF NOT EXISTS tasks (
@@ -28,8 +28,8 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
                 parent_task_id  TEXT,
                 sort_order      INTEGER NOT NULL DEFAULT 0,
                 recurrence      TEXT,
-                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
                 FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE SET NULL,
                 FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
@@ -42,7 +42,7 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
                 mime_type       TEXT NOT NULL,
                 file_size       INTEGER NOT NULL,
                 thumbnail_name  TEXT,
-                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
 
@@ -109,8 +109,8 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
                 frequency   TEXT NOT NULL DEFAULT 'daily',
                 target_count INTEGER NOT NULL DEFAULT 1,
                 sort_order  INTEGER NOT NULL DEFAULT 0,
-                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
             );
 
             CREATE TABLE IF NOT EXISTS habit_logs (
@@ -119,7 +119,7 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
                 log_date    TEXT NOT NULL,
                 count       INTEGER NOT NULL DEFAULT 1,
                 note        TEXT NOT NULL DEFAULT '',
-                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
                 FOREIGN KEY (habit_id) REFERENCES habits(id) ON DELETE CASCADE,
                 UNIQUE(habit_id, log_date)
             );
@@ -164,7 +164,7 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
                 offset          TEXT NOT NULL,
                 reminder_time   TEXT NOT NULL,
                 reminded        INTEGER NOT NULL DEFAULT 0,
-                created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
             );
 
             CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders(task_id);
@@ -196,6 +196,42 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
             rusqlite::params![default_shortcuts],
         )?;
         conn.pragma_update(None, "user_version", 11)?;
+    }
+
+    // v12: Convert existing UTC timestamps to local time
+    if current_version < 12 {
+        // Convert tasks created_at and updated_at from UTC to local time
+        conn.execute(
+            "UPDATE tasks SET created_at = datetime(created_at, 'localtime'), updated_at = datetime(updated_at, 'localtime')",
+            [],
+        )?;
+        // Convert tags created_at and updated_at
+        conn.execute(
+            "UPDATE tags SET created_at = datetime(created_at, 'localtime'), updated_at = datetime(updated_at, 'localtime')",
+            [],
+        )?;
+        // Convert habits created_at and updated_at
+        conn.execute(
+            "UPDATE habits SET created_at = datetime(created_at, 'localtime'), updated_at = datetime(updated_at, 'localtime')",
+            [],
+        )?;
+        // Convert habit_logs created_at
+        conn.execute(
+            "UPDATE habit_logs SET created_at = datetime(created_at, 'localtime')",
+            [],
+        )?;
+        // Convert task_reminders created_at
+        conn.execute(
+            "UPDATE task_reminders SET created_at = datetime(created_at, 'localtime')",
+            [],
+        )?;
+        // Convert attachments created_at
+        conn.execute(
+            "UPDATE attachments SET created_at = datetime(created_at, 'localtime')",
+            [],
+        )?;
+
+        conn.pragma_update(None, "user_version", 12)?;
     }
 
     Ok(())

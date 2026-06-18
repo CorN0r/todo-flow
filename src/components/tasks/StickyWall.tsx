@@ -16,12 +16,12 @@ function hashId(id: string): number {
 }
 
 const NOTE_COLORS = [
-  { bg: '#FFF9E6', border: '#F0D56C', darkBg: '#2A2410', darkBorder: '#6B5A20' },
-  { bg: '#FFF0F0', border: '#E8A0A0', darkBg: '#2A1818', darkBorder: '#6B3030' },
-  { bg: '#F0F4FF', border: '#A0B8E8', darkBg: '#181C2A', darkBorder: '#30406B' },
-  { bg: '#F0FFF4', border: '#90D5A0', darkBg: '#182A1C', darkBorder: '#306B3A' },
-  { bg: '#FFF5F0', border: '#E0B890', darkBg: '#2A1E18', darkBorder: '#6B4830' },
-  { bg: '#F8F0FF', border: '#C0A0E0', darkBg: '#22182A', darkBorder: '#58306B' },
+  { bg: '#FFF3C4', border: '#E8C460', darkBg: '#4A4028', darkBorder: '#8A7A50' },
+  { bg: '#FECACA', border: '#E87560', darkBg: '#4A3030', darkBorder: '#8A4040' },
+  { bg: '#C7D8F0', border: '#7090D0', darkBg: '#283048', darkBorder: '#506080' },
+  { bg: '#B8E8C8', border: '#60C070', darkBg: '#284830', darkBorder: '#507050' },
+  { bg: '#FDE8C8', border: '#E0A050', darkBg: '#4A3828', darkBorder: '#8A6040' },
+  { bg: '#E0C8F8', border: '#A070D0', darkBg: '#382848', darkBorder: '#605070' },
 ];
 
 export function StickyWall({ tasks }: StickyWallProps) {
@@ -58,6 +58,7 @@ export function StickyWall({ tasks }: StickyWallProps) {
           <ExpandedNote
             task={expandedData.task}
             colors={NOTE_COLORS[expandedData.colorIdx]}
+            colorIdx={expandedData.colorIdx}
             rotation={expandedData.rotation}
             isDark={isDark}
             onClose={() => setExpandedTaskId(null)}

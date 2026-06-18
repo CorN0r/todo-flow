@@ -1,8 +1,13 @@
+use chrono::Local;
 use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::models::task_reminder::{CreateReminderRequest, TaskReminder};
+
+fn now_local() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
 
 fn row_to_reminder(row: &rusqlite::Row) -> rusqlite::Result<TaskReminder> {
     Ok(TaskReminder {
@@ -56,8 +61,8 @@ pub fn create_reminder(conn: &Connection, req: CreateReminderRequest) -> Result<
     ).unwrap_or_default();
 
     conn.execute(
-        "INSERT INTO task_reminders (id, task_id, offset, reminder_time) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![id, req.task_id, req.offset, reminder_time],
+        "INSERT INTO task_reminders (id, task_id, offset, reminder_time, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, req.task_id, req.offset, reminder_time, now_local()],
     )?;
 
     let mut stmt = conn.prepare(
@@ -92,11 +97,12 @@ pub fn copy_reminders(conn: &Connection, source_task_id: &str, dest_task_id: &st
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?.filter_map(|r| r.ok()).collect();
 
+    let now = now_local();
     for (offset, reminder_time) in rows {
         let id = Uuid::new_v4().to_string();
         conn.execute(
-            "INSERT INTO task_reminders (id, task_id, offset, reminder_time) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![id, dest_task_id, offset, reminder_time],
+            "INSERT INTO task_reminders (id, task_id, offset, reminder_time, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![id, dest_task_id, offset, reminder_time, now],
         )?;
     }
     Ok(())

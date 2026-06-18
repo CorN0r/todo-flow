@@ -1,8 +1,13 @@
+use chrono::Local;
 use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::models::tag::{CreateTagRequest, TagWithCount, ReorderTagsItem, Tag, UpdateTagRequest};
+
+fn now_local() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
 
 const TAG_COLOR_PALETTE: &[&str] = &[
     "#7C72F6", "#3B82F6", "#EF4444", "#F59E0B", "#10B981",
@@ -56,9 +61,10 @@ pub fn create(conn: &Connection, req: CreateTagRequest) -> Result<Tag, AppError>
             row.get(0)
         })?;
 
+    let now = now_local();
     conn.execute(
-        "INSERT INTO tags (id, name, color, icon, sort_order, parent_tag_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![id, name, color, icon, max_order + 1, req.parent_tag_id],
+        "INSERT INTO tags (id, name, color, icon, sort_order, parent_tag_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![id, name, color, icon, max_order + 1, req.parent_tag_id, now, now],
     )?;
 
     get_by_id(conn, &id)?.ok_or(AppError::Generic("Failed to create tag".to_string()))
@@ -75,8 +81,8 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<Tag>, AppError> {
 pub fn get_all_with_counts(conn: &Connection) -> Result<Vec<TagWithCount>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT t.id, t.name, t.color, t.icon, t.sort_order, t.parent_tag_id, t.created_at, t.updated_at,
-                COUNT(CASE WHEN tk.is_archived = 0 THEN tk.id END) as task_count,
-                SUM(CASE WHEN tk.is_completed = 0 AND tk.is_archived = 0 AND tk.parent_task_id IS NULL THEN 1 ELSE 0 END) as incomplete_count
+                COUNT(CASE WHEN tk.is_archived = 0 AND tk.is_abandoned = 0 THEN tk.id END) as task_count,
+                SUM(CASE WHEN tk.is_completed = 0 AND tk.is_archived = 0 AND tk.is_abandoned = 0 AND tk.parent_task_id IS NULL THEN 1 ELSE 0 END) as incomplete_count
          FROM tags t
          LEFT JOIN tasks tk ON tk.tag_id = t.id
          GROUP BY t.id
@@ -146,8 +152,8 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTagRequest) -> Result<Tag,
     };
 
     conn.execute(
-        "UPDATE tags SET name = ?1, color = ?2, icon = ?3, parent_tag_id = ?4, updated_at = datetime('now') WHERE id = ?5",
-        rusqlite::params![name, color, icon, parent_tag_id, id],
+        "UPDATE tags SET name = ?1, color = ?2, icon = ?3, parent_tag_id = ?4, updated_at = ?5 WHERE id = ?6",
+        rusqlite::params![name, color, icon, parent_tag_id, now_local(), id],
     )?;
 
     get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update tag".to_string()))
@@ -162,11 +168,12 @@ pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
 }
 
 pub fn reorder(conn: &Connection, items: Vec<ReorderTagsItem>) -> Result<(), AppError> {
+    let now = now_local();
     let tx = conn.unchecked_transaction()?;
     for item in &items {
         tx.execute(
-            "UPDATE tags SET sort_order = ?1, updated_at = datetime('now') WHERE id = ?2",
-            rusqlite::params![item.sort_order, item.id],
+            "UPDATE tags SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params![item.sort_order, now, item.id],
         )?;
     }
     tx.commit()?;

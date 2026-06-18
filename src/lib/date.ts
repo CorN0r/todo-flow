@@ -59,6 +59,21 @@ export function todayISO(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
 
+/**
+ * 将数据库中存储的本地时间字符串（格式 "YYYY-MM-DD HH:MM:SS"）格式化为本地时间显示。
+ * 避免 new Date() 对无时区字符串的解析歧义（部分环境会当作 UTC）。
+ */
+export function formatLocalTime(dbTime: string): string {
+  if (!dbTime) return '';
+  // 分离日期和时间部分
+  const [datePart, timePart] = dbTime.split(' ');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh, mm, ss] = (timePart || '00:00:00').split(':').map(Number);
+  // 显式用本地时间组件构造 Date，避免解析歧义
+  const localDate = new Date(y, m - 1, d, hh || 0, mm || 0, ss || 0);
+  return localDate.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 export function normalizeReminder(reminder: string | null | undefined): string | null {
   if (!reminder) return null;
   return reminder.replace('T', ' ');
@@ -109,6 +124,43 @@ export function computeReminderTime(dueDate: string, offset: string): string {
   due.setHours(hour, minute, 0, 0);
   const rem = new Date(due.getTime() + preset.minutes * 60000);
   return format(rem, 'yyyy-MM-dd HH:mm');
+}
+
+/**
+ * 调整右键菜单位置，确保菜单完全在视口内可见
+ * @param x 原始X坐标（鼠标位置）
+ * @param y 原始Y坐标（鼠标位置）
+ * @param menuW 菜单宽度，默认 180
+ * @param menuH 菜单高度估计值，默认 240
+ * @param padding 边缘留白，默认 8
+ */
+export function adjustContextMenuPosition(
+  x: number,
+  y: number,
+  menuW = 180,
+  menuH = 240,
+  padding = 8,
+): { x: number; y: number } {
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1920;
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 1080;
+
+  // 右/左边缘调整
+  if (x + menuW + padding > viewportW) {
+    x = viewportW - menuW - padding;
+  }
+  if (x - padding < 0) {
+    x = padding;
+  }
+
+  // 下/上边缘调整
+  if (y + menuH + padding > viewportH) {
+    y = viewportH - menuH - padding;
+  }
+  if (y - padding < 0) {
+    y = padding;
+  }
+
+  return { x, y };
 }
 
 export function inferReminderOffset(dueDate: string, reminder: string): string {

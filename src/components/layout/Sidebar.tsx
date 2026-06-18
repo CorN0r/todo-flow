@@ -11,7 +11,7 @@ import { useUpdateTask } from '../../hooks/useTasks';
 import type { TagWithCount } from '../../types/tag';
 
 import { useUIStore } from '../../stores/uiStore';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -33,7 +33,7 @@ function SortableTagItem({ tag, onEdit, onDelete, onAddChild }: {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tag.id });
   const updateTask = useUpdateTask();
   const [dragOver, setDragOver] = useState(false);
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; rawX: number; rawY: number } | null>(null);
   const ctxMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,6 +44,26 @@ function SortableTagItem({ tag, onEdit, onDelete, onAddChild }: {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [ctxMenu]);
+
+  // 测量菜单实际尺寸并调整位置，确保完全在视口内
+  useLayoutEffect(() => {
+    if (!ctxMenu || !ctxMenuRef.current) return;
+    const menu = ctxMenuRef.current;
+    const rect = menu.getBoundingClientRect();
+    const padding = 8;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    let { x, y } = ctxMenu;
+
+    if (x + rect.width + padding > viewportW) x = viewportW - rect.width - padding;
+    if (x - padding < 0) x = padding;
+    if (y + rect.height + padding > viewportH) y = viewportH - rect.height - padding;
+    if (y - padding < 0) y = padding;
+
+    if (x !== ctxMenu.x || y !== ctxMenu.y) {
+      setCtxMenu(prev => prev ? { ...prev, x, y } : null);
+    }
+  }, [ctxMenu?.x, ctxMenu?.y]);
 
   return (
     <>
@@ -56,7 +76,7 @@ function SortableTagItem({ tag, onEdit, onDelete, onAddChild }: {
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); const taskId = e.dataTransfer.getData('text/plain'); if (taskId) updateTask.mutate({ id: taskId, tag_id: tag.id }); }}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, rawX: e.clientX, rawY: e.clientY }); }}
       >
         <NavLink to={`/tag/${tag.id}`}
           className={({ isActive }) => cn(
@@ -269,27 +289,27 @@ export function Sidebar() {
       </div>
 
       {/* Main Nav — p:8px 12px, gap:2px */}
-      <nav className="flex flex-col gap-[2px]" style={{ padding: '8px 12px' }}>
-        <NavLink to="/date/all" className={({ isActive }) => cn(NAV_STYLE, 'h-[38px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+      <nav className="flex flex-col gap-[2px]" style={{ padding: '8px 12px 0 12px' }}>
+        <NavLink to="/date/all" className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
           <span className="w-4 h-4 shrink-0 flex items-center justify-center text-xs font-bold">☰</span>
           <span className="flex-1">全部任务</span>
         </NavLink>
-        <NavLink to="/myday" className={({ isActive }) => cn(NAV_STYLE, 'h-[38px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+        <NavLink to="/myday" className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
           <Sun size={16} /><span className="flex-1">我的一天</span>
         </NavLink>
-        <NavLink to="/calendar" className={({ isActive }) => cn(NAV_STYLE, 'h-[38px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+        <NavLink to="/calendar" className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
           <CalendarRange size={16} /><span className="flex-1">日历</span>
         </NavLink>
-        <NavLink to="/matrix" className={({ isActive }) => cn(NAV_STYLE, 'h-[38px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+        <NavLink to="/matrix" className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
           <LayoutGrid size={16} /><span className="flex-1">四象限</span>
         </NavLink>
-        <NavLink to="/kanban" className={({ isActive }) => cn(NAV_STYLE, 'h-[38px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+        <NavLink to="/kanban" className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
           <Layout size={16} /><span className="flex-1">看板</span>
         </NavLink>
-        <NavLink to="/habits" className={({ isActive }) => cn(NAV_STYLE, 'h-[38px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+        <NavLink to="/habits" className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
           <Target size={16} /><span className="flex-1">习惯追踪</span>
         </NavLink>
-        <NavLink to="/dashboard" className={({ isActive }) => cn(NAV_STYLE, 'h-[38px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+        <NavLink to="/dashboard" className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
           <BarChart3 size={16} /><span className="flex-1">数据面板</span>
         </NavLink>
       </nav>
@@ -305,7 +325,7 @@ export function Sidebar() {
         </button>
       </div>
       {scheduledExpanded && (
-        <div className="flex flex-col gap-[2px]" style={{ padding: '0px 12px' }}>
+        <div className="flex flex-col gap-[2px]" style={{ padding: '1px 12px' }}>
           {[
             { to: '/', end: true, label: '今天', icon: <CalendarCheck size={14} /> },
             { to: '/date/tomorrow', label: '明天', icon: <CalendarRange size={14} /> },
@@ -313,7 +333,7 @@ export function Sidebar() {
             { to: '/date/this-month', label: '未来30天', icon: <Globe size={14} /> },
           ].map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end}
-              className={({ isActive }) => cn(NAV_STYLE, 'h-[36px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
+              className={({ isActive }) => cn(NAV_STYLE, 'h-[34px]', isActive ? ACTIVE_NAV : INACTIVE_NAV)}>
               <span className="shrink-0 opacity-70">{l.icon}</span>
               <span>{l.label}</span>
             </NavLink>

@@ -41,6 +41,7 @@
     "longDescription": "TodoFlow is a modern TODO application with calendar views, subtasks, custom lists, and image attachments.",
     "windows": {
       "nsis": {
+        "template": "windows/installer.nsi",
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
         "languages": ["English", "SimpChinese"],

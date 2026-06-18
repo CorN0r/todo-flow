@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useUpdateTask, useDeleteTask, useCreateTask, useReorderTasks } from '../../hooks/useTasks';
 import { useUIStore } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
@@ -37,14 +37,51 @@ export function UnifiedLayout({ tasks }: UnifiedLayoutProps) {
     reorderTasks.mutate(reordered.map((t, i) => ({ id: t.id, sort_order: i, parent_task_id: t.parent_task_id })));
   };
 
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; task: Task } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; rawX: number; rawY: number; task: Task } | null>(null);
   const ctxMenuRef = useRef<HTMLDivElement>(null);
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<Task | null>(null);
+
+  const doDelete = (t: Task) => {
+    const deletedChildren = t.children || [];
+    setCtxMenu(null);
+    setSelectedTaskId(null);
+    deleteTask.mutate(t.id);
+    toast.success(() => (<span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: t.title, description: t.description, priority: t.priority, due_date: t.due_date || undefined, tag_id: t.tag_id || undefined, parent_task_id: t.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 });
+  };
+
+  const handleDeleteClick = (t: Task) => {
+    if ((t.children?.length || 0) > 0) {
+      setDeleteConfirmTask(t);
+      return;
+    }
+    doDelete(t);
+  };
   useEffect(() => {
     if (!ctxMenu) return;
     const close = (e: MouseEvent) => { if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null); };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [ctxMenu]);
+
+  // 测量菜单实际尺寸并调整位置
+  useLayoutEffect(() => {
+    if (!ctxMenu || !ctxMenuRef.current) return;
+    const menu = ctxMenuRef.current;
+    const rect = menu.getBoundingClientRect();
+    const padding = 8;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    let { x, y } = ctxMenu;
+
+    if (x + rect.width + padding > viewportW) x = viewportW - rect.width - padding;
+    if (x - padding < 0) x = padding;
+    if (y + rect.height + padding > viewportH) y = viewportH - rect.height - padding;
+    if (y - padding < 0) y = padding;
+
+    if (x !== ctxMenu.x || y !== ctxMenu.y) {
+      setCtxMenu(prev => prev ? { ...prev, x, y } : null);
+    }
+  }, [ctxMenu?.x, ctxMenu?.y]);
 
   const [leftWidth, setLeftWidth] = useState(() => Number(localStorage.getItem('unifiedLeftWidth')) || 260);
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -118,10 +155,28 @@ export function UnifiedLayout({ tasks }: UnifiedLayoutProps) {
             {ctxMenu.task.is_completed ? <><RotateCcw size={15} className="text-[#6B7280]" /> 标记未完成</> : <><Check size={15} className="text-[#7C72F6]" /> 标记完成</>}
           </button>
           <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] mt-1 pt-1">
-            <button onClick={() => { const t = ctxMenu.task; setCtxMenu(null); setSelectedTaskId(null); deleteTask.mutate(t.id); toast.success(() => (<span>任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: t.title, description: t.description, priority: t.priority, due_date: t.due_date || undefined, tag_id: t.tag_id || undefined, parent_task_id: t.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); }}
+            <button onClick={() => handleDeleteClick(ctxMenu.task)}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 text-red-600 transition-colors">
               <Trash2 size={15} /> 删除
             </button>
+          </div>
+        </div>
+      </Portal>
+    )}
+
+    {/* Delete confirm dialog */}
+    {deleteConfirmTask && (
+      <Portal>
+        <div className="fixed inset-0 z-[300] bg-black/40 flex items-center justify-center" onClick={() => setDeleteConfirmTask(null)}>
+          <div className="bg-white dark:bg-[#1e1e32] rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-[#111827] dark:text-white/90 mb-1 font-medium">确认删除</p>
+            <p className="text-[13px] text-[#6B7280] mb-5">此任务包含 {deleteConfirmTask.children?.length || 0} 个子任务，删除后将一并移除，不可恢复。</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteConfirmTask(null)}
+                className="px-4 py-2 rounded-lg text-[13px] text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors">取消</button>
+              <button onClick={() => { const t = deleteConfirmTask; setDeleteConfirmTask(null); doDelete(t!); }}
+                className="px-4 py-2 rounded-lg text-[13px] bg-[#EF4444] text-white hover:bg-red-600 transition-colors font-medium">删除</button>
+            </div>
           </div>
         </div>
       </Portal>
@@ -134,7 +189,7 @@ function SortableItem({ task, isSelected, onSelect, onContextMenu, updateTask }:
   task: Task;
   isSelected: boolean;
   onSelect: () => void;
-  onContextMenu: (ctx: { x: number; y: number; task: Task }) => void;
+  onContextMenu: (ctx: { x: number; y: number; rawX: number; rawY: number; task: Task }) => void;
   updateTask: ReturnType<typeof useUpdateTask>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!useUIStore.getState().selectionMode });
@@ -154,7 +209,10 @@ function SortableItem({ task, isSelected, onSelect, onContextMenu, updateTask }:
   return (
     <div ref={setNodeRef} {...(selectionMode ? {} : attributes)} {...(selectionMode ? {} : listeners)} style={style}
       onClick={handleClick}
-      onContextMenu={(e) => { e.preventDefault(); onContextMenu({ x: e.clientX, y: e.clientY, task }); }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu({ x: e.clientX, y: e.clientY, rawX: e.clientX, rawY: e.clientY, task });
+      }}
       className={cn('px-3 py-2 rounded-lg cursor-pointer transition-colors mb-0.5 select-none',
         isDragging && 'opacity-50 z-50',
         (isSelected || isMultiSelected) ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6]' : 'hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] text-[#111827] dark:text-white/90')}>

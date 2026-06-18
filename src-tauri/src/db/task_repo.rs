@@ -1,4 +1,4 @@
-use chrono::{Datelike, Days, Months, NaiveDate};
+use chrono::{Datelike, Days, Months, NaiveDate, Local};
 use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
@@ -8,6 +8,10 @@ use crate::error::AppError;
 use crate::models::task::{
     CreateTaskRequest, ReorderItem, Task, TaskDetail, TaskFilter, UpdateTaskRequest,
 };
+
+fn now_local() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
 
 fn parse_recurrence(recurrence: &str) -> Option<(String, i64)> {
     let v: Value = serde_json::from_str(recurrence).ok()?;
@@ -104,9 +108,10 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
         0
     };
 
+    let now = now_local();
     conn.execute(
-        "INSERT INTO tasks (id, title, description, tag_id, parent_task_id, due_date, priority, reminder, recurrence, my_day_date, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO tasks (id, title, description, tag_id, parent_task_id, due_date, priority, reminder, recurrence, my_day_date, sort_order, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         rusqlite::params![
             id,
             title,
@@ -119,6 +124,8 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
             req.recurrence,
             req.my_day_date,
             sort_order,
+            now,
+            now,
         ],
     )?;
 
@@ -362,13 +369,14 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
     }
 
     let reminder_changed = reminder != original_reminder;
+    let now = now_local();
     conn.execute(
         "UPDATE tasks SET title = ?1, description = ?2, is_completed = ?3, priority = ?4,
          due_date = ?5, tag_id = ?6, parent_task_id = ?7, reminder = ?8, recurrence = ?9,
          my_day_date = ?10, is_suspended = ?11, is_abandoned = ?12,
-         is_pinned = ?15,
+         is_pinned = ?16,
          reminded = CASE WHEN ?14 THEN 0 ELSE reminded END,
-         updated_at = datetime('now') WHERE id = ?13",
+         updated_at = ?15 WHERE id = ?13",
         rusqlite::params![
             title,
             description,
@@ -384,6 +392,7 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
             is_abandoned as i32,
             id,
             reminder_changed,
+            now,
             is_pinned as i32,
         ],
     )?;
@@ -411,11 +420,12 @@ pub fn reorder(conn: &Connection, items: Vec<ReorderItem>) -> Result<(), AppErro
             }
         }
     }
+    let now = now_local();
     let tx = conn.unchecked_transaction()?;
     for item in &items {
         tx.execute(
-            "UPDATE tasks SET sort_order = ?1, parent_task_id = ?2, updated_at = datetime('now') WHERE id = ?3",
-            rusqlite::params![item.sort_order, item.parent_task_id, item.id],
+            "UPDATE tasks SET sort_order = ?1, parent_task_id = ?2, updated_at = ?3 WHERE id = ?4",
+            rusqlite::params![item.sort_order, item.parent_task_id, now, item.id],
         )?;
     }
     tx.commit()?;
@@ -428,6 +438,7 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
 
     let new_id = Uuid::new_v4().to_string();
     let new_title = format!("{} (copy)", original.title);
+    let now = now_local();
 
     conn.execute(
         "UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS ?1 AND tag_id IS ?2",
@@ -436,8 +447,8 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
 
     conn.execute(
         "INSERT INTO tasks (id, title, description, is_completed, priority, due_date, tag_id,
-         parent_task_id, sort_order, recurrence)
-         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, 0, ?8)",
+         parent_task_id, sort_order, recurrence, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, 0, ?8, ?9, ?10)",
         rusqlite::params![
             new_id,
             new_title,
@@ -447,6 +458,8 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
             original.tag_id,
             original.parent_task_id,
             original.recurrence,
+            now,
+            now,
         ],
     )?;
 
@@ -455,8 +468,8 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
         let child_id = Uuid::new_v4().to_string();
         conn.execute(
             "INSERT INTO tasks (id, title, description, is_completed, priority, due_date, tag_id,
-             parent_task_id, sort_order)
-             VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, ?8)",
+             parent_task_id, sort_order, created_at, updated_at)
+             VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             rusqlite::params![
                 child_id,
                 child.title,
@@ -466,6 +479,8 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
                 child.tag_id,
                 new_id,
                 i as i32,
+                now,
+                now,
             ],
         )?;
     }

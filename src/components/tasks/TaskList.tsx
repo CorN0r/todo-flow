@@ -15,16 +15,23 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useState, useCallback } from 'react';
 import { cn } from '../../lib/cn';
 import type { Task } from '../../types/task';
 import { TaskCard } from './TaskCard';
 import { useReorderTasks } from '../../hooks/useTasks';
 
 function SortableTaskRow({ task }: { task: Task }) {
+  const [isEditing, setIsEditing] = useState(false);
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
-    disabled: task.parent_task_id !== null,
+    disabled: task.parent_task_id !== null || isEditing,
   });
+
+  const handleEditingChange = useCallback((editing: boolean) => {
+    setIsEditing(editing);
+  }, []);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -34,12 +41,12 @@ function SortableTaskRow({ task }: { task: Task }) {
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      {...(isEditing ? {} : attributes)}
+      {...(isEditing ? {} : listeners)}
       style={style}
       className={cn('cursor-grab active:cursor-grabbing [&_button]:cursor-pointer', isDragging && 'opacity-50 z-50')}
     >
-      <TaskCard task={task} />
+      <TaskCard task={task} onEditingChange={handleEditingChange} />
     </div>
   );
 }

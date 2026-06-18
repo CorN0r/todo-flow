@@ -1,6 +1,11 @@
+use chrono::Local;
 use rusqlite::{params, Connection};
 use crate::error::AppError;
 use crate::models::habit::*;
+
+fn now_local() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
 
 fn row_to_habit(row: &rusqlite::Row) -> rusqlite::Result<Habit> {
     Ok(Habit {
@@ -28,10 +33,11 @@ pub fn create(conn: &Connection, req: CreateHabitRequest) -> Result<Habit, AppEr
         |row| row.get(0),
     )?;
 
+    let now = now_local();
     conn.execute(
-        "INSERT INTO habits (id, name, color, icon, frequency, target_count, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![id, name, req.color.unwrap_or("#7C72F6".into()), req.icon.unwrap_or("check-circle".into()), req.frequency.unwrap_or("daily".into()), req.target_count.unwrap_or(1), max_order + 1],
+        "INSERT INTO habits (id, name, color, icon, frequency, target_count, sort_order, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![id, name, req.color.unwrap_or("#7C72F6".into()), req.icon.unwrap_or("check-circle".into()), req.frequency.unwrap_or("daily".into()), req.target_count.unwrap_or(1), max_order + 1, now, now],
     )?;
     get_by_id(conn, &id)?.ok_or_else(|| AppError::Generic("Failed to create habit".into()))
 }
@@ -90,13 +96,14 @@ pub fn update(conn: &Connection, id: &str, req: UpdateHabitRequest) -> Result<Ha
     }
 
     conn.execute(
-        "UPDATE habits SET name=?1, color=?2, icon=?3, frequency=?4, target_count=?5, updated_at=datetime('now') WHERE id=?6",
+        "UPDATE habits SET name=?1, color=?2, icon=?3, frequency=?4, target_count=?5, updated_at=?6 WHERE id=?7",
         params![
             name,
             req.color.unwrap_or(existing.color),
             req.icon.unwrap_or(existing.icon),
             req.frequency.unwrap_or(existing.frequency),
             req.target_count.unwrap_or(existing.target_count),
+            now_local(),
             id,
         ],
     )?;
@@ -112,11 +119,12 @@ pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
 }
 
 pub fn reorder(conn: &Connection, items: Vec<ReorderHabitsItem>) -> Result<(), AppError> {
+    let now = now_local();
     let tx = conn.unchecked_transaction()?;
     for item in &items {
         tx.execute(
-            "UPDATE habits SET sort_order = ?1, updated_at = datetime('now') WHERE id = ?2",
-            params![item.sort_order, item.id],
+            "UPDATE habits SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
+            params![item.sort_order, now, item.id],
         )?;
     }
     tx.commit()?;

@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useRef } from 'react';
+﻿import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -40,6 +40,10 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
   const today = new Date();
   const datePart = value ? value.slice(0, 10) : value;
   const timePart = value.length > 10 ? value.slice(11, 16) : '09:00';
+  // 本地时间状态：避免键盘逐位输入时每次 onChange 都触发父组件状态变更
+  // 只有 onBlur 或 Enter 时才提交到父组件
+  const [localTime, setLocalTime] = useState(timePart);
+  useEffect(() => { setLocalTime(timePart); }, [timePart]);
   const [viewYear, setViewYear] = useState(
     value ? parseInt(value.split('-')[0]) : today.getFullYear()
   );
@@ -49,7 +53,15 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
 
   const { weeks, month: calMonth } = getCalendarDays(viewYear, viewMonth);
 
-  const selectedDate = value ? new Date(value + 'T00:00:00') : null;
+  // 用手动解析日期组件避免 new Date(string) 的时区歧义
+  // 同时也避免了当 value 包含时间时 "2026-06-18 22:22T00:00:00" 成为非法日期
+  const selectedDate = value ? (() => {
+    const parts = value.split('-');
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]) - 1;
+    const d = parseInt(parts[2]);
+    return new Date(y, m, d);
+  })() : null;
 
   const maxCount = useMemo(() => {
     if (!dateCounts) return 0;
@@ -83,7 +95,14 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
   const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
   const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
-  const compactLabel = value ? format(new Date(value.replace(' ', 'T')), 'M月d日') + (value.length > 10 ? ' ' + value.slice(11, 16) : '') : '';
+  // 手动解析日期组件构造本地时间 Date，避免 new Date("YYYY-MM-DDTHH:mm") 被当作 UTC
+  const compactLabel = value ? (() => {
+    const parts = value.split('-');
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]) - 1;
+    const d = parseInt(parts[2]);
+    return format(new Date(y, m, d), 'M月d日') + (value.length > 10 ? ' ' + value.slice(11, 16) : '');
+  })() : '';
 
   return (
     <div className="relative inline-block">
@@ -105,7 +124,7 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
       ) : iconOnly === 'label' ? (
         <button
           ref={triggerRef}
-          onClick={() => setOpen(!open)}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
           className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors"
         >
           <CalendarIcon size={12} />截止日期
@@ -113,7 +132,7 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
       ) : (
       <button
         ref={triggerRef}
-        onClick={() => setOpen(!open)}
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         className={cn(
           iconOnly
             ? 'flex items-center justify-center shrink-0 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1] transition-colors'
@@ -141,9 +160,9 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
 
       {open && (
         <Portal>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="fixed inset-0 z-[260]" onClick={() => setOpen(false)} aria-hidden="true" />
           <div
-            className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-3 min-w-[260px]"
+            className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-3 min-w-[260px]"
             style={(() => {
               const rect = triggerRef.current?.getBoundingClientRect();
               if (!rect) return {};
@@ -198,7 +217,7 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
                           isCurrentMonth && 'hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] cursor-pointer text-[#111827] dark:text-white/90',
                           !isCurrentMonth && 'text-[#D1D5DB] dark:text-white/[0.15] cursor-default',
                           isTodayDate && !isSelected && 'font-bold text-[#7C72F6]',
-                          isSelected && 'bg-[#7C72F6] text-white hover:bg-[#7C72F6]',
+                          isSelected && 'bg-[#7C72F6] text-white dark:text-white hover:bg-[#7C72F6] dark:hover:bg-[#7C72F6]',
                         )}
                       >
                         {d.getDate()}
@@ -242,8 +261,10 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
                 </div>
                 <input
                   type="time"
-                  value={timePart}
-                  onChange={(e) => handleTimeChange(e.target.value)}
+                  value={localTime}
+                  onChange={(e) => setLocalTime(e.target.value)}
+                  onBlur={(e) => handleTimeChange(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleTimeChange((e.target as HTMLInputElement).value); }}
                   className="w-full text-sm px-2 py-1 rounded-lg border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.03] text-[#111827] dark:text-white/90 outline-none focus:border-[#7C72F6] text-center [color-scheme:light] dark:[color-scheme:dark]"
                 />
               </div>

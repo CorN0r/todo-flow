@@ -347,14 +347,40 @@ pub fn run() {
             .shadow(false)
             .build()?;
 
-            // Position: bottom-right above widget area
-            if let Ok(monitors) = pomodoro_win.available_monitors() {
-                if let Some(monitor) = monitors.into_iter().next() {
-                    let size = monitor.size();
-                    let scale = monitor.scale_factor();
-                    let x = (size.width as f64 / scale) - 240.0;
-                    let y = (size.height as f64 / scale) - 540.0;
-                    let _ = pomodoro_win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+            // Try to restore saved pomodoro position from settings
+            let mut pomo_positioned = false;
+            if let Ok(db) = db_for_widget.lock() {
+                let x_str: Option<String> = db
+                    .query_row(
+                        "SELECT value FROM settings WHERE key = 'pomodoro_x'",
+                        rusqlite::params![],
+                        |row| row.get(0),
+                    )
+                    .ok();
+                let y_str: Option<String> = db
+                    .query_row(
+                        "SELECT value FROM settings WHERE key = 'pomodoro_y'",
+                        rusqlite::params![],
+                        |row| row.get(0),
+                    )
+                    .ok();
+                if let (Some(x_str), Some(y_str)) = (x_str, y_str) {
+                    if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
+                        let _ = pomodoro_win.set_position(tauri::PhysicalPosition::new(x, y));
+                        pomo_positioned = true;
+                    }
+                }
+            }
+            // Fallback: bottom-right above widget area
+            if !pomo_positioned {
+                if let Ok(monitors) = pomodoro_win.available_monitors() {
+                    if let Some(monitor) = monitors.into_iter().next() {
+                        let size = monitor.size();
+                        let scale = monitor.scale_factor();
+                        let x = (size.width as f64 / scale) - 240.0;
+                        let y = (size.height as f64 / scale) - 540.0;
+                        let _ = pomodoro_win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+                    }
                 }
             }
 
