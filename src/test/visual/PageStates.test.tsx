@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { renderWithTheme, resetTheme } from '../test-utils';
 import { TodayPage } from '../../pages/TodayPage';
@@ -9,11 +9,13 @@ import { DateFilterPage } from '../../pages/DateFilterPage';
 
 // Common mocks for pages that use useTasks
 const mockTasks = { data: null as any, isLoading: false };
-const mockStats = {
-  total_tasks: 10, completed_tasks: 4, incomplete_tasks: 6,
-  overdue_tasks: 2, streak_days: 3, today_completed: 1,
-  completion_by_date: [], tasks_by_tag: [],
-};
+const { mockStats } = vi.hoisted(() => ({
+  mockStats: {
+    total_tasks: 10, completed_tasks: 4, incomplete_tasks: 6,
+    overdue_tasks: 2, streak_days: 3, today_completed: 1,
+    completion_by_date: [], tasks_by_tag: [],
+  },
+}));
 
 vi.mock('../../hooks/useTasks', () => ({
   useTasks: () => mockTasks,
@@ -47,6 +49,17 @@ vi.mock('../../stores/uiStore', () => ({
       theme: 'system', resolvedTheme: 'light', sidebarOpen: true,
       selectedTaskId: null, selectionMode: false, selectedTaskIds: new Set(),
       setSelectedTaskId: vi.fn(), isDetailDirty: false, detailSaveStatus: 'idle',
+      sortMode: 'manual',
+      setSortMode: vi.fn(),
+      taskViewMode: 'list',
+      setTaskViewMode: vi.fn(),
+      showQuickAdd: false,
+      setShowQuickAdd: vi.fn(),
+      exitSelectionMode: vi.fn(),
+      enterSelectionMode: vi.fn(),
+      setSelectableIds: vi.fn(),
+      globalSubtasksExpanded: false,
+      toggleGlobalSubtasksExpanded: vi.fn(),
     };
     if (typeof selector === 'function') return selector(state);
     return state;
@@ -87,7 +100,17 @@ function snapshotEmpty(page: React.ReactElement, name: string, theme: 'light' | 
 }
 
 describe('Page visual states', () => {
-  afterEach(() => { resetTheme(); mockTasks.isLoading = false; mockTasks.data = null; });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 11, 12));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    resetTheme();
+    mockTasks.isLoading = false;
+    mockTasks.data = null;
+  });
 
   // Light theme
   describe('light theme', () => {

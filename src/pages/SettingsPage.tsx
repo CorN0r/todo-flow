@@ -3,8 +3,8 @@ import { Upload, Download, Database, PanelBottom, ChevronRight, ChevronDown } fr
 import { toast } from 'sonner';
 import { emit } from '@tauri-apps/api/event';
 import { getTasks, backupDatabase, exportCsv, importDatabase, getSetting, setSetting } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
 import { usePomodoroStore } from '../stores/pomodoroStore';
-import { save, open } from '@tauri-apps/plugin-dialog';
 import { ShortcutEditor } from '../components/shared/ShortcutEditor';
 
 type BubbleColors = { from: string; via: string; to: string };
@@ -58,7 +58,7 @@ export function SettingsPage() {
   };
 
   const handleBackup = async () => {
-    const path = await save({
+    const path = await getRepositories().platform.chooseSavePath({
       filters: [{ name: 'SQLite Database', extensions: ['db'] }],
       defaultPath: `todoflow-backup-${new Date().toISOString().split('T')[0]}.db`,
     });
@@ -74,7 +74,7 @@ export function SettingsPage() {
   };
 
   const handleExportCSV = async () => {
-    const path = await save({
+    const path = await getRepositories().platform.chooseSavePath({
       filters: [{ name: 'CSV', extensions: ['csv'] }],
       defaultPath: `todoflow-export-${new Date().toISOString().split('T')[0]}.csv`,
     });
@@ -102,7 +102,7 @@ export function SettingsPage() {
   const [importing, setImporting] = useState(false);
 
   const handleImport = async () => {
-    const selected = await open({
+    const [selected] = await getRepositories().platform.chooseFiles({
       filters: [{ name: 'SQLite Database', extensions: ['db'] }],
       multiple: false,
     });

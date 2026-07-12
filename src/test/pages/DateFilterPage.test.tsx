@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { DateFilterPage } from '../../pages/DateFilterPage';
 import { renderWithProviders } from '../test-utils';
+import { useUIStore } from '../../stores/uiStore';
 
-const mockTasks = { data: null as any, isLoading: false };
+const mockTasks = { data: null as any, isLoading: false, isError: false };
 
 vi.mock('../../hooks/useTasks', () => ({
   useTasks: () => mockTasks,
@@ -31,6 +32,8 @@ describe('DateFilterPage', () => {
   beforeEach(() => {
     mockTasks.data = null;
     mockTasks.isLoading = false;
+    mockTasks.isError = false;
+    useUIStore.setState({ taskStatusFilter: 'all', selectedTaskId: null, selectedTaskIds: new Set() });
   });
 
   it('shows loading skeleton', () => {
@@ -43,23 +46,24 @@ describe('DateFilterPage', () => {
   it('renders All Tasks for all filter', () => {
     mockTasks.data = [];
     renderWithProviders(<DateFilterPage />);
-    expect(screen.getByText('全部任务')).toBeInTheDocument();
+    expect(screen.getByText('\u5168\u90e8\u4efb\u52a1')).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', () => {
     mockTasks.data = [];
     renderWithProviders(<DateFilterPage />);
-    expect(screen.getByText('No tasks in this time range')).toBeInTheDocument();
+    expect(screen.getByText('\u6b64\u65f6\u95f4\u6bb5\u6682\u65e0\u4efb\u52a1')).toBeInTheDocument();
   });
 
   it('shows task count', () => {
     mockTasks.data = [{
       id: 't1', title: 'T1', is_completed: false, is_archived: false,
+      is_suspended: false, is_abandoned: false, is_pinned: false,
       priority: 0, due_date: null, reminder: null, tag_id: null,
       parent_task_id: null, sort_order: 0, recurrence: null,
       my_day_date: null, children_count: 0, created_at: '', updated_at: '',
     }];
     renderWithProviders(<DateFilterPage />);
-    expect(screen.getByText('0/1 项')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '\u5168\u90e8 1' })).toBeInTheDocument();
   });
 });

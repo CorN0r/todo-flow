@@ -371,11 +371,11 @@ export function DashboardPage() {
         <StatCard icon={<List size={18} />} label="全部任务" value={stats.total_tasks} color="#7C72F6"
           onClick={() => navigate('/date/all')} />
         <StatCard icon={<CheckCircle2 size={18} />} label="已完成" value={stats.completed_tasks} color="#22C55E"
-          onClick={() => navigate('/date/all', { state: { filterMode: 'completed' } })} />
+          onClick={() => navigate('/date/all', { state: { statusFilter: 'completed' } })} />
         <StatCard icon={<Clock size={18} />} label="未完成" value={stats.incomplete_tasks} color="#7C72F6"
-          onClick={() => navigate('/date/all', { state: { filterMode: 'incomplete' } })} />
+          onClick={() => navigate('/date/all', { state: { statusFilter: 'active' } })} />
         <StatCard icon={<AlertTriangle size={18} />} label="超期" value={stats.overdue_tasks} color="#EF4444"
-          onClick={() => navigate('/date/all', { state: { filterMode: 'overdue' } })} />
+          onClick={() => navigate('/date/all', { state: { statusFilter: 'overdue' } })} />
       </div>
 
       {/* Progress & Chart row */}

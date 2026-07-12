@@ -234,5 +234,256 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 12)?;
     }
 
+    if current_version < 13 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS sync_meta (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS sync_operations (
+                op_id          TEXT PRIMARY KEY,
+                entity_type    TEXT NOT NULL,
+                entity_id      TEXT NOT NULL,
+                operation      TEXT NOT NULL,
+                base_revision  INTEGER,
+                payload        TEXT NOT NULL,
+                client_time    TEXT NOT NULL,
+                device_id      TEXT NOT NULL,
+                status         TEXT NOT NULL DEFAULT 'pending',
+                retry_count    INTEGER NOT NULL DEFAULT 0,
+                last_error     TEXT,
+                created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                CHECK(entity_type IN ('task', 'task_reminder', 'tag', 'attachment', 'habit', 'habit_log', 'setting')),
+                CHECK(operation IN ('create', 'update', 'reorder', 'delete')),
+                CHECK(status IN ('pending', 'syncing', 'acked', 'failed'))
+            );
+
+            CREATE TABLE IF NOT EXISTS sync_conflicts (
+                id             TEXT PRIMARY KEY,
+                entity_type    TEXT NOT NULL,
+                entity_id      TEXT NOT NULL,
+                local_payload  TEXT NOT NULL,
+                remote_payload TEXT NOT NULL,
+                created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                resolved_at    TEXT,
+                CHECK(entity_type IN ('task', 'task_reminder', 'tag', 'attachment', 'habit', 'habit_log', 'setting'))
+            );
+
+            ALTER TABLE tasks ADD COLUMN deleted_at TEXT;
+            ALTER TABLE tasks ADD COLUMN server_revision INTEGER;
+            ALTER TABLE tasks ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE tasks ADD COLUMN last_modified_device_id TEXT;
+            ALTER TABLE tasks ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'clean';
+
+            ALTER TABLE task_reminders ADD COLUMN deleted_at TEXT;
+            ALTER TABLE task_reminders ADD COLUMN server_revision INTEGER;
+            ALTER TABLE task_reminders ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE task_reminders ADD COLUMN last_modified_device_id TEXT;
+            ALTER TABLE task_reminders ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'clean';
+
+            ALTER TABLE tags ADD COLUMN deleted_at TEXT;
+            ALTER TABLE tags ADD COLUMN server_revision INTEGER;
+            ALTER TABLE tags ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE tags ADD COLUMN last_modified_device_id TEXT;
+            ALTER TABLE tags ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'clean';
+
+            ALTER TABLE attachments ADD COLUMN deleted_at TEXT;
+            ALTER TABLE attachments ADD COLUMN server_revision INTEGER;
+            ALTER TABLE attachments ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE attachments ADD COLUMN last_modified_device_id TEXT;
+            ALTER TABLE attachments ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'clean';
+
+            ALTER TABLE habits ADD COLUMN deleted_at TEXT;
+            ALTER TABLE habits ADD COLUMN server_revision INTEGER;
+            ALTER TABLE habits ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE habits ADD COLUMN last_modified_device_id TEXT;
+            ALTER TABLE habits ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'clean';
+
+            ALTER TABLE habit_logs ADD COLUMN deleted_at TEXT;
+            ALTER TABLE habit_logs ADD COLUMN server_revision INTEGER;
+            ALTER TABLE habit_logs ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE habit_logs ADD COLUMN last_modified_device_id TEXT;
+            ALTER TABLE habit_logs ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'clean';
+
+            ALTER TABLE settings ADD COLUMN deleted_at TEXT;
+            ALTER TABLE settings ADD COLUMN server_revision INTEGER;
+            ALTER TABLE settings ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE settings ADD COLUMN last_modified_device_id TEXT;
+            ALTER TABLE settings ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'clean';
+
+            CREATE INDEX IF NOT EXISTS idx_sync_operations_status ON sync_operations(status, created_at);
+            CREATE INDEX IF NOT EXISTS idx_sync_operations_entity ON sync_operations(entity_type, entity_id);
+            CREATE INDEX IF NOT EXISTS idx_sync_conflicts_entity ON sync_conflicts(entity_type, entity_id, resolved_at);
+            CREATE INDEX IF NOT EXISTS idx_tasks_sync_status ON tasks(sync_status);
+            CREATE INDEX IF NOT EXISTS idx_tasks_deleted_at ON tasks(deleted_at);
+            CREATE INDEX IF NOT EXISTS idx_task_reminders_sync_status ON task_reminders(sync_status);
+            CREATE INDEX IF NOT EXISTS idx_tags_sync_status ON tags(sync_status);
+            CREATE INDEX IF NOT EXISTS idx_attachments_sync_status ON attachments(sync_status);
+            CREATE INDEX IF NOT EXISTS idx_habits_sync_status ON habits(sync_status);
+            CREATE INDEX IF NOT EXISTS idx_habit_logs_sync_status ON habit_logs(sync_status);
+            CREATE INDEX IF NOT EXISTS idx_settings_sync_status ON settings(sync_status);",
+        )?;
+        conn.pragma_update(None, "user_version", 13)?;
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn table_count(conn: &Connection, table: &str) -> i64 {
+        conn.query_row(&format!("SELECT COUNT(*) FROM {}", table), [], |row| {
+            row.get(0)
+        })
+        .unwrap()
+    }
+
+    fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info({})", table))
+            .unwrap();
+        let columns = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        columns.iter().any(|name| name == column)
+    }
+
+    fn create_v12_database(conn: &Connection) {
+        conn.execute_batch(
+            "CREATE TABLE tags (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                color TEXT NOT NULL,
+                icon TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                parent_tag_id TEXT
+            );
+
+            CREATE TABLE tasks (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                is_completed INTEGER NOT NULL DEFAULT 0,
+                is_archived INTEGER NOT NULL DEFAULT 0,
+                priority INTEGER NOT NULL DEFAULT 0,
+                due_date TEXT,
+                reminder TEXT,
+                tag_id TEXT,
+                parent_task_id TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                recurrence TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                my_day_date TEXT,
+                reminded INTEGER NOT NULL DEFAULT 0,
+                is_suspended INTEGER NOT NULL DEFAULT 0,
+                is_abandoned INTEGER NOT NULL DEFAULT 0,
+                is_pinned INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE task_reminders (
+                id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL,
+                offset TEXT NOT NULL,
+                reminder_time TEXT NOT NULL,
+                reminded INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE attachments (
+                id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL,
+                original_name TEXT NOT NULL,
+                storage_name TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                thumbnail_name TEXT,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE habits (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                color TEXT NOT NULL,
+                icon TEXT NOT NULL,
+                frequency TEXT NOT NULL,
+                target_count INTEGER NOT NULL DEFAULT 1,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE habit_logs (
+                id TEXT PRIMARY KEY,
+                habit_id TEXT NOT NULL,
+                log_date TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 1,
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
+            INSERT INTO tags (id, name, color, icon, created_at, updated_at)
+            VALUES ('tag-1', 'Work', '#7C72F6', 'tag', '2026-07-06 00:00:00', '2026-07-06 00:00:00');
+            INSERT INTO tasks (id, title, created_at, updated_at, tag_id)
+            VALUES ('task-1', 'Keep me', '2026-07-06 00:00:00', '2026-07-06 00:00:00', 'tag-1');
+            INSERT INTO task_reminders (id, task_id, offset, reminder_time, created_at)
+            VALUES ('reminder-1', 'task-1', '0m', '2026-07-06 08:00', '2026-07-06 00:00:00');
+            INSERT INTO attachments (id, task_id, original_name, storage_name, mime_type, file_size, created_at)
+            VALUES ('attachment-1', 'task-1', 'a.txt', 'a.txt', 'text/plain', 1, '2026-07-06 00:00:00');
+            INSERT INTO habits (id, name, color, icon, frequency, created_at, updated_at)
+            VALUES ('habit-1', 'Read', '#10B981', 'book', 'daily', '2026-07-06 00:00:00', '2026-07-06 00:00:00');
+            INSERT INTO habit_logs (id, habit_id, log_date, count, created_at)
+            VALUES ('habit-log-1', 'habit-1', '2026-07-06', 1, '2026-07-06 00:00:00');
+            INSERT INTO settings (key, value) VALUES ('theme', 'dark');
+
+            PRAGMA user_version = 12;",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn upgrades_v12_database_to_sync_schema_without_losing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        create_v12_database(&conn);
+
+        run(&conn).unwrap();
+
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 13);
+
+        assert_eq!(table_count(&conn, "tasks"), 1);
+        assert_eq!(table_count(&conn, "task_reminders"), 1);
+        assert_eq!(table_count(&conn, "tags"), 1);
+        assert_eq!(table_count(&conn, "attachments"), 1);
+        assert_eq!(table_count(&conn, "habits"), 1);
+        assert_eq!(table_count(&conn, "habit_logs"), 1);
+        assert_eq!(table_count(&conn, "settings"), 1);
+
+        assert!(column_exists(&conn, "tasks", "sync_status"));
+        assert!(column_exists(&conn, "task_reminders", "deleted_at"));
+        assert!(column_exists(&conn, "tags", "local_revision"));
+        assert!(column_exists(&conn, "attachments", "server_revision"));
+        assert!(column_exists(&conn, "habits", "last_modified_device_id"));
+        assert!(column_exists(&conn, "habit_logs", "sync_status"));
+        assert!(column_exists(&conn, "settings", "sync_status"));
+
+        assert_eq!(table_count(&conn, "sync_meta"), 0);
+        assert_eq!(table_count(&conn, "sync_operations"), 0);
+        assert_eq!(table_count(&conn, "sync_conflicts"), 0);
+    }
 }

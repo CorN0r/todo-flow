@@ -1,18 +1,19 @@
 use chrono::Local;
 use rusqlite::Connection;
+use serde_json::json;
 use uuid::Uuid;
 
+use crate::db::sync_repo;
 use crate::error::AppError;
-use crate::models::tag::{CreateTagRequest, TagWithCount, ReorderTagsItem, Tag, UpdateTagRequest};
+use crate::models::tag::{CreateTagRequest, ReorderTagsItem, Tag, TagWithCount, UpdateTagRequest};
 
 fn now_local() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 const TAG_COLOR_PALETTE: &[&str] = &[
-    "#7C72F6", "#3B82F6", "#EF4444", "#F59E0B", "#10B981",
-    "#EC4899", "#06B6D4", "#F97316", "#8B5CF6", "#14B8A6",
-    "#E11D48", "#6366F1", "#84CC16", "#D946EF", "#0EA5E9",
+    "#7C72F6", "#3B82F6", "#EF4444", "#F59E0B", "#10B981", "#EC4899", "#06B6D4", "#F97316",
+    "#8B5CF6", "#14B8A6", "#E11D48", "#6366F1", "#84CC16", "#D946EF", "#0EA5E9",
 ];
 
 fn pick_auto_color(conn: &Connection) -> String {
@@ -56,10 +57,11 @@ pub fn create(conn: &Connection, req: CreateTagRequest) -> Result<Tag, AppError>
     let color = req.color.unwrap_or_else(|| pick_auto_color(conn));
     let icon = req.icon.unwrap_or_else(|| "tag".to_string());
 
-    let max_order: i32 = conn
-        .query_row("SELECT COALESCE(MAX(sort_order), -1) FROM tags", [], |row| {
-            row.get(0)
-        })?;
+    let max_order: i32 = conn.query_row(
+        "SELECT COALESCE(MAX(sort_order), -1) FROM tags",
+        [],
+        |row| row.get(0),
+    )?;
 
     let now = now_local();
     conn.execute(
@@ -67,6 +69,9 @@ pub fn create(conn: &Connection, req: CreateTagRequest) -> Result<Tag, AppError>
         rusqlite::params![id, name, color, icon, max_order + 1, req.parent_tag_id, now, now],
     )?;
 
+    let tag = get_by_id(conn, &id)?.ok_or(AppError::Generic("Failed to create tag".to_string()))?;
+    let _ =
+        sync_repo::record_local_operation(conn, "tag", &tag.id, "create", json!({ "tag": tag }))?;
     get_by_id(conn, &id)?.ok_or(AppError::Generic("Failed to create tag".to_string()))
 }
 
@@ -84,7 +89,8 @@ pub fn get_all_with_counts(conn: &Connection) -> Result<Vec<TagWithCount>, AppEr
                 COUNT(CASE WHEN tk.is_archived = 0 AND tk.is_abandoned = 0 THEN tk.id END) as task_count,
                 SUM(CASE WHEN tk.is_completed = 0 AND tk.is_archived = 0 AND tk.is_abandoned = 0 AND tk.parent_task_id IS NULL THEN 1 ELSE 0 END) as incomplete_count
          FROM tags t
-         LEFT JOIN tasks tk ON tk.tag_id = t.id
+         LEFT JOIN tasks tk ON tk.tag_id = t.id AND tk.deleted_at IS NULL
+         WHERE t.deleted_at IS NULL
          GROUP BY t.id
          ORDER BY t.sort_order ASC",
     )?;
@@ -107,7 +113,8 @@ pub fn get_all_with_counts(conn: &Connection) -> Result<Vec<TagWithCount>, AppEr
 
     // Build tree: root tags get children, nested tags go under their parent
     let mut roots: Vec<TagWithCount> = Vec::new();
-    let mut child_map: std::collections::HashMap<String, Vec<TagWithCount>> = std::collections::HashMap::new();
+    let mut child_map: std::collections::HashMap<String, Vec<TagWithCount>> =
+        std::collections::HashMap::new();
 
     for tag in tags {
         match &tag.parent_tag_id {
@@ -118,7 +125,10 @@ pub fn get_all_with_counts(conn: &Connection) -> Result<Vec<TagWithCount>, AppEr
         }
     }
 
-    fn attach_children(tags: &mut Vec<TagWithCount>, child_map: &mut std::collections::HashMap<String, Vec<TagWithCount>>) {
+    fn attach_children(
+        tags: &mut Vec<TagWithCount>,
+        child_map: &mut std::collections::HashMap<String, Vec<TagWithCount>>,
+    ) {
         for tag in tags.iter_mut() {
             if let Some(children) = child_map.remove(&tag.id) {
                 tag.children = children;
@@ -132,7 +142,8 @@ pub fn get_all_with_counts(conn: &Connection) -> Result<Vec<TagWithCount>, AppEr
 }
 
 pub fn update(conn: &Connection, id: &str, req: UpdateTagRequest) -> Result<Tag, AppError> {
-    let existing = get_by_id(conn, id)?.ok_or_else(|| AppError::NotFound(format!("Tag {} not found", id)))?;
+    let existing =
+        get_by_id(conn, id)?.ok_or_else(|| AppError::NotFound(format!("Tag {} not found", id)))?;
 
     let name = match req.name {
         Some(n) => {
@@ -156,10 +167,27 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTagRequest) -> Result<Tag,
         rusqlite::params![name, color, icon, parent_tag_id, now_local(), id],
     )?;
 
+    let tag = get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update tag".to_string()))?;
+    let _ = sync_repo::record_local_operation(conn, "tag", id, "update", json!({ "tag": tag }))?;
     get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update tag".to_string()))
 }
 
 pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
+    if sync_repo::is_sync_enabled(conn)? {
+        let _existing = get_by_id(conn, id)?
+            .ok_or_else(|| AppError::NotFound(format!("Tag {} not found", id)))?;
+        let _ = sync_repo::record_local_operation(conn, "tag", id, "delete", json!({ "id": id }))?;
+        conn.execute(
+            "UPDATE tags
+             SET deleted_at = COALESCE(deleted_at, ?1),
+                 updated_at = ?1,
+                 sync_status = 'deleted'
+             WHERE parent_tag_id = ?2",
+            rusqlite::params![now_local(), id],
+        )?;
+        return Ok(());
+    }
+
     let affected = conn.execute("DELETE FROM tags WHERE id = ?1", rusqlite::params![id])?;
     if affected == 0 {
         return Err(AppError::NotFound(format!("Tag {} not found", id)));
@@ -177,6 +205,20 @@ pub fn reorder(conn: &Connection, items: Vec<ReorderTagsItem>) -> Result<(), App
         )?;
     }
     tx.commit()?;
+    if sync_repo::is_sync_enabled(conn)? {
+        for item in &items {
+            let _ = sync_repo::record_local_operation(
+                conn,
+                "tag",
+                &item.id,
+                "reorder",
+                json!({
+                    "id": item.id,
+                    "sort_order": item.sort_order,
+                }),
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -194,7 +236,12 @@ mod tests {
     }
 
     fn create_req(name: &str) -> CreateTagRequest {
-        CreateTagRequest { name: name.to_string(), color: None, icon: None, parent_tag_id: None }
+        CreateTagRequest {
+            name: name.to_string(),
+            color: None,
+            icon: None,
+            parent_tag_id: None,
+        }
     }
 
     #[test]
@@ -231,12 +278,17 @@ mod tests {
         let conn = setup();
         let tag = create(&conn, create_req("Old Name")).unwrap();
 
-        let updated = update(&conn, &tag.id, UpdateTagRequest {
-            name: Some("New Name".to_string()),
-            color: Some("#ff0000".to_string()),
-            icon: None,
-            parent_tag_id: None,
-        }).unwrap();
+        let updated = update(
+            &conn,
+            &tag.id,
+            UpdateTagRequest {
+                name: Some("New Name".to_string()),
+                color: Some("#ff0000".to_string()),
+                icon: None,
+                parent_tag_id: None,
+            },
+        )
+        .unwrap();
         assert_eq!(updated.name, "New Name");
         assert_eq!(updated.color, "#ff0000");
     }
@@ -259,9 +311,16 @@ mod tests {
     #[test]
     fn test_update_not_found() {
         let conn = setup();
-        let result = update(&conn, "nonexistent", UpdateTagRequest {
-            name: None, color: None, icon: None, parent_tag_id: None,
-        });
+        let result = update(
+            &conn,
+            "nonexistent",
+            UpdateTagRequest {
+                name: None,
+                color: None,
+                icon: None,
+                parent_tag_id: None,
+            },
+        );
         assert!(result.is_err());
     }
 
@@ -271,10 +330,20 @@ mod tests {
         let t1 = create(&conn, create_req("First")).unwrap();
         let t2 = create(&conn, create_req("Second")).unwrap();
 
-        reorder(&conn, vec![
-            ReorderTagsItem { id: t2.id.clone(), sort_order: 0 },
-            ReorderTagsItem { id: t1.id.clone(), sort_order: 1 },
-        ]).unwrap();
+        reorder(
+            &conn,
+            vec![
+                ReorderTagsItem {
+                    id: t2.id.clone(),
+                    sort_order: 0,
+                },
+                ReorderTagsItem {
+                    id: t1.id.clone(),
+                    sort_order: 1,
+                },
+            ],
+        )
+        .unwrap();
 
         let tags = get_all_with_counts(&conn).unwrap();
         assert_eq!(tags[0].id, t2.id);

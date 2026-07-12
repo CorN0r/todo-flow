@@ -23,11 +23,14 @@ pub fn create_task_reminder(
     due_date: Option<String>,
 ) -> Result<TaskReminder, AppError> {
     let conn = state.db.lock().unwrap();
-    let reminder = reminder_repo::create_reminder(&conn, CreateReminderRequest {
-        task_id,
-        offset,
-        due_date,
-    })?;
+    let reminder = reminder_repo::create_reminder(
+        &conn,
+        CreateReminderRequest {
+            task_id,
+            offset,
+            due_date,
+        },
+    )?;
     let _ = app.emit("task-changed", ());
     Ok(reminder)
 }

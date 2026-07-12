@@ -11,12 +11,14 @@ import { CSS } from '@dnd-kit/utilities';
 import type { Task } from '../../types/task';
 import { TaskDetail } from '../tasks/TaskDetail';
 import { Portal } from '../shared/Portal';
+import { mergeVisibleTaskOrder } from '../../lib/taskOrder';
 
 interface UnifiedLayoutProps {
   tasks: Task[];
+  reorderScope?: Task[];
 }
 
-export function UnifiedLayout({ tasks }: UnifiedLayoutProps) {
+export function UnifiedLayout({ tasks, reorderScope = tasks }: UnifiedLayoutProps) {
   const selectedTaskId = useUIStore((s) => s.selectedTaskId);
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
   const updateTask = useUpdateTask();
@@ -34,7 +36,8 @@ export function UnifiedLayout({ tasks }: UnifiedLayoutProps) {
     const newIndex = tasks.findIndex((t) => t.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(tasks, oldIndex, newIndex);
-    reorderTasks.mutate(reordered.map((t, i) => ({ id: t.id, sort_order: i, parent_task_id: t.parent_task_id })));
+    const mergedOrder = mergeVisibleTaskOrder(reorderScope, reordered);
+    reorderTasks.mutate(mergedOrder.map((t, i) => ({ id: t.id, sort_order: i, parent_task_id: t.parent_task_id })));
   };
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; rawX: number; rawY: number; task: Task } | null>(null);
@@ -81,7 +84,7 @@ export function UnifiedLayout({ tasks }: UnifiedLayoutProps) {
     if (x !== ctxMenu.x || y !== ctxMenu.y) {
       setCtxMenu(prev => prev ? { ...prev, x, y } : null);
     }
-  }, [ctxMenu?.x, ctxMenu?.y]);
+  }, [ctxMenu]);
 
   const [leftWidth, setLeftWidth] = useState(() => Number(localStorage.getItem('unifiedLeftWidth')) || 260);
   const handleResizeStart = (e: React.MouseEvent) => {

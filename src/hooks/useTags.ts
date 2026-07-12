@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createTag, getTags, updateTag, deleteTag, reorderTags } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
 import type { CreateTagInput, TagWithCount } from '../types/tag';
 
 const TAGS_KEY = ['tags'] as const;
@@ -8,7 +8,7 @@ const TAGS_KEY = ['tags'] as const;
 export function useTags() {
   return useQuery({
     queryKey: TAGS_KEY,
-    queryFn: getTags,
+    queryFn: () => getRepositories().tags.list(),
     staleTime: 30_000,
   });
 }
@@ -16,7 +16,7 @@ export function useTags() {
 export function useCreateTag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateTagInput) => createTag(input),
+    mutationFn: (input: CreateTagInput) => getRepositories().tags.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TAGS_KEY });
       toast.success('标签已创建');
@@ -29,7 +29,7 @@ export function useUpdateTag() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...input }: { id: string; name?: string; color?: string }) =>
-      updateTag(id, input),
+      getRepositories().tags.update(id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TAGS_KEY });
     },
@@ -40,7 +40,7 @@ export function useUpdateTag() {
 export function useDeleteTag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteTag(id),
+    mutationFn: (id: string) => getRepositories().tags.delete(id),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: TAGS_KEY });
       const previous = queryClient.getQueryData(TAGS_KEY);
@@ -71,7 +71,7 @@ export function useDeleteTag() {
 export function useReorderTags() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (items: { id: string; sort_order: number }[]) => reorderTags(items),
+    mutationFn: (items: { id: string; sort_order: number }[]) => getRepositories().tags.reorder(items),
     onMutate: async (items) => {
       await queryClient.cancelQueries({ queryKey: TAGS_KEY });
       const previous = queryClient.getQueryData(TAGS_KEY);

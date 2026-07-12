@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { TagPage } from '../../pages/TagPage';
-import { renderWithProviders } from '../test-utils';
+import { buildTask, renderWithProviders } from '../test-utils';
+import { useUIStore } from '../../stores/uiStore';
 
-const mockTasks = { data: null as any, isLoading: false };
+const mockTasks = { data: null as any, isLoading: false, isError: false };
 const mockTags = { data: null as any, isLoading: false };
 
 vi.mock('../../hooks/useTasks', () => ({
@@ -19,7 +20,6 @@ vi.mock('../../hooks/useTags', () => ({
   useTags: () => mockTags,
 }));
 
-// Mock useParams so TagPage gets tagId without full route matching
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
@@ -33,7 +33,9 @@ describe('TagPage', () => {
   beforeEach(() => {
     mockTasks.data = null;
     mockTasks.isLoading = false;
+    mockTasks.isError = false;
     mockTags.data = [{ id: 't1', name: 'Work', color: '#ff0000', icon: 'tag', sort_order: 0 }];
+    useUIStore.setState({ taskStatusFilter: 'all', selectedTaskId: null, selectedTaskIds: new Set() });
   });
 
   it('shows loading skeleton', () => {
@@ -52,7 +54,7 @@ describe('TagPage', () => {
   it('shows empty state when no tasks', () => {
     mockTasks.data = [];
     renderWithProviders(<TagPage />);
-    expect(screen.getByText('No tasks in this tag')).toBeInTheDocument();
+    expect(screen.getByText('\u6b64\u6807\u7b7e\u4e0b\u6682\u65e0\u4efb\u52a1')).toBeInTheDocument();
   });
 
   it('renders fallback name when tag not found', () => {
@@ -60,5 +62,16 @@ describe('TagPage', () => {
     mockTasks.data = [];
     renderWithProviders(<TagPage />);
     expect(screen.getByText('Tag')).toBeInTheDocument();
+  });
+
+  it('uses the desktop session filter on the tag page', () => {
+    mockTasks.data = [
+      buildTask({ id: 'active', title: 'Active tagged task', tag_id: 't1' }),
+      buildTask({ id: 'paused', title: 'Paused tagged task', tag_id: 't1', is_suspended: true }),
+    ];
+    useUIStore.setState({ taskStatusFilter: 'suspended' });
+    renderWithProviders(<TagPage />);
+    expect(screen.getByText('Paused tagged task')).toBeInTheDocument();
+    expect(screen.queryByText('Active tagged task')).not.toBeInTheDocument();
   });
 });

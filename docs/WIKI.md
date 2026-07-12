@@ -2,7 +2,7 @@
 
 > 原生轻量 · 六种主题 · 多种视图 · 习惯追踪 · 隐私优先
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://gitcode.com/CorN0r/todo-flow)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue)](https://gitcode.com/CorN0r/todo-flow)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://gitcode.com/CorN0r/todo-flow/blob/main/LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%2064--bit-lightgrey)](https://gitcode.com/CorN0r/todo-flow)
 

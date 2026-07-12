@@ -1,0 +1,323 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TodoFlow Sync Server API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/v1"
+    }
+  ],
+  "paths": {
+    "/v1/devices/register": {
+      "post": {
+        "summary": "Register or refresh a client device",
+        "parameters": [
+          {
+            "name": "x-account-id",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeviceRegistrationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["device"],
+                  "properties": {
+                    "device": { "$ref": "#/components/schemas/RegisteredDevice" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bootstrap": {
+      "post": {
+        "summary": "Fetch the canonical syncable dataset and initial cursor",
+        "responses": {
+          "200": {
+            "description": "Bootstrap payload",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BootstrapResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/push": {
+      "post": {
+        "summary": "Push idempotent client operation batches",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PushRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted operations and conflicts",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PushResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/pull": {
+      "post": {
+        "summary": "Pull revision-ordered changes after a cursor",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PullRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Incremental changes",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PullResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sync/ack": {
+      "post": {
+        "summary": "Acknowledge applied cursor or operation progress",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AckRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Acknowledgement status",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AckResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/attachments/initiate-upload": {
+      "post": {
+        "summary": "Initialize attachment binary upload handoff",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AttachmentUploadInitRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload handoff",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AttachmentUploadInitResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DeviceRegistrationRequest": {
+        "type": "object",
+        "required": ["client_device_key", "platform"],
+        "properties": {
+          "client_device_key": { "type": "string" },
+          "platform": { "type": "string", "enum": ["windows", "android", "ios", "harmonyos", "web", "test"] },
+          "display_name": { "type": "string" },
+          "app_version": { "type": "string" }
+        }
+      },
+      "RegisteredDevice": {
+        "type": "object",
+        "required": ["device_id", "account_id", "client_device_key", "platform", "registered_at", "last_seen_at"],
+        "properties": {
+          "device_id": { "type": "string" },
+          "account_id": { "type": "string" },
+          "client_device_key": { "type": "string" },
+          "platform": { "type": "string" },
+          "display_name": { "type": ["string", "null"] },
+          "app_version": { "type": ["string", "null"] },
+          "registered_at": { "type": "string", "format": "date-time" },
+          "last_seen_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CanonicalEntity": {
+        "type": "object",
+        "required": ["account_id", "entity_type", "entity_id", "payload", "revision", "deleted_at", "updated_at"],
+        "properties": {
+          "account_id": { "type": "string" },
+          "entity_type": { "$ref": "#/components/schemas/SyncEntityType" },
+          "entity_id": { "type": "string" },
+          "payload": { "type": "object", "additionalProperties": true },
+          "revision": { "type": "integer" },
+          "deleted_at": { "type": ["string", "null"], "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RevisionedChange": {
+        "type": "object",
+        "required": ["revision", "account_id", "entity_type", "entity_id", "operation", "payload", "deleted_at", "device_id", "operation_id", "server_time"],
+        "properties": {
+          "revision": { "type": "integer" },
+          "account_id": { "type": "string" },
+          "entity_type": { "$ref": "#/components/schemas/SyncEntityType" },
+          "entity_id": { "type": "string" },
+          "operation": { "type": "string", "enum": ["create", "update", "reorder", "delete"] },
+          "payload": { "type": "object", "additionalProperties": true },
+          "deleted_at": { "type": ["string", "null"], "format": "date-time" },
+          "device_id": { "type": "string" },
+          "operation_id": { "type": "string" },
+          "server_time": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SyncEntityType": {
+        "type": "string",
+        "enum": ["task", "tag", "reminder", "habit", "habit_log", "setting", "attachment"]
+      },
+      "ClientSyncOperation": {
+        "type": "object",
+        "required": ["op_id", "entity_type", "entity_id", "operation", "payload", "client_time", "device_id"],
+        "properties": {
+          "op_id": { "type": "string" },
+          "entity_type": { "$ref": "#/components/schemas/SyncEntityType" },
+          "entity_id": { "type": "string" },
+          "operation": { "type": "string", "enum": ["create", "update", "reorder", "delete"] },
+          "payload": { "type": "object", "additionalProperties": true },
+          "base_revision": { "type": ["integer", "null"] },
+          "client_time": { "type": "string", "format": "date-time" },
+          "device_id": { "type": "string" }
+        }
+      },
+      "PushRequest": {
+        "type": "object",
+        "required": ["device_id", "operations"],
+        "properties": {
+          "device_id": { "type": "string" },
+          "operations": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ClientSyncOperation" }
+          }
+        }
+      },
+      "PushResponse": {
+        "type": "object",
+        "required": ["accepted", "conflicts", "next_cursor"],
+        "properties": {
+          "accepted": { "type": "array", "items": { "type": "object" } },
+          "conflicts": { "type": "array", "items": { "type": "object" } },
+          "next_cursor": { "type": "integer" }
+        }
+      },
+      "PullRequest": {
+        "type": "object",
+        "required": ["cursor"],
+        "properties": {
+          "cursor": { "type": "integer" },
+          "limit": { "type": "integer" }
+        }
+      },
+      "PullResponse": {
+        "type": "object",
+        "required": ["changes", "next_cursor"],
+        "properties": {
+          "changes": { "type": "array", "items": { "$ref": "#/components/schemas/RevisionedChange" } },
+          "next_cursor": { "type": "integer" }
+        }
+      },
+      "BootstrapResponse": {
+        "type": "object",
+        "required": ["cursor", "tasks", "tags", "reminders", "habits", "habit_logs", "settings"],
+        "properties": {
+          "cursor": { "type": "integer" },
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/CanonicalEntity" } },
+          "tags": { "type": "array", "items": { "$ref": "#/components/schemas/CanonicalEntity" } },
+          "reminders": { "type": "array", "items": { "$ref": "#/components/schemas/CanonicalEntity" } },
+          "habits": { "type": "array", "items": { "$ref": "#/components/schemas/CanonicalEntity" } },
+          "habit_logs": { "type": "array", "items": { "$ref": "#/components/schemas/CanonicalEntity" } },
+          "settings": { "type": "array", "items": { "$ref": "#/components/schemas/CanonicalEntity" } }
+        }
+      },
+      "AckRequest": {
+        "type": "object",
+        "required": ["device_id"],
+        "properties": {
+          "device_id": { "type": "string" },
+          "applied_cursor": { "type": "integer" },
+          "operation_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "AckResponse": {
+        "type": "object",
+        "required": ["device_id", "applied_cursor", "operation_ids", "acknowledged_at"],
+        "properties": {
+          "device_id": { "type": "string" },
+          "applied_cursor": { "type": ["integer", "null"] },
+          "operation_ids": { "type": "array", "items": { "type": "string" } },
+          "acknowledged_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AttachmentUploadInitRequest": {
+        "type": "object",
+        "required": ["device_id", "task_id", "filename", "mime_type", "byte_size"],
+        "properties": {
+          "device_id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "filename": { "type": "string" },
+          "mime_type": { "type": "string" },
+          "byte_size": { "type": "integer" }
+        }
+      },
+      "AttachmentUploadInitResponse": {
+        "type": "object",
+        "required": ["attachment_id", "upload_url", "upload_method", "expires_at", "metadata"],
+        "properties": {
+          "attachment_id": { "type": "string" },
+          "upload_url": { "type": "string" },
+          "upload_method": { "type": "string", "enum": ["PUT"] },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "metadata": { "type": "object", "additionalProperties": true }
+        }
+      }
+    }
+  }
+}

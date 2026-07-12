@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
-import { sendNotification } from '@tauri-apps/plugin-notification';
-import { showPomodoroWindow, hidePomodoroWindow } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
 import { usePomodoroStore } from '../stores/pomodoroStore';
 
 function playBeep() {
@@ -35,8 +34,8 @@ export function usePomodoroSync() {
 
   // Show/hide standalone window
   useEffect(() => {
-    if (sessionStartTime) showPomodoroWindow().catch(() => {});
-    else hidePomodoroWindow().catch(() => {});
+    if (sessionStartTime) getRepositories().platform.showPomodoroWindow().catch(() => {});
+    else getRepositories().platform.hidePomodoroWindow().catch(() => {});
   }, [sessionStartTime]);
 
   // Emit state to standalone window
@@ -73,12 +72,13 @@ export function usePomodoroSync() {
   useEffect(() => {
     if (!lastCompleted) return;
     playBeep();
+    const { platform } = getRepositories();
     if (lastCompleted === 'focus') {
       toast.success('专注完成！休息一下吧 ☕', { duration: 5000 });
-      sendNotification({ title: 'TodoFlow', body: '专注完成！休息一下吧 ☕' });
+      platform.sendNotification({ title: 'TodoFlow', body: '专注完成！休息一下吧 ☕' }).catch(() => {});
     } else if (lastCompleted === 'shortBreak' || lastCompleted === 'longBreak') {
       toast('休息结束，开始新的专注', { duration: 4000 });
-      sendNotification({ title: 'TodoFlow', body: '休息结束，开始新的专注' });
+      platform.sendNotification({ title: 'TodoFlow', body: '休息结束，开始新的专注' }).catch(() => {});
     }
     // Clear the signal after handling
     usePomodoroStore.setState({ lastCompleted: null });

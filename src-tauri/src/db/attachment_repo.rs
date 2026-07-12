@@ -1,6 +1,8 @@
 use rusqlite::Connection;
+use serde_json::json;
 use uuid::Uuid;
 
+use crate::db::sync_repo;
 use crate::error::AppError;
 use crate::models::attachment::Attachment;
 
@@ -40,6 +42,15 @@ pub fn create(
             thumbnail_name,
         ],
     )?;
+    let attachment = get_by_id(conn, &id)?
+        .ok_or(AppError::Generic("Failed to create attachment".to_string()))?;
+    let _ = sync_repo::record_local_operation(
+        conn,
+        "attachment",
+        &attachment.id,
+        "create",
+        json!({ "attachment": attachment }),
+    )?;
     get_by_id(conn, &id)?.ok_or(AppError::Generic("Failed to create attachment".to_string()))
 }
 
@@ -55,7 +66,7 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<Attachment>, AppE
 pub fn get_by_task(conn: &Connection, task_id: &str) -> Result<Vec<Attachment>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT id, task_id, original_name, storage_name, mime_type, file_size, thumbnail_name, created_at
-         FROM attachments WHERE task_id = ?1 ORDER BY created_at ASC",
+         FROM attachments WHERE task_id = ?1 AND deleted_at IS NULL ORDER BY created_at ASC",
     )?;
     let rows = stmt.query_map(rusqlite::params![task_id], row_to_attachment)?;
     let result: Result<Vec<_>, _> = rows.collect();
@@ -65,7 +76,27 @@ pub fn get_by_task(conn: &Connection, task_id: &str) -> Result<Vec<Attachment>, 
 pub fn delete(conn: &Connection, id: &str) -> Result<Attachment, AppError> {
     let attachment = get_by_id(conn, id)?
         .ok_or_else(|| AppError::NotFound(format!("Attachment {} not found", id)))?;
-    conn.execute("DELETE FROM attachments WHERE id = ?1", rusqlite::params![id])?;
+    if sync_repo::is_sync_enabled(conn)? {
+        conn.execute(
+            "UPDATE attachments
+             SET deleted_at = COALESCE(deleted_at, datetime('now', 'localtime')),
+                 sync_status = 'deleted'
+             WHERE id = ?1",
+            rusqlite::params![id],
+        )?;
+        let _ = sync_repo::record_local_operation(
+            conn,
+            "attachment",
+            id,
+            "delete",
+            json!({ "id": id }),
+        )?;
+        return Ok(attachment);
+    }
+    conn.execute(
+        "DELETE FROM attachments WHERE id = ?1",
+        rusqlite::params![id],
+    )?;
     Ok(attachment)
 }
 
@@ -83,7 +114,8 @@ mod tests {
         conn.execute(
             "INSERT INTO tasks (id, title) VALUES ('task-1', 'Test Task')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn
     }
 
@@ -91,9 +123,15 @@ mod tests {
     fn test_create_attachment() {
         let conn = setup();
         let att = create(
-            &conn, "task-1", "photo.png", "abc123.png",
-            "image/png", 1024, None,
-        ).unwrap();
+            &conn,
+            "task-1",
+            "photo.png",
+            "abc123.png",
+            "image/png",
+            1024,
+            None,
+        )
+        .unwrap();
         assert_eq!(att.original_name, "photo.png");
         assert_eq!(att.file_size, 1024);
         assert_eq!(att.task_id, "task-1");
@@ -135,7 +173,16 @@ mod tests {
     #[test]
     fn test_get_file_path() {
         let conn = setup();
-        let att = create(&conn, "task-1", "doc.pdf", "stored.pdf", "application/pdf", 500, None).unwrap();
+        let att = create(
+            &conn,
+            "task-1",
+            "doc.pdf",
+            "stored.pdf",
+            "application/pdf",
+            500,
+            None,
+        )
+        .unwrap();
         let data_dir = std::path::PathBuf::from("/tmp/test-todoflow");
         let path = get_file_path(&conn, &att.id, &data_dir).unwrap();
         assert!(path.contains("stored.pdf"));

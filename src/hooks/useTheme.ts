@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { useUIStore } from '../stores/uiStore';
-import { getSetting, setSetting } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
 
 const VALID_THEMES = ['light', 'dark', 'system', 'glass', 'warm', 'lumina'] as const;
 
@@ -12,7 +12,7 @@ export function useTheme() {
 
   // Load saved theme
   useEffect(() => {
-    getSetting('theme').then((saved) => {
+    getRepositories().settings.get('theme').then((saved) => {
       if (saved && (VALID_THEMES as readonly string[]).includes(saved)) {
         setTheme(saved as Theme);
       }
@@ -40,7 +40,7 @@ export function useTheme() {
 
   const changeTheme = (newTheme: 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina') => {
     setTheme(newTheme);
-    setSetting('theme', newTheme);
+    getRepositories().settings.set('theme', newTheme);
     emit('theme-changed', { theme: newTheme }).catch(() => {});
   };
 

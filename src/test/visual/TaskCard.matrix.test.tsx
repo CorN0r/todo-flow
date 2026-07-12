@@ -9,6 +9,8 @@ const storeState = {
   setSelectedTaskId: vi.fn(),
   enterSelectionMode: vi.fn(),
   toggleTaskSelection: vi.fn(),
+  theme: 'light',
+  globalSubtasksExpanded: false,
 };
 
 vi.mock('../../stores/uiStore', () => ({
@@ -23,6 +25,7 @@ vi.mock('../../hooks/useTasks', () => ({
   useDeleteTask: () => ({ mutate: vi.fn() }),
   useDuplicateTask: () => ({ mutate: vi.fn() }),
   useCreateTask: () => ({ mutate: vi.fn() }),
+  useReorderTasks: () => ({ mutate: vi.fn() }),
 }));
 
 vi.mock('../../hooks/useTags', () => ({

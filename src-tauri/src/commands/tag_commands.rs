@@ -2,9 +2,7 @@ use tauri::State;
 
 use crate::db::tag_repo;
 use crate::error::AppError;
-use crate::models::tag::{
-    CreateTagRequest, TagWithCount, ReorderTagsItem, Tag, UpdateTagRequest,
-};
+use crate::models::tag::{CreateTagRequest, ReorderTagsItem, Tag, TagWithCount, UpdateTagRequest};
 use crate::AppState;
 
 #[tauri::command(rename_all = "snake_case")]
@@ -16,7 +14,15 @@ pub fn create_tag(
     parent_tag_id: Option<String>,
 ) -> Result<Tag, AppError> {
     let conn = state.db()?;
-    tag_repo::create(&conn, CreateTagRequest { name, color, icon, parent_tag_id })
+    tag_repo::create(
+        &conn,
+        CreateTagRequest {
+            name,
+            color,
+            icon,
+            parent_tag_id,
+        },
+    )
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -35,7 +41,16 @@ pub fn update_tag(
     parent_tag_id: Option<Option<String>>,
 ) -> Result<Tag, AppError> {
     let conn = state.db()?;
-    tag_repo::update(&conn, &id, UpdateTagRequest { name, color, icon, parent_tag_id })
+    tag_repo::update(
+        &conn,
+        &id,
+        UpdateTagRequest {
+            name,
+            color,
+            icon,
+            parent_tag_id,
+        },
+    )
 }
 
 #[tauri::command(rename_all = "snake_case")]

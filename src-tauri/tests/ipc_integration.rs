@@ -47,11 +47,14 @@ fn settings_get(conn: &Connection, key: &str) -> Option<String> {
 }
 
 fn settings_get_all(conn: &Connection) -> HashMap<String, String> {
-    let mut stmt = conn
-        .prepare("SELECT key, value FROM settings")
-        .unwrap();
+    let mut stmt = conn.prepare("SELECT key, value FROM settings").unwrap();
     let rows = stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0).unwrap(), row.get::<_, String>(1).unwrap())))
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0).unwrap(),
+                row.get::<_, String>(1).unwrap(),
+            ))
+        })
         .unwrap();
     let mut map = HashMap::new();
     for row in rows {
@@ -78,6 +81,7 @@ fn full_task_lifecycle() {
             priority: Some(2),
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     )
     .unwrap();
@@ -107,6 +111,9 @@ fn full_task_lifecycle() {
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            is_suspended: None,
+            is_abandoned: None,
+            is_pinned: None,
         },
     )
     .unwrap();
@@ -135,6 +142,7 @@ fn subtask_cascade_and_depth_limit() {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     )
     .unwrap();
@@ -150,6 +158,7 @@ fn subtask_cascade_and_depth_limit() {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     )
     .unwrap();
@@ -172,6 +181,7 @@ fn subtask_cascade_and_depth_limit() {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     );
     assert!(result.is_err());
@@ -209,6 +219,7 @@ fn task_with_tag_integration() {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     )
     .unwrap();
@@ -273,6 +284,7 @@ fn task_reorder_preserves_order() {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     )
     .unwrap();
@@ -288,6 +300,7 @@ fn task_reorder_preserves_order() {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     )
     .unwrap();
@@ -295,8 +308,16 @@ fn task_reorder_preserves_order() {
     task_repo::reorder(
         &conn,
         vec![
-            ReorderItem { id: t1.id.clone(), sort_order: 1, parent_task_id: None },
-            ReorderItem { id: t2.id.clone(), sort_order: 0, parent_task_id: None },
+            ReorderItem {
+                id: t1.id.clone(),
+                sort_order: 1,
+                parent_task_id: None,
+            },
+            ReorderItem {
+                id: t2.id.clone(),
+                sort_order: 0,
+                parent_task_id: None,
+            },
         ],
     )
     .unwrap();
@@ -322,10 +343,14 @@ fn empty_title_is_rejected() {
             priority: None,
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     );
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Title cannot be empty"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Title cannot be empty"));
 }
 
 // ─── Duplicate ───────────────────────────────────────────────
@@ -345,6 +370,7 @@ fn duplicate_task_deep_copies() {
             priority: Some(4),
             reminder: None,
             recurrence: None,
+            my_day_date: None,
         },
     )
     .unwrap();
@@ -362,39 +388,89 @@ fn duplicate_task_deep_copies() {
 fn filter_by_tag_id_only_returns_matching_tasks() {
     let conn = setup();
 
-    let tag_a = tag_repo::create(&conn, CreateTagRequest {
-        name: "Tag A".into(), color: Some("#ff0000".into()), icon: None, parent_tag_id: None,
-    }).unwrap();
+    let tag_a = tag_repo::create(
+        &conn,
+        CreateTagRequest {
+            name: "Tag A".into(),
+            color: Some("#ff0000".into()),
+            icon: None,
+            parent_tag_id: None,
+        },
+    )
+    .unwrap();
 
-    let tag_b = tag_repo::create(&conn, CreateTagRequest {
-        name: "Tag B".into(), color: Some("#0000ff".into()), icon: None, parent_tag_id: None,
-    }).unwrap();
+    let tag_b = tag_repo::create(
+        &conn,
+        CreateTagRequest {
+            name: "Tag B".into(),
+            color: Some("#0000ff".into()),
+            icon: None,
+            parent_tag_id: None,
+        },
+    )
+    .unwrap();
 
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Task A".into(), description: None,
-        tag_id: Some(tag_a.id.clone()), parent_task_id: None,
-        due_date: None, priority: None, reminder: None, recurrence: None,
-    }).unwrap();
+    task_repo::create(
+        &conn,
+        CreateTaskRequest {
+            title: "Task A".into(),
+            description: None,
+            tag_id: Some(tag_a.id.clone()),
+            parent_task_id: None,
+            due_date: None,
+            priority: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: None,
+        },
+    )
+    .unwrap();
 
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Task B".into(), description: None,
-        tag_id: Some(tag_b.id.clone()), parent_task_id: None,
-        due_date: None, priority: None, reminder: None, recurrence: None,
-    }).unwrap();
+    task_repo::create(
+        &conn,
+        CreateTaskRequest {
+            title: "Task B".into(),
+            description: None,
+            tag_id: Some(tag_b.id.clone()),
+            parent_task_id: None,
+            due_date: None,
+            priority: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: None,
+        },
+    )
+    .unwrap();
 
     // Unassigned task (no tag)
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Unassigned".into(), description: None,
-        tag_id: None, parent_task_id: None,
-        due_date: None, priority: None, reminder: None, recurrence: None,
-    }).unwrap();
+    task_repo::create(
+        &conn,
+        CreateTaskRequest {
+            title: "Unassigned".into(),
+            description: None,
+            tag_id: None,
+            parent_task_id: None,
+            due_date: None,
+            priority: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: None,
+        },
+    )
+    .unwrap();
 
-    let filter_a = TaskFilter { tag_id: Some(tag_a.id.clone()), ..empty_filter() };
+    let filter_a = TaskFilter {
+        tag_id: Some(tag_a.id.clone()),
+        ..empty_filter()
+    };
     let results_a = task_repo::get_all(&conn, filter_a).unwrap();
     assert_eq!(results_a.len(), 1, "Tag A should have exactly 1 task");
     assert_eq!(results_a[0].title, "Task A");
 
-    let filter_b = TaskFilter { tag_id: Some(tag_b.id.clone()), ..empty_filter() };
+    let filter_b = TaskFilter {
+        tag_id: Some(tag_b.id.clone()),
+        ..empty_filter()
+    };
     let results_b = task_repo::get_all(&conn, filter_b).unwrap();
     assert_eq!(results_b.len(), 1, "Tag B should have exactly 1 task");
     assert_eq!(results_b[0].title, "Task B");
@@ -406,32 +482,63 @@ fn filter_by_tag_id_only_returns_matching_tasks() {
 fn filter_by_date_range_only_returns_tasks_in_range() {
     let conn = setup();
 
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Past".into(), description: None,
-        tag_id: None, parent_task_id: None,
-        due_date: Some("2026-01-01".into()), priority: None,
-        reminder: None, recurrence: None,
-    }).unwrap();
+    task_repo::create(
+        &conn,
+        CreateTaskRequest {
+            title: "Past".into(),
+            description: None,
+            tag_id: None,
+            parent_task_id: None,
+            due_date: Some("2026-01-01".into()),
+            priority: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: None,
+        },
+    )
+    .unwrap();
 
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "This week".into(), description: None,
-        tag_id: None, parent_task_id: None,
-        due_date: Some("2026-06-15".into()), priority: None,
-        reminder: None, recurrence: None,
-    }).unwrap();
+    task_repo::create(
+        &conn,
+        CreateTaskRequest {
+            title: "This week".into(),
+            description: None,
+            tag_id: None,
+            parent_task_id: None,
+            due_date: Some("2026-06-15".into()),
+            priority: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: None,
+        },
+    )
+    .unwrap();
 
-    task_repo::create(&conn, CreateTaskRequest {
-        title: "Future".into(), description: None,
-        tag_id: None, parent_task_id: None,
-        due_date: Some("2026-12-31".into()), priority: None,
-        reminder: None, recurrence: None,
-    }).unwrap();
+    task_repo::create(
+        &conn,
+        CreateTaskRequest {
+            title: "Future".into(),
+            description: None,
+            tag_id: None,
+            parent_task_id: None,
+            due_date: Some("2026-12-31".into()),
+            priority: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: None,
+        },
+    )
+    .unwrap();
 
-    let results = task_repo::get_all(&conn, TaskFilter {
-        due_date_from: Some("2026-06-01".into()),
-        due_date_to: Some("2026-06-30".into()),
-        ..empty_filter()
-    }).unwrap();
+    let results = task_repo::get_all(
+        &conn,
+        TaskFilter {
+            due_date_from: Some("2026-06-01".into()),
+            due_date_to: Some("2026-06-30".into()),
+            ..empty_filter()
+        },
+    )
+    .unwrap();
     assert_eq!(results.len(), 1, "June range should return exactly 1 task");
     assert_eq!(results[0].title, "This week");
 }

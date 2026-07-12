@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { Header } from '../../components/layout/Header';
 import { renderWithProviders } from '../test-utils';
@@ -23,31 +23,26 @@ vi.mock('../../lib/date', () => ({
 describe('Header', () => {
   it('renders search bar trigger', () => {
     renderWithProviders(<Header />, { initialEntries: ['/'] });
-    expect(screen.getByText('搜索任务...')).toBeInTheDocument();
+    expect(screen.getByText('\u641c\u7d22\u4efb\u52a1...')).toBeInTheDocument();
   });
 
   it('renders theme toggle button', () => {
     renderWithProviders(<Header />);
-    const buttons = screen.getAllByRole('button');
-    const themeBtn = buttons.find((b) => b.getAttribute('title')?.startsWith('主题:'));
+    const themeBtn = screen
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('title')?.startsWith('\u4e3b\u9898:'));
     expect(themeBtn).toBeInTheDocument();
   });
 
   it('renders minimize to tray button', () => {
     renderWithProviders(<Header />);
-    const buttons = screen.getAllByRole('button');
-    const minimizeBtn = buttons.find((b) => b.getAttribute('title') === '隐藏到浮窗');
-    expect(minimizeBtn).toBeInTheDocument();
+    expect(screen.getByTitle('\u9690\u85cf\u5230\u6d6e\u7a97')).toBeInTheDocument();
   });
 
   it('renders window control buttons', () => {
     renderWithProviders(<Header />);
-    const buttons = screen.getAllByRole('button');
-    const minimizeBtn = buttons.find((b) => b.getAttribute('aria-label') === '最小化');
-    const maximizeBtn = buttons.find((b) => b.getAttribute('aria-label') === '最大化');
-    const closeBtn = buttons.find((b) => b.getAttribute('aria-label') === '关闭');
-    expect(minimizeBtn).toBeInTheDocument();
-    expect(maximizeBtn).toBeInTheDocument();
-    expect(closeBtn).toBeInTheDocument();
+    expect(screen.getByLabelText('\u6700\u5c0f\u5316')).toBeInTheDocument();
+    expect(screen.getByLabelText('\u6700\u5927\u5316')).toBeInTheDocument();
+    expect(screen.getByLabelText('\u5173\u95ed')).toBeInTheDocument();
   });
 });

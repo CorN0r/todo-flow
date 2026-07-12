@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { getAttachments, uploadAttachment, uploadLinkAttachment, deleteAttachment } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
 
 export function useAttachments(taskId: string | null) {
   return useQuery({
     queryKey: ['attachments', taskId],
-    queryFn: () => getAttachments(taskId!),
+    queryFn: () => getRepositories().attachments.listForTask(taskId!),
     enabled: !!taskId,
     staleTime: 30_000,
   });
@@ -15,7 +15,9 @@ export function useUploadAttachment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ taskId, sourcePath, isLink, linkTitle }: { taskId: string; sourcePath: string; isLink?: boolean; linkTitle?: string }) =>
-      isLink ? uploadLinkAttachment(taskId, sourcePath, linkTitle) : uploadAttachment(taskId, sourcePath),
+      isLink
+        ? getRepositories().attachments.uploadLink(taskId, sourcePath, linkTitle)
+        : getRepositories().attachments.uploadFile(taskId, sourcePath),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['attachments', variables.taskId] });
       toast.success(variables.isLink ? 'Link added' : 'File attached');
@@ -27,7 +29,7 @@ export function useUploadAttachment() {
 export function useDeleteAttachment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteAttachment(id),
+    mutationFn: (id: string) => getRepositories().attachments.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attachments'] });
       toast.success('Attachment removed');

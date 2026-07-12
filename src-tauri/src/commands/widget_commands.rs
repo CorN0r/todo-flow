@@ -1,41 +1,86 @@
 use crate::error::AppError;
 use crate::AppState;
+#[cfg(not(mobile))]
 use rusqlite::params;
-use tauri::{AppHandle, Manager, State};
+#[cfg(not(mobile))]
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
+#[cfg(not(mobile))]
+use tauri::Manager;
+use tauri::{AppHandle, State};
 
+#[cfg(not(mobile))]
 #[tauri::command]
 pub fn hide_to_tray(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("main") {
-        window.hide().map_err(|e| AppError::Generic(e.to_string()))?;
+        window
+            .hide()
+            .map_err(|e| AppError::Generic(e.to_string()))?;
     }
     if let Ok(db) = state.db() {
-        let _ = db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('widget_enabled', '1')", params![]);
+        let _ = db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('widget_enabled', '1')",
+            params![],
+        );
     }
     if let Some(widget) = app.get_webview_window("widget") {
-        widget.show().map_err(|e| AppError::Generic(e.to_string()))?;
+        widget
+            .show()
+            .map_err(|e| AppError::Generic(e.to_string()))?;
     }
     Ok(())
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub fn hide_to_tray(_app: AppHandle, _state: State<AppState>) -> Result<(), AppError> {
+    Ok(())
+}
+
+#[cfg(not(mobile))]
 #[tauri::command]
 pub fn show_main_from_widget(app: AppHandle) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("main") {
-        window.show().map_err(|e| AppError::Generic(e.to_string()))?;
-        window.set_focus().map_err(|e| AppError::Generic(e.to_string()))?;
+        window
+            .show()
+            .map_err(|e| AppError::Generic(e.to_string()))?;
+        window
+            .set_focus()
+            .map_err(|e| AppError::Generic(e.to_string()))?;
     }
     if let Some(widget) = app.get_webview_window("widget") {
-        widget.hide().map_err(|e| AppError::Generic(e.to_string()))?;
+        widget
+            .hide()
+            .map_err(|e| AppError::Generic(e.to_string()))?;
     }
     Ok(())
 }
 
+#[cfg(mobile)]
 #[tauri::command]
-pub fn show_widget_context_menu(app: AppHandle, state: State<AppState>, _x: f64, _y: f64) -> Result<(), AppError> {
+pub fn show_main_from_widget(_app: AppHandle) -> Result<(), AppError> {
+    Ok(())
+}
+
+#[cfg(not(mobile))]
+#[tauri::command]
+pub fn show_widget_context_menu(
+    app: AppHandle,
+    state: State<AppState>,
+    _x: f64,
+    _y: f64,
+) -> Result<(), AppError> {
     if let Some(widget) = app.get_webview_window("widget") {
-        let show_item = MenuItemBuilder::with_id("show_main", "打开主界面").build(&app).unwrap();
-        let hide_item = MenuItemBuilder::with_id("hide_widget", "不再显示悬浮窗").build(&app).unwrap();
-        let menu = MenuBuilder::new(&app).item(&show_item).item(&hide_item).build().unwrap();
+        let show_item = MenuItemBuilder::with_id("show_main", "打开主界面")
+            .build(&app)
+            .unwrap();
+        let hide_item = MenuItemBuilder::with_id("hide_widget", "不再显示悬浮窗")
+            .build(&app)
+            .unwrap();
+        let menu = MenuBuilder::new(&app)
+            .item(&show_item)
+            .item(&hide_item)
+            .build()
+            .unwrap();
 
         let app_clone = app.clone();
         let db = state.db.clone();
@@ -59,12 +104,25 @@ pub fn show_widget_context_menu(app: AppHandle, state: State<AppState>, _x: f64,
             }
         });
 
-        widget.popup_menu(&menu)
+        widget
+            .popup_menu(&menu)
             .map_err(|e| AppError::Generic(e.to_string()))?;
     }
     Ok(())
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub fn show_widget_context_menu(
+    _app: AppHandle,
+    _state: State<AppState>,
+    _x: f64,
+    _y: f64,
+) -> Result<(), AppError> {
+    Ok(())
+}
+
+#[cfg(not(mobile))]
 #[tauri::command]
 pub fn show_pomodoro_window(app: AppHandle) -> Result<(), AppError> {
     if let Some(win) = app.get_webview_window("pomodoro") {
@@ -73,6 +131,13 @@ pub fn show_pomodoro_window(app: AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub fn show_pomodoro_window(_app: AppHandle) -> Result<(), AppError> {
+    Ok(())
+}
+
+#[cfg(not(mobile))]
 #[tauri::command]
 pub fn hide_pomodoro_window(app: AppHandle) -> Result<(), AppError> {
     if let Some(win) = app.get_webview_window("pomodoro") {
@@ -81,3 +146,8 @@ pub fn hide_pomodoro_window(app: AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+pub fn hide_pomodoro_window(_app: AppHandle) -> Result<(), AppError> {
+    Ok(())
+}

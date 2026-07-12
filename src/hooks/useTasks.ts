@@ -1,27 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import {
-  createTask,
-  getTask,
-  getTasks,
-  updateTask,
-  deleteTask,
-  reorderTasks,
-  duplicateTask,
-  getTaskReminders,
-  createTaskReminder,
-  deleteTaskReminder,
-  clearTaskReminders,
-} from '../lib/db';
-import type { CreateTaskInput, UpdateTaskInput, ReorderItem } from '../types/task';
+import { getRepositories } from '../domain/repositories/current';
+import type { CreateTaskInput, ReorderItem, TaskFilters, UpdateTaskInput } from '../domain/models/task';
 
 const TASKS_KEY = ['tasks'] as const;
 
-export function useTasks(filters?: Parameters<typeof getTasks>[0]) {
+export function useTasks(filters?: TaskFilters) {
   return useQuery({
     queryKey: [...TASKS_KEY, filters],
     queryFn: () =>
-      getTasks({
+      getRepositories().tasks.list({
         include_children: true,
         ...filters,
       }),
@@ -32,7 +20,7 @@ export function useTasks(filters?: Parameters<typeof getTasks>[0]) {
 export function useTask(id: string | null) {
   return useQuery({
     queryKey: ['task', id],
-    queryFn: () => getTask(id!),
+    queryFn: () => getRepositories().tasks.get(id!),
     enabled: !!id,
     staleTime: 30_000,
   });
@@ -41,7 +29,7 @@ export function useTask(id: string | null) {
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateTaskInput) => createTask(input),
+    mutationFn: (input: CreateTaskInput) => getRepositories().tasks.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
       toast.success('任务已创建');
@@ -53,7 +41,7 @@ export function useCreateTask() {
 export function useUpdateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: UpdateTaskInput) => updateTask(input),
+    mutationFn: (input: UpdateTaskInput) => getRepositories().tasks.update(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'task' });
@@ -66,7 +54,7 @@ export function useUpdateTask() {
 export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteTask(id),
+    mutationFn: (id: string) => getRepositories().tasks.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
       queryClient.invalidateQueries({ queryKey: ['tags'] });
@@ -78,7 +66,7 @@ export function useDeleteTask() {
 export function useReorderTasks() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (items: ReorderItem[]) => reorderTasks(items),
+    mutationFn: (items: ReorderItem[]) => getRepositories().tasks.reorder(items),
     onSuccess: () => queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' }),
   });
 }
@@ -86,7 +74,7 @@ export function useReorderTasks() {
 export function useDuplicateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => duplicateTask(id),
+    mutationFn: (id: string) => getRepositories().tasks.duplicate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
       toast.success('任务已复制');
@@ -98,7 +86,7 @@ export function useDuplicateTask() {
 export function useTaskReminders(taskId: string | null) {
   return useQuery({
     queryKey: ['task-reminders', taskId],
-    queryFn: () => getTaskReminders(taskId!),
+    queryFn: () => getRepositories().reminders.listForTask(taskId!),
     enabled: !!taskId,
     staleTime: 30_000,
   });
@@ -108,7 +96,7 @@ export function useCreateTaskReminder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ taskId, offset, dueDate }: { taskId: string; offset: string; dueDate?: string }) =>
-      createTaskReminder(taskId, offset, dueDate),
+      getRepositories().reminders.create({ taskId, offset, dueDate }),
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'task-reminders' });
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
@@ -121,7 +109,7 @@ export function useCreateTaskReminder() {
 export function useDeleteTaskReminder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteTaskReminder(id),
+    mutationFn: (id: string) => getRepositories().reminders.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'task-reminders' });
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
@@ -134,7 +122,7 @@ export function useDeleteTaskReminder() {
 export function useClearTaskReminders() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (taskId: string) => clearTaskReminders(taskId),
+    mutationFn: (taskId: string) => getRepositories().reminders.clearForTask(taskId),
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'task-reminders' });
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });

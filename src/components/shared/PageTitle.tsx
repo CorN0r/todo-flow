@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { ArrowUpDown, Plus, CheckSquare, ListCollapse, ListTree, LayoutList, Columns3, SplitSquareHorizontal } from 'lucide-react';
 import { Portal } from './Portal';
 import { useUIStore } from '../../stores/uiStore';
+import type { TaskStatusCounts, TaskStatusFilter } from '../../lib/taskStatusFilter';
+import { TaskStatusFilterControl } from './TaskStatusFilterControl';
 
 export type SortMode = 'manual' | 'date-asc' | 'date-desc' | 'priority' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc' | 'status';
 
@@ -17,15 +19,12 @@ const sortOptions: { value: SortMode; label: string }[] = [
   { value: 'created-asc', label: '创建时间 (旧→新)' },
 ];
 
-export type FilterMode = 'all' | 'incomplete' | 'completed' | 'overdue';
-
 interface PageTitleProps {
   title: string;
   taskCount: number;
-  completedCount?: number;
-  overdueCount?: number;
-  filterMode?: FilterMode;
-  onFilterChange?: (mode: FilterMode) => void;
+  statusCounts?: TaskStatusCounts;
+  statusFilter?: TaskStatusFilter;
+  onStatusFilterChange?: (mode: TaskStatusFilter) => void;
   sortMode?: SortMode;
   onSortChange?: (mode: SortMode) => void;
   onNewTask?: () => void;
@@ -38,10 +37,9 @@ interface PageTitleProps {
 export function PageTitle({
   title,
   taskCount,
-  completedCount,
-  overdueCount,
-  filterMode,
-  onFilterChange,
+  statusCounts,
+  statusFilter,
+  onStatusFilterChange,
   sortMode = 'manual',
   onSortChange,
   onNewTask,
@@ -51,60 +49,19 @@ export function PageTitle({
   onToggleViewMode,
 }: PageTitleProps) {
   const [sortOpen, setSortOpen] = useState(false);
-  const sortBtnRef = useRef<HTMLButtonElement>(null);
-  const showCompletion = completedCount !== undefined && taskCount > 0;
+  const [sortPosition, setSortPosition] = useState({ top: 4, left: 8 });
   const globalSubtasksExpanded = useUIStore((s) => s.globalSubtasksExpanded);
   const toggleGlobalSubtasksExpanded = useUIStore((s) => s.toggleGlobalSubtasksExpanded);
-
-  const filterBtn = (mode: FilterMode, label: string) => {
-    const isActive = (filterMode || 'all') === mode;
-    return (
-      <button onClick={() => onFilterChange?.(mode)}
-        className={`h-[22px] inline-flex items-center px-2 rounded-full text-[12px] font-medium transition-colors ${
-          isActive
-            ? 'bg-[#7C72F6] text-white'
-            : 'bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1]'
-        }`}
-      >
-        {label}
-      </button>
-    );
-  };
 
   return (
     <div className="flex items-center gap-3 w-full flex-wrap">
       <h1 className="text-[20px] font-bold text-[#111827] dark:text-white">{title}</h1>
-      {taskCount > 0 && onFilterChange && (
-        <div className="flex items-center gap-1">
-          {filterBtn('all', `全部 ${taskCount} 项`)}
-          {filterBtn('incomplete', `未完成 ${taskCount - (completedCount || 0)}`)}
-          {completedCount !== undefined && completedCount > 0 && (
-            <button onClick={() => onFilterChange?.('completed')}
-              className={`h-[22px] inline-flex items-center px-2 rounded-full text-[12px] font-medium transition-colors ${
-                filterMode === 'completed'
-                  ? 'bg-[#10B981] text-white'
-                  : 'text-[#10B981] bg-emerald-50 dark:bg-emerald-950/20 hover:bg-emerald-100 dark:hover:bg-emerald-950/30'
-              }`}
-            >
-              已完成 {completedCount}
-            </button>
-          )}
-          {overdueCount !== undefined && overdueCount > 0 && (
-            <button onClick={() => onFilterChange?.('overdue')}
-              className={`h-[22px] inline-flex items-center px-2 rounded-full text-[12px] font-medium transition-colors ${
-                filterMode === 'overdue'
-                  ? 'bg-[#EF4444] text-white'
-                  : 'text-[#EF4444] bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30'
-              }`}
-            >
-              超期 {overdueCount}
-            </button>
-          )}
-        </div>
+      {taskCount > 0 && statusCounts && statusFilter && onStatusFilterChange && (
+        <TaskStatusFilterControl value={statusFilter} counts={statusCounts} onChange={onStatusFilterChange} />
       )}
-      {taskCount > 0 && !onFilterChange && (
+      {taskCount > 0 && !onStatusFilterChange && (
         <span className="h-[22px] inline-flex items-center px-2 rounded-full bg-[#EEF2FF] text-[12px] font-medium text-[#6366F1]">
-          {showCompletion ? `${completedCount}/${taskCount}` : `${taskCount}`} 项
+          {taskCount} 项
         </span>
       )}
 
@@ -133,8 +90,13 @@ export function PageTitle({
       {onSortChange && (
         <div className="relative">
           <button
-            ref={sortBtnRef}
-            onClick={() => setSortOpen(!sortOpen)}
+            onClick={(event) => {
+              if (!sortOpen) {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setSortPosition({ top: rect.bottom + 4, left: Math.max(8, rect.right - 200) });
+              }
+              setSortOpen(!sortOpen);
+            }}
             className="h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md bg-white dark:bg-[#1e1e32] border border-[#E5E7EB] dark:border-white/[0.07] text-[12px] font-medium text-[#374151] dark:text-white/80 hover:bg-[#F9FAFB] dark:hover:bg-white/[0.06] transition-colors"
           >
             <ArrowUpDown size={13} className="text-[#6B7280]" />
@@ -145,10 +107,7 @@ export function PageTitle({
               <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />
               <div
                 className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[200px]"
-                style={{
-                  top: (sortBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-                  left: (sortBtnRef.current?.getBoundingClientRect().right ?? 0) - 200,
-                }}
+                style={sortPosition}
               >
                 {sortOptions.map((opt) => (
                   <button

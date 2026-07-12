@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useCallback, useState, useRef } from 'react';
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import { Portal } from './Portal';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { readFile } from '@tauri-apps/plugin-fs';
+import { getRepositories } from '../../domain/repositories/current';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
@@ -398,9 +397,7 @@ export function RichTextEditor({
 
   // ── Tauri 窗口级文件拖放监听（只注册一次）──
   useEffect(() => {
-    const promise = getCurrentWindow().onDragDropEvent((event) => {
-      if (event.payload.type !== 'drop') return;
-      const { paths, position: pos } = event.payload;
+    const promise = getRepositories().platform.onFileDrop(({ paths, position: pos }) => {
       if (!containerRef.current) return;
       // 检查是否在编辑器容器内
       const el = document.elementFromPoint(pos.x, pos.y);
@@ -411,7 +408,7 @@ export function RichTextEditor({
         const ext = p.split('.').pop()?.toLowerCase();
         if (!ext || !['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) continue;
         pendingImageInserts++;
-        readFile(p).then((bytes) => {
+        getRepositories().platform.readFileBytes(p).then((bytes) => {
           const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
           let binary = '';
           const chunkSize = 8192;

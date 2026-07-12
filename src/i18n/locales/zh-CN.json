@@ -398,5 +398,19 @@
   "filter.collapseSubtasks": "折叠全部子任务",
   "filter.expandSubtasks": "展开全部子任务",
   "filter.collapseSubtasksShort": "收起子任务",
-  "filter.expandSubtasksShort": "展开子任务"
+  "filter.expandSubtasksShort": "展开子任务",
+  "filter.status.all": "全部",
+  "filter.status.active": "进行中",
+  "filter.status.completed": "已完成",
+  "filter.status.suspended": "挂起",
+  "filter.status.abandoned": "已放弃",
+  "filter.status.overdue": "超期",
+  "filter.statusMenu": "筛选任务状态",
+  "filter.moreStatuses": "更多状态",
+  "filter.empty.active": "没有进行中的任务",
+  "filter.empty.completed": "没有已完成任务",
+  "filter.empty.suspended": "没有挂起任务",
+  "filter.empty.abandoned": "没有已放弃任务",
+  "filter.empty.overdue": "没有超期任务",
+  "filter.showAll": "显示全部"
 }

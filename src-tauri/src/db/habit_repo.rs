@@ -1,7 +1,9 @@
-use chrono::Local;
-use rusqlite::{params, Connection};
+use crate::db::sync_repo;
 use crate::error::AppError;
 use crate::models::habit::*;
+use chrono::Local;
+use rusqlite::{params, Connection};
+use serde_json::json;
 
 fn now_local() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
@@ -25,7 +27,9 @@ pub fn create(conn: &Connection, req: CreateHabitRequest) -> Result<Habit, AppEr
     let id = uuid::Uuid::new_v4().to_string();
     let name = req.name.trim().to_string();
     if name.is_empty() {
-        return Err(AppError::Validation("Habit name cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "Habit name cannot be empty".to_string(),
+        ));
     }
     let max_order: i32 = conn.query_row(
         "SELECT COALESCE(MAX(sort_order), -1) FROM habits",
@@ -38,6 +42,15 @@ pub fn create(conn: &Connection, req: CreateHabitRequest) -> Result<Habit, AppEr
         "INSERT INTO habits (id, name, color, icon, frequency, target_count, sort_order, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![id, name, req.color.unwrap_or("#7C72F6".into()), req.icon.unwrap_or("check-circle".into()), req.frequency.unwrap_or("daily".into()), req.target_count.unwrap_or(1), max_order + 1, now, now],
+    )?;
+    let habit =
+        get_by_id(conn, &id)?.ok_or_else(|| AppError::Generic("Failed to create habit".into()))?;
+    let _ = sync_repo::record_local_operation(
+        conn,
+        "habit",
+        &habit.id,
+        "create",
+        json!({ "habit": habit }),
     )?;
     get_by_id(conn, &id)?.ok_or_else(|| AppError::Generic("Failed to create habit".into()))
 }
@@ -55,9 +68,10 @@ pub fn get_all_with_stats(conn: &Connection, today: &str) -> Result<Vec<HabitWit
     let mut stmt = conn.prepare(
         "SELECT h.id, h.name, h.color, h.icon, h.frequency, h.target_count, h.sort_order,
                 h.created_at, h.updated_at
-         FROM habits h ORDER BY h.sort_order ASC",
+         FROM habits h WHERE h.deleted_at IS NULL ORDER BY h.sort_order ASC",
     )?;
-    let habits: Vec<Habit> = stmt.query_map([], row_to_habit)?
+    let habits: Vec<Habit> = stmt
+        .query_map([], row_to_habit)?
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut results = Vec::new();
@@ -92,7 +106,9 @@ pub fn update(conn: &Connection, id: &str, req: UpdateHabitRequest) -> Result<Ha
 
     let name = req.name.unwrap_or(existing.name);
     if name.trim().is_empty() {
-        return Err(AppError::Validation("Habit name cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "Habit name cannot be empty".to_string(),
+        ));
     }
 
     conn.execute(
@@ -107,10 +123,29 @@ pub fn update(conn: &Connection, id: &str, req: UpdateHabitRequest) -> Result<Ha
             id,
         ],
     )?;
+    let habit =
+        get_by_id(conn, id)?.ok_or_else(|| AppError::Generic("Failed to update habit".into()))?;
+    let _ =
+        sync_repo::record_local_operation(conn, "habit", id, "update", json!({ "habit": habit }))?;
     get_by_id(conn, id)?.ok_or_else(|| AppError::Generic("Failed to update habit".into()))
 }
 
 pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
+    if sync_repo::is_sync_enabled(conn)? {
+        let _existing = get_by_id(conn, id)?
+            .ok_or_else(|| AppError::NotFound(format!("Habit {} not found", id)))?;
+        let _ =
+            sync_repo::record_local_operation(conn, "habit", id, "delete", json!({ "id": id }))?;
+        conn.execute(
+            "UPDATE habit_logs
+             SET deleted_at = COALESCE(deleted_at, ?1),
+                 sync_status = 'deleted'
+             WHERE habit_id = ?2",
+            params![now_local(), id],
+        )?;
+        return Ok(());
+    }
+
     let affected = conn.execute("DELETE FROM habits WHERE id = ?1", params![id])?;
     if affected == 0 {
         return Err(AppError::NotFound(format!("Habit {} not found", id)));
@@ -128,18 +163,76 @@ pub fn reorder(conn: &Connection, items: Vec<ReorderHabitsItem>) -> Result<(), A
         )?;
     }
     tx.commit()?;
+    if sync_repo::is_sync_enabled(conn)? {
+        for item in &items {
+            let _ = sync_repo::record_local_operation(
+                conn,
+                "habit",
+                &item.id,
+                "reorder",
+                json!({
+                    "id": item.id,
+                    "sort_order": item.sort_order,
+                }),
+            )?;
+        }
+    }
     Ok(())
 }
 
 pub fn toggle_log(conn: &Connection, habit_id: &str, date: &str) -> Result<HabitLog, AppError> {
     let existing = conn.query_row(
-        "SELECT id FROM habit_logs WHERE habit_id = ?1 AND log_date = ?2",
+        "SELECT id, deleted_at FROM habit_logs WHERE habit_id = ?1 AND log_date = ?2",
         params![habit_id, date],
-        |row| row.get::<_, String>(0),
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
     );
 
-    if let Ok(log_id) = existing {
-        conn.execute("DELETE FROM habit_logs WHERE id = ?1", params![log_id])?;
+    if let Ok((log_id, deleted_at)) = existing {
+        if deleted_at.is_some() {
+            conn.execute(
+                "UPDATE habit_logs
+                 SET deleted_at = NULL,
+                     count = 1,
+                     sync_status = CASE WHEN sync_status = 'deleted' THEN 'pending' ELSE sync_status END
+                 WHERE id = ?1",
+                params![log_id],
+            )?;
+            let log = HabitLog {
+                id: log_id.clone(),
+                habit_id: habit_id.to_string(),
+                log_date: date.to_string(),
+                count: 1,
+                note: String::new(),
+                created_at: String::new(),
+            };
+            let _ = sync_repo::record_local_operation(
+                conn,
+                "habit_log",
+                &log_id,
+                "update",
+                json!({ "habit_log": log.clone() }),
+            )?;
+            return Ok(log);
+        }
+
+        if sync_repo::is_sync_enabled(conn)? {
+            conn.execute(
+                "UPDATE habit_logs
+                 SET deleted_at = COALESCE(deleted_at, ?1),
+                     sync_status = 'deleted'
+                 WHERE id = ?2",
+                params![now_local(), log_id],
+            )?;
+            let _ = sync_repo::record_local_operation(
+                conn,
+                "habit_log",
+                &log_id,
+                "delete",
+                json!({ "id": log_id.clone() }),
+            )?;
+        } else {
+            conn.execute("DELETE FROM habit_logs WHERE id = ?1", params![log_id])?;
+        }
         Ok(HabitLog {
             id: log_id,
             habit_id: habit_id.to_string(),
@@ -154,20 +247,28 @@ pub fn toggle_log(conn: &Connection, habit_id: &str, date: &str) -> Result<Habit
             "INSERT INTO habit_logs (id, habit_id, log_date, count) VALUES (?1, ?2, ?3, 1)",
             params![id, habit_id, date],
         )?;
-        Ok(HabitLog {
+        let log = HabitLog {
             id,
             habit_id: habit_id.to_string(),
             log_date: date.to_string(),
             count: 1,
             note: String::new(),
             created_at: String::new(),
-        })
+        };
+        let _ = sync_repo::record_local_operation(
+            conn,
+            "habit_log",
+            &log.id,
+            "create",
+            json!({ "habit_log": log.clone() }),
+        )?;
+        Ok(log)
     }
 }
 
 fn is_done_on_date(conn: &Connection, habit_id: &str, date: &str) -> Result<bool, AppError> {
     let count: i32 = conn.query_row(
-        "SELECT COUNT(*) FROM habit_logs WHERE habit_id = ?1 AND log_date = ?2",
+        "SELECT COUNT(*) FROM habit_logs WHERE habit_id = ?1 AND log_date = ?2 AND deleted_at IS NULL",
         params![habit_id, date],
         |row| row.get(0),
     )?;
@@ -176,9 +277,10 @@ fn is_done_on_date(conn: &Connection, habit_id: &str, date: &str) -> Result<bool
 
 fn compute_streak(conn: &Connection, habit_id: &str, today: &str) -> Result<i32, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT log_date FROM habit_logs WHERE habit_id = ?1 ORDER BY log_date DESC",
+        "SELECT log_date FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL ORDER BY log_date DESC",
     )?;
-    let dates: Vec<String> = stmt.query_map(params![habit_id], |row| row.get(0))?
+    let dates: Vec<String> = stmt
+        .query_map(params![habit_id], |row| row.get(0))?
         .collect::<Result<Vec<_>, _>>()?;
 
     if dates.is_empty() || (dates[0].as_str() < today && dates[0] != today) {
@@ -203,12 +305,15 @@ fn compute_streak(conn: &Connection, habit_id: &str, today: &str) -> Result<i32,
 
 fn compute_best_streak(conn: &Connection, habit_id: &str) -> Result<i32, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT log_date FROM habit_logs WHERE habit_id = ?1 ORDER BY log_date ASC",
+        "SELECT log_date FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL ORDER BY log_date ASC",
     )?;
-    let dates: Vec<String> = stmt.query_map(params![habit_id], |row| row.get(0))?
+    let dates: Vec<String> = stmt
+        .query_map(params![habit_id], |row| row.get(0))?
         .collect::<Result<Vec<_>, _>>()?;
 
-    if dates.is_empty() { return Ok(0); }
+    if dates.is_empty() {
+        return Ok(0);
+    }
 
     let mut best = 1i32;
     let mut current = 1i32;
@@ -225,21 +330,28 @@ fn compute_best_streak(conn: &Connection, habit_id: &str) -> Result<i32, AppErro
 
 fn compute_completion_rate(conn: &Connection, habit_id: &str) -> Result<f64, AppError> {
     let total: i32 = conn.query_row(
-        "SELECT COUNT(DISTINCT log_date) FROM habit_logs WHERE habit_id = ?1",
+        "SELECT COUNT(DISTINCT log_date) FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL",
         params![habit_id],
         |row| row.get(0),
     )?;
 
-    if total == 0 { return Ok(0.0); }
+    if total == 0 {
+        return Ok(0.0);
+    }
 
     let first_date: String = conn.query_row(
-        "SELECT MIN(log_date) FROM habit_logs WHERE habit_id = ?1",
+        "SELECT MIN(log_date) FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL",
         params![habit_id],
         |row| row.get(0),
     )?;
 
-    let days = days_between(&first_date, &chrono::Local::now().format("%Y-%m-%d").to_string());
-    if days == 0 { return Ok(100.0); }
+    let days = days_between(
+        &first_date,
+        &chrono::Local::now().format("%Y-%m-%d").to_string(),
+    );
+    if days == 0 {
+        return Ok(100.0);
+    }
     Ok((total as f64 / days as f64 * 100.0).min(100.0))
 }
 
@@ -257,7 +369,9 @@ fn days_between(from: &str, to: &str) -> i32 {
 
 fn prev_date(date: &str) -> String {
     if let Ok(d) = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d") {
-        (d - chrono::Duration::days(1)).format("%Y-%m-%d").to_string()
+        (d - chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string()
     } else {
         date.to_string()
     }
@@ -265,7 +379,9 @@ fn prev_date(date: &str) -> String {
 
 fn next_date(date: &str) -> String {
     if let Ok(d) = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d") {
-        (d + chrono::Duration::days(1)).format("%Y-%m-%d").to_string()
+        (d + chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string()
     } else {
         date.to_string()
     }
@@ -287,10 +403,17 @@ mod tests {
     #[test]
     fn test_create_and_retrieve() {
         let conn = setup();
-        let h = create(&conn, CreateHabitRequest {
-            name: "Exercise".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        }).unwrap();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Exercise".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
         assert_eq!(h.name, "Exercise");
         assert_eq!(h.frequency, "daily");
         assert_eq!(h.target_count, 1);
@@ -299,24 +422,45 @@ mod tests {
     #[test]
     fn test_empty_name_rejected() {
         let conn = setup();
-        let r = create(&conn, CreateHabitRequest {
-            name: "  ".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        });
+        let r = create(
+            &conn,
+            CreateHabitRequest {
+                name: "  ".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        );
         assert!(r.is_err());
     }
 
     #[test]
     fn test_update_habit() {
         let conn = setup();
-        let h = create(&conn, CreateHabitRequest {
-            name: "Read".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        }).unwrap();
-        let updated = update(&conn, &h.id, UpdateHabitRequest {
-            name: Some("Read books".into()),
-            color: None, icon: None, frequency: Some("weekly".into()), target_count: Some(3),
-        }).unwrap();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Read".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let updated = update(
+            &conn,
+            &h.id,
+            UpdateHabitRequest {
+                name: Some("Read books".into()),
+                color: None,
+                icon: None,
+                frequency: Some("weekly".into()),
+                target_count: Some(3),
+            },
+        )
+        .unwrap();
         assert_eq!(updated.name, "Read books");
         assert_eq!(updated.frequency, "weekly");
         assert_eq!(updated.target_count, 3);
@@ -325,10 +469,17 @@ mod tests {
     #[test]
     fn test_delete_habit() {
         let conn = setup();
-        let h = create(&conn, CreateHabitRequest {
-            name: "Test".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        }).unwrap();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Test".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
         delete(&conn, &h.id).unwrap();
         assert!(get_by_id(&conn, &h.id).unwrap().is_none());
     }
@@ -343,10 +494,17 @@ mod tests {
     #[test]
     fn test_toggle_log() {
         let conn = setup();
-        let h = create(&conn, CreateHabitRequest {
-            name: "Water".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        }).unwrap();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Water".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
         // Toggle on
@@ -365,10 +523,17 @@ mod tests {
     #[test]
     fn test_streak_and_completion_rate() {
         let conn = setup();
-        let h = create(&conn, CreateHabitRequest {
-            name: "Meditate".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        }).unwrap();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Meditate".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
 
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         let yesterday = prev_date(&today);
@@ -387,19 +552,43 @@ mod tests {
     #[test]
     fn test_reorder_habits() {
         let conn = setup();
-        let h1 = create(&conn, CreateHabitRequest {
-            name: "A".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        }).unwrap();
-        let h2 = create(&conn, CreateHabitRequest {
-            name: "B".into(),
-            color: None, icon: None, frequency: None, target_count: None,
-        }).unwrap();
+        let h1 = create(
+            &conn,
+            CreateHabitRequest {
+                name: "A".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let h2 = create(
+            &conn,
+            CreateHabitRequest {
+                name: "B".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
 
-        reorder(&conn, vec![
-            ReorderHabitsItem { id: h1.id.clone(), sort_order: 10 },
-            ReorderHabitsItem { id: h2.id.clone(), sort_order: 20 },
-        ]).unwrap();
+        reorder(
+            &conn,
+            vec![
+                ReorderHabitsItem {
+                    id: h1.id.clone(),
+                    sort_order: 10,
+                },
+                ReorderHabitsItem {
+                    id: h2.id.clone(),
+                    sort_order: 20,
+                },
+            ],
+        )
+        .unwrap();
 
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         let stats = get_all_with_stats(&conn, &today).unwrap();

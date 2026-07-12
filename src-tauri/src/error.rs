@@ -59,7 +59,7 @@ mod tests {
             Err(rusqlite::Error::InvalidParameterCount(0, 1)).map_err(AppError::from);
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::Database(_) => {},
+            AppError::Database(_) => {}
             _ => panic!("expected Database variant"),
         }
     }

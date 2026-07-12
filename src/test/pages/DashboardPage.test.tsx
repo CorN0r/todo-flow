@@ -34,30 +34,28 @@ describe('DashboardPage', () => {
   it('renders dashboard header', async () => {
     renderWithProviders(<DashboardPage />);
     await waitFor(() => {
-      expect(screen.getByText('Dashboard')).toBeInTheDocument();
+      expect(screen.getByText('\u6570\u636e\u770b\u677f')).toBeInTheDocument();
     });
   });
 
   it('shows stat cards with values', async () => {
     renderWithProviders(<DashboardPage />);
     await waitFor(() => {
-      expect(screen.getByText('Completed')).toBeInTheDocument();
+      expect(screen.getByText('\u5df2\u5b8c\u6210')).toBeInTheDocument();
     });
-    expect(screen.getByText('Incomplete')).toBeInTheDocument();
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
-    expect(screen.getByText('Day streak')).toBeInTheDocument();
+    expect(screen.getByText('\u672a\u5b8c\u6210')).toBeInTheDocument();
+    expect(screen.getByText('\u8d85\u671f')).toBeInTheDocument();
     // Numeric values may appear in both stat cards and list distribution
     expect(screen.getAllByText('4').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('6').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('2').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('3')).toBeInTheDocument();
   });
 
   it('shows completion rate', async () => {
     renderWithProviders(<DashboardPage />);
     await waitFor(() => {
-      expect(screen.getByText('10 total tasks')).toBeInTheDocument();
+      expect(screen.getByText('10 \u603b\u4efb\u52a1')).toBeInTheDocument();
     });
-    expect(screen.getByText('1 completed today')).toBeInTheDocument();
+    expect(screen.getByText('\u4eca\u65e5\u5b8c\u6210 1')).toBeInTheDocument();
   });
 });

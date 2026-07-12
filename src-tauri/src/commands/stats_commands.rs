@@ -41,12 +41,11 @@ pub fn get_dashboard_stats(state: tauri::State<'_, AppState>) -> Result<Dashboar
 fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppError> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
-    let total_tasks: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND parent_task_id IS NULL",
-            [],
-            |row| row.get(0),
-        )?;
+    let total_tasks: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND parent_task_id IS NULL",
+        [],
+        |row| row.get(0),
+    )?;
 
     let completed_tasks: i64 = conn
         .query_row(
@@ -182,11 +181,13 @@ mod tests {
         conn.execute(
             "INSERT INTO tasks (id, title, is_completed) VALUES ('t1', 'Task 1', 0)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO tasks (id, title, is_completed) VALUES ('t2', 'Task 2', 1)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         let stats = get_dashboard_stats_impl(&conn).unwrap();
         assert_eq!(stats.total_tasks, 2);
@@ -216,27 +217,36 @@ mod tests {
         conn.execute(
             "INSERT INTO tags (id, name, color) VALUES ('l1', 'Work', '#ff0000')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO tags (id, name, color) VALUES ('l2', 'Home', '#00ff00')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO tasks (id, title, tag_id) VALUES ('t1', 'Work task', 'l1')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO tasks (id, title, tag_id) VALUES ('t2', 'Work task 2', 'l1')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO tasks (id, title, tag_id) VALUES ('t3', 'Home task', 'l2')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         let stats = get_dashboard_stats_impl(&conn).unwrap();
         assert_eq!(stats.tasks_by_tag.len(), 2);
-        let work = stats.tasks_by_tag.iter().find(|t| t.tag_id == "l1").unwrap();
+        let work = stats
+            .tasks_by_tag
+            .iter()
+            .find(|t| t.tag_id == "l1")
+            .unwrap();
         assert_eq!(work.count, 2);
     }
 
@@ -246,7 +256,8 @@ mod tests {
         conn.execute(
             "INSERT INTO tasks (id, title, is_completed) VALUES ('parent', 'Parent', 0)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO tasks (id, title, is_completed, parent_task_id) VALUES ('child', 'Child', 0, 'parent')",
             [],
@@ -256,5 +267,4 @@ mod tests {
         // Should only count the parent
         assert_eq!(stats.total_tasks, 1);
     }
-
 }

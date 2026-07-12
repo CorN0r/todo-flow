@@ -6,7 +6,9 @@ import { renderWithProviders } from '../test-utils';
 const mockStoreState = {
   selectionMode: true,
   selectedTaskIds: new Set(['t1', 't2', 't3']),
+  selectableIds: ['t1', 't2', 't3'],
   exitSelectionMode: vi.fn(),
+  selectAllTasks: vi.fn(),
 };
 
 vi.mock('../../stores/uiStore', () => ({
@@ -35,26 +37,27 @@ describe('BulkActionBar', () => {
     vi.clearAllMocks();
     mockStoreState.selectionMode = true;
     mockStoreState.selectedTaskIds = new Set(['t1', 't2', 't3']);
+    mockStoreState.selectableIds = ['t1', 't2', 't3'];
   });
 
   it('renders selected count', () => {
     renderWithProviders(<BulkActionBar />);
-    expect(screen.getByText('3 selected')).toBeInTheDocument();
+    expect(screen.getByText(/\u5df2\u9009\s*3\s*\u9879/)).toBeInTheDocument();
   });
 
   it('renders Complete button', () => {
     renderWithProviders(<BulkActionBar />);
-    expect(screen.getByText('Complete')).toBeInTheDocument();
+    expect(screen.getByText('\u5b8c\u6210')).toBeInTheDocument();
   });
 
   it('renders Delete button', () => {
     renderWithProviders(<BulkActionBar />);
-    expect(screen.getByText('Delete')).toBeInTheDocument();
+    expect(screen.getByText('\u5220\u9664')).toBeInTheDocument();
   });
 
   it('renders Move to tag button', () => {
     renderWithProviders(<BulkActionBar />);
-    expect(screen.getByText('Move to tag')).toBeInTheDocument();
+    expect(screen.getByText(/\u79fb\u52a8\u5230\u6807\u7b7e/)).toBeInTheDocument();
   });
 
   it('does not render when selectionMode is false', () => {

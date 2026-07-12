@@ -9,6 +9,7 @@ const initialState = {
   commandPaletteOpen: false,
   theme: 'system' as const,
   resolvedTheme: 'light' as const,
+  taskStatusFilter: 'all' as const,
   selectionMode: false,
   selectedTaskIds: new Set<string>(),
 };
@@ -146,6 +147,20 @@ describe('uiStore', () => {
       // calling again toggles them off
       useUIStore.getState().selectAllTasks(['a', 'b']);
       expect(useUIStore.getState().selectedTaskIds.size).toBe(0);
+    });
+
+    it('removes selected tasks that are no longer selectable', () => {
+      useUIStore.getState().selectAllTasks(['a', 'b']);
+      useUIStore.getState().setSelectableIds(['b', 'c']);
+      expect([...useUIStore.getState().selectedTaskIds]).toEqual(['b']);
+    });
+  });
+
+  describe('task status filter', () => {
+    it('starts with all tasks and updates for the current session', () => {
+      expect(useUIStore.getState().taskStatusFilter).toBe('all');
+      useUIStore.getState().setTaskStatusFilter('suspended');
+      expect(useUIStore.getState().taskStatusFilter).toBe('suspended');
     });
   });
 });

@@ -22,7 +22,7 @@ describe('DatePicker', () => {
     renderWithProviders(<DatePicker value="" onChange={vi.fn()} />);
     const trigger = screen.getAllByRole('button')[0];
     await user.click(trigger);
-    expect(screen.getByText('Su')).toBeInTheDocument();
-    expect(screen.getByText('Mo')).toBeInTheDocument();
+    expect(screen.getByText('\u65e5')).toBeInTheDocument();
+    expect(screen.getByText('\u4e00')).toBeInTheDocument();
   });
 });

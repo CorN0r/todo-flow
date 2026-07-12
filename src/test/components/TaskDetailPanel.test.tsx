@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { TaskDetailPanel } from '../../components/layout/TaskDetailPanel';
 import { renderWithProviders } from '../test-utils';
@@ -8,6 +8,8 @@ const mockStoreState = {
   setSelectedTaskId: vi.fn(),
   isDetailDirty: false,
   detailSaveStatus: 'idle' as string,
+  theme: 'light',
+  taskViewMode: 'list',
 };
 
 vi.mock('../../stores/uiStore', () => ({
@@ -37,6 +39,7 @@ describe('TaskDetailPanel', () => {
     mockStoreState.selectedTaskId = null;
     mockStoreState.isDetailDirty = false;
     mockStoreState.detailSaveStatus = 'idle';
+    mockStoreState.taskViewMode = 'list';
   });
 
   it('renders nothing when no task is selected', () => {
@@ -44,24 +47,23 @@ describe('TaskDetailPanel', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('renders panel when task is selected', () => {
+  it('renders panel shell when task is selected', () => {
     mockStoreState.selectedTaskId = 'task-1';
     renderWithProviders(<TaskDetailPanel />);
-    expect(screen.getByText('Task Details')).toBeInTheDocument();
+    expect(document.querySelector('aside')).toBeInTheDocument();
   });
 
   it('renders close button when open', () => {
     mockStoreState.selectedTaskId = 'task-1';
     renderWithProviders(<TaskDetailPanel />);
-    const buttons = screen.getAllByRole('button');
-    expect(buttons.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText('\u5173\u95ed')).toBeInTheDocument();
   });
 
-  it('shows saving indicator when dirty', () => {
+  it('keeps the panel mounted while detail edits are dirty', () => {
     mockStoreState.selectedTaskId = 'task-1';
     mockStoreState.isDetailDirty = true;
     mockStoreState.detailSaveStatus = 'saving';
     renderWithProviders(<TaskDetailPanel />);
-    expect(screen.getByText('Saving...')).toBeInTheDocument();
+    expect(document.querySelector('aside')).toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { SortMode } from '../components/shared/PageTitle';
+import type { TaskStatusFilter } from '../lib/taskStatusFilter';
 
 type Theme = 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina';
 
@@ -25,6 +26,9 @@ interface UIState {
 
   sortMode: SortMode;
   setSortMode: (mode: SortMode) => void;
+
+  taskStatusFilter: TaskStatusFilter;
+  setTaskStatusFilter: (filter: TaskStatusFilter) => void;
 
   taskViewMode: 'list' | 'wall' | 'unified';
   setTaskViewMode: (mode: 'list' | 'wall' | 'unified') => void;
@@ -78,6 +82,9 @@ export const useUIStore = create<UIState>((set) => ({
   sortMode: 'manual',
   setSortMode: (sortMode) => set({ sortMode }),
 
+  taskStatusFilter: 'all',
+  setTaskStatusFilter: (taskStatusFilter) => set({ taskStatusFilter }),
+
   taskViewMode: (localStorage.getItem('taskViewMode') as 'list' | 'wall' | 'unified') || 'list',
   setTaskViewMode: (taskViewMode) => { localStorage.setItem('taskViewMode', taskViewMode); set({ taskViewMode }); },
 
@@ -90,7 +97,11 @@ export const useUIStore = create<UIState>((set) => ({
   selectionMode: false,
   selectedTaskIds: new Set<string>(),
   selectableIds: [] as string[],
-  setSelectableIds: (selectableIds) => set({ selectableIds }),
+  setSelectableIds: (selectableIds) => set((state) => {
+    const visibleIds = new Set(selectableIds);
+    const selectedTaskIds = new Set([...state.selectedTaskIds].filter((id) => visibleIds.has(id)));
+    return { selectableIds, selectedTaskIds };
+  }),
   enterSelectionMode: (taskId) => set((s) => {
     const next = new Set(s.selectedTaskIds);
     if (taskId) next.add(taskId);

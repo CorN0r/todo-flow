@@ -20,6 +20,7 @@ import { cn } from '../../lib/cn';
 import type { Task } from '../../types/task';
 import { TaskCard } from './TaskCard';
 import { useReorderTasks } from '../../hooks/useTasks';
+import { mergeVisibleTaskOrder } from '../../lib/taskOrder';
 
 function SortableTaskRow({ task }: { task: Task }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -51,7 +52,7 @@ function SortableTaskRow({ task }: { task: Task }) {
   );
 }
 
-export function TaskList({ tasks }: { tasks: Task[]; treeMode?: boolean }) {
+export function TaskList({ tasks, reorderScope = tasks }: { tasks: Task[]; reorderScope?: Task[]; treeMode?: boolean }) {
   const reorderTasks = useReorderTasks();
 
   const topLevelTasks = tasks;
@@ -70,7 +71,8 @@ export function TaskList({ tasks }: { tasks: Task[]; treeMode?: boolean }) {
     if (oldIndex === -1 || newIndex === -1) return;
 
     const reordered = arrayMove(topLevelTasks, oldIndex, newIndex);
-    const items = reordered.map((t, i) => ({
+    const mergedOrder = mergeVisibleTaskOrder(reorderScope, reordered);
+    const items = mergedOrder.map((t, i) => ({
       id: t.id,
       sort_order: i,
       parent_task_id: t.parent_task_id,

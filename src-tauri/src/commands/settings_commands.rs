@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use rusqlite::{params, Connection};
 use tauri::{AppHandle, Emitter, State};
 
+use crate::db::sync_repo;
 use crate::error::AppError;
 use crate::AppState;
 
@@ -27,8 +28,9 @@ pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result
     let conn = state.db()?;
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-        params![key, value],
+        params![&key, &value],
     )?;
+    let _ = sync_repo::record_setting_update(&conn, &key, &value)?;
     Ok(())
 }
 
@@ -73,15 +75,20 @@ pub fn backup_database(state: State<AppState>, destination: String) -> Result<()
 
 #[tauri::command]
 pub fn export_csv(path: String, content: String) -> Result<(), AppError> {
-    std::fs::write(&path, &content)
-        .map_err(|e| AppError::Generic(format!("Export failed: {}", e)))
+    std::fs::write(&path, &content).map_err(|e| AppError::Generic(format!("Export failed: {}", e)))
 }
 
 #[tauri::command]
-pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -> Result<String, AppError> {
+pub fn import_database(
+    app: AppHandle,
+    state: State<AppState>,
+    source: String,
+) -> Result<String, AppError> {
     let src = PathBuf::from(&source);
     if !src.exists() {
-        return Err(AppError::Validation("Source file does not exist".to_string()));
+        return Err(AppError::Validation(
+            "Source file does not exist".to_string(),
+        ));
     }
     let src_conn = Connection::open(&src)
         .map_err(|e| AppError::Generic(format!("Cannot open source database: {}", e)))?;
@@ -92,29 +99,32 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
         let mut stmt = src_conn.prepare(
             "SELECT id, title, description, is_completed, is_archived, is_suspended, is_abandoned,
                     priority, due_date, reminder, recurrence, tag_id, parent_task_id, sort_order,
-                    my_day_date, created_at, updated_at FROM tasks"
+                    my_day_date, created_at, updated_at FROM tasks",
         )?;
-        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
-            Ok(vec![
-                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
-                Box::new(row.get::<_, String>(1)?),
-                Box::new(row.get::<_, String>(2)?),
-                Box::new(row.get::<_, i32>(3)?),
-                Box::new(row.get::<_, i32>(4)?),
-                Box::new(row.get::<_, i32>(5)?),
-                Box::new(row.get::<_, i32>(6)?),
-                Box::new(row.get::<_, i32>(7)?),
-                Box::new(row.get::<_, Option<String>>(8)?),
-                Box::new(row.get::<_, Option<String>>(9)?),
-                Box::new(row.get::<_, Option<String>>(10)?),
-                Box::new(row.get::<_, Option<String>>(11)?),
-                Box::new(row.get::<_, Option<String>>(12)?),
-                Box::new(row.get::<_, i32>(13)?),
-                Box::new(row.get::<_, Option<String>>(14)?),
-                Box::new(row.get::<_, String>(15)?),
-                Box::new(row.get::<_, String>(16)?),
-            ])
-        })?.flatten().collect();
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+            .query_map([], |row| {
+                Ok(vec![
+                    Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                    Box::new(row.get::<_, String>(1)?),
+                    Box::new(row.get::<_, String>(2)?),
+                    Box::new(row.get::<_, i32>(3)?),
+                    Box::new(row.get::<_, i32>(4)?),
+                    Box::new(row.get::<_, i32>(5)?),
+                    Box::new(row.get::<_, i32>(6)?),
+                    Box::new(row.get::<_, i32>(7)?),
+                    Box::new(row.get::<_, Option<String>>(8)?),
+                    Box::new(row.get::<_, Option<String>>(9)?),
+                    Box::new(row.get::<_, Option<String>>(10)?),
+                    Box::new(row.get::<_, Option<String>>(11)?),
+                    Box::new(row.get::<_, Option<String>>(12)?),
+                    Box::new(row.get::<_, i32>(13)?),
+                    Box::new(row.get::<_, Option<String>>(14)?),
+                    Box::new(row.get::<_, String>(15)?),
+                    Box::new(row.get::<_, String>(16)?),
+                ])
+            })?
+            .flatten()
+            .collect();
 
         let mut count = 0;
         for row in &rows {
@@ -125,23 +135,31 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
                  VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)",
                 rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
             );
-            if let Ok(n) = result { if n > 0 { count += 1; } }
+            if let Ok(n) = result {
+                if n > 0 {
+                    count += 1;
+                }
+            }
         }
         count
     };
 
     let imported_tags: usize = {
-        let mut stmt = src_conn.prepare("SELECT id, name, color, icon, sort_order, parent_tag_id FROM tags")?;
-        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
-            Ok(vec![
-                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
-                Box::new(row.get::<_, String>(1)?),
-                Box::new(row.get::<_, String>(2)?),
-                Box::new(row.get::<_, String>(3)?),
-                Box::new(row.get::<_, i32>(4)?),
-                Box::new(row.get::<_, Option<String>>(5)?),
-            ])
-        })?.flatten().collect();
+        let mut stmt = src_conn
+            .prepare("SELECT id, name, color, icon, sort_order, parent_tag_id FROM tags")?;
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+            .query_map([], |row| {
+                Ok(vec![
+                    Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                    Box::new(row.get::<_, String>(1)?),
+                    Box::new(row.get::<_, String>(2)?),
+                    Box::new(row.get::<_, String>(3)?),
+                    Box::new(row.get::<_, i32>(4)?),
+                    Box::new(row.get::<_, Option<String>>(5)?),
+                ])
+            })?
+            .flatten()
+            .collect();
 
         let mut count = 0;
         for row in &rows {
@@ -150,25 +168,32 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
                  VALUES (?1,?2,?3,?4,?5,?6)",
                 rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
             );
-            if let Ok(n) = result { if n > 0 { count += 1; } }
+            if let Ok(n) = result {
+                if n > 0 {
+                    count += 1;
+                }
+            }
         }
         count
     };
 
     let imported_reminders: usize = {
         let mut stmt = src_conn.prepare(
-            "SELECT id, task_id, offset, reminder_time, reminded, created_at FROM task_reminders"
+            "SELECT id, task_id, offset, reminder_time, reminded, created_at FROM task_reminders",
         )?;
-        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
-            Ok(vec![
-                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
-                Box::new(row.get::<_, String>(1)?),
-                Box::new(row.get::<_, String>(2)?),
-                Box::new(row.get::<_, String>(3)?),
-                Box::new(row.get::<_, i32>(4)?),
-                Box::new(row.get::<_, String>(5)?),
-            ])
-        })?.flatten().collect();
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+            .query_map([], |row| {
+                Ok(vec![
+                    Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                    Box::new(row.get::<_, String>(1)?),
+                    Box::new(row.get::<_, String>(2)?),
+                    Box::new(row.get::<_, String>(3)?),
+                    Box::new(row.get::<_, i32>(4)?),
+                    Box::new(row.get::<_, String>(5)?),
+                ])
+            })?
+            .flatten()
+            .collect();
 
         let mut count = 0;
         for row in &rows {
@@ -177,7 +202,11 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
                  VALUES (?1,?2,?3,?4,?5,?6)",
                 rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
             );
-            if let Ok(n) = result { if n > 0 { count += 1; } }
+            if let Ok(n) = result {
+                if n > 0 {
+                    count += 1;
+                }
+            }
         }
         count
     };
@@ -186,17 +215,20 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
         let mut stmt = src_conn.prepare(
             "SELECT id, task_id, original_name, storage_name, mime_type, file_size, created_at FROM attachments"
         )?;
-        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
-            Ok(vec![
-                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
-                Box::new(row.get::<_, String>(1)?),
-                Box::new(row.get::<_, String>(2)?),
-                Box::new(row.get::<_, String>(3)?),
-                Box::new(row.get::<_, String>(4)?),
-                Box::new(row.get::<_, i64>(5)?),
-                Box::new(row.get::<_, String>(6)?),
-            ])
-        })?.flatten().collect();
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+            .query_map([], |row| {
+                Ok(vec![
+                    Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                    Box::new(row.get::<_, String>(1)?),
+                    Box::new(row.get::<_, String>(2)?),
+                    Box::new(row.get::<_, String>(3)?),
+                    Box::new(row.get::<_, String>(4)?),
+                    Box::new(row.get::<_, i64>(5)?),
+                    Box::new(row.get::<_, String>(6)?),
+                ])
+            })?
+            .flatten()
+            .collect();
 
         let mut count = 0;
         for row in &rows {
@@ -205,26 +237,33 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
                  VALUES (?1,?2,?3,?4,?5,?6,?7)",
                 rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
             );
-            if let Ok(n) = result { if n > 0 { count += 1; } }
+            if let Ok(n) = result {
+                if n > 0 {
+                    count += 1;
+                }
+            }
         }
         count
     };
 
     let imported_habits: usize = {
         let mut stmt = src_conn.prepare(
-            "SELECT id, name, color, icon, frequency, target_count, sort_order FROM habits"
+            "SELECT id, name, color, icon, frequency, target_count, sort_order FROM habits",
         )?;
-        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
-            Ok(vec![
-                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
-                Box::new(row.get::<_, String>(1)?),
-                Box::new(row.get::<_, String>(2)?),
-                Box::new(row.get::<_, String>(3)?),
-                Box::new(row.get::<_, String>(4)?),
-                Box::new(row.get::<_, i32>(5)?),
-                Box::new(row.get::<_, i32>(6)?),
-            ])
-        })?.flatten().collect();
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+            .query_map([], |row| {
+                Ok(vec![
+                    Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                    Box::new(row.get::<_, String>(1)?),
+                    Box::new(row.get::<_, String>(2)?),
+                    Box::new(row.get::<_, String>(3)?),
+                    Box::new(row.get::<_, String>(4)?),
+                    Box::new(row.get::<_, i32>(5)?),
+                    Box::new(row.get::<_, i32>(6)?),
+                ])
+            })?
+            .flatten()
+            .collect();
 
         let mut count = 0;
         for row in &rows {
@@ -233,24 +272,30 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
                  VALUES (?1,?2,?3,?4,?5,?6,?7)",
                 rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
             );
-            if let Ok(n) = result { if n > 0 { count += 1; } }
+            if let Ok(n) = result {
+                if n > 0 {
+                    count += 1;
+                }
+            }
         }
         count
     };
 
     let imported_habit_logs: usize = {
-        let mut stmt = src_conn.prepare(
-            "SELECT id, habit_id, log_date, count, note FROM habit_logs"
-        )?;
-        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt.query_map([], |row| {
-            Ok(vec![
-                Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
-                Box::new(row.get::<_, String>(1)?),
-                Box::new(row.get::<_, String>(2)?),
-                Box::new(row.get::<_, i32>(3)?),
-                Box::new(row.get::<_, String>(4)?),
-            ])
-        })?.flatten().collect();
+        let mut stmt =
+            src_conn.prepare("SELECT id, habit_id, log_date, count, note FROM habit_logs")?;
+        let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+            .query_map([], |row| {
+                Ok(vec![
+                    Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                    Box::new(row.get::<_, String>(1)?),
+                    Box::new(row.get::<_, String>(2)?),
+                    Box::new(row.get::<_, i32>(3)?),
+                    Box::new(row.get::<_, String>(4)?),
+                ])
+            })?
+            .flatten()
+            .collect();
 
         let mut count = 0;
         for row in &rows {
@@ -259,7 +304,11 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
                  VALUES (?1,?2,?3,?4,?5)",
                 rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
             );
-            if let Ok(n) = result { if n > 0 { count += 1; } }
+            if let Ok(n) = result {
+                if n > 0 {
+                    count += 1;
+                }
+            }
         }
         count
     };
@@ -269,8 +318,12 @@ pub fn import_database(app: AppHandle, state: State<AppState>, source: String) -
 
     Ok(format!(
         "已导入 {} 个任务、{} 个标签、{} 个提醒、{} 个附件、{} 个习惯、{} 条打卡记录",
-        imported_tasks, imported_tags, imported_reminders,
-        imported_attachments, imported_habits, imported_habit_logs,
+        imported_tasks,
+        imported_tags,
+        imported_reminders,
+        imported_attachments,
+        imported_habits,
+        imported_habit_logs,
     ))
 }
 

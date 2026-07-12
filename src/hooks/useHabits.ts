@@ -1,8 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import {
-  createHabit, getHabits, updateHabit, deleteHabit, reorderHabits, toggleHabitLog,
-} from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
 import type { CreateHabitInput, HabitWithStats } from '../types/habit';
 
 const HABITS_KEY = ['habits'] as const;
@@ -10,7 +8,7 @@ const HABITS_KEY = ['habits'] as const;
 export function useHabits() {
   return useQuery({
     queryKey: HABITS_KEY,
-    queryFn: getHabits,
+    queryFn: () => getRepositories().habits.list(),
     staleTime: 30_000,
   });
 }
@@ -18,7 +16,7 @@ export function useHabits() {
 export function useCreateHabit() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateHabitInput) => createHabit(input),
+    mutationFn: (input: CreateHabitInput) => getRepositories().habits.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: HABITS_KEY });
       toast.success('习惯已创建');
@@ -31,7 +29,7 @@ export function useUpdateHabit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...input }: { id: string; name?: string; color?: string; frequency?: string; target_count?: number }) =>
-      updateHabit(id, input),
+      getRepositories().habits.update(id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: HABITS_KEY });
     },
@@ -42,7 +40,7 @@ export function useUpdateHabit() {
 export function useDeleteHabit() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteHabit(id),
+    mutationFn: (id: string) => getRepositories().habits.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: HABITS_KEY });
       toast.success('习惯已删除');
@@ -54,7 +52,7 @@ export function useDeleteHabit() {
 export function useToggleHabitLog() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ habitId, date }: { habitId: string; date?: string }) => toggleHabitLog(habitId, date),
+    mutationFn: ({ habitId, date }: { habitId: string; date?: string }) => getRepositories().habits.toggleLog(habitId, date),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: HABITS_KEY });
     },
@@ -65,7 +63,7 @@ export function useToggleHabitLog() {
 export function useReorderHabits() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (items: { id: string; sort_order: number }[]) => reorderHabits(items),
+    mutationFn: (items: { id: string; sort_order: number }[]) => getRepositories().habits.reorder(items),
     onMutate: async (items) => {
       await queryClient.cancelQueries({ queryKey: HABITS_KEY });
       const previous = queryClient.getQueryData(HABITS_KEY);

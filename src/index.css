@@ -571,6 +571,45 @@
     min-height: 100vh;
   }
 
+  @keyframes mobileSheetIn {
+    from {
+      opacity: 0.96;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes mobileScrimIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .mobile-sheet-enter {
+    animation: mobileSheetIn var(--mobile-motion-normal, 220ms) var(--mobile-motion-easing, cubic-bezier(0.2, 0, 0, 1));
+  }
+
+  .mobile-detail-enter {
+    animation: mobileSheetIn var(--mobile-motion-normal, 220ms) var(--mobile-motion-easing, cubic-bezier(0.2, 0, 0, 1));
+  }
+
+  .mobile-scrim-enter {
+    animation: mobileScrimIn var(--mobile-motion-fast, 140ms) ease-out;
+  }
+
+  .mobile-nav-motion {
+    transition:
+      color var(--mobile-motion-fast, 140ms) var(--mobile-motion-easing, cubic-bezier(0.2, 0, 0, 1)),
+      background-color var(--mobile-motion-fast, 140ms) var(--mobile-motion-easing, cubic-bezier(0.2, 0, 0, 1)),
+      transform var(--mobile-motion-fast, 140ms) var(--mobile-motion-easing, cubic-bezier(0.2, 0, 0, 1));
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

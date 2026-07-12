@@ -5,31 +5,31 @@ import { RecurrencePicker } from '../../components/shared/RecurrencePicker';
 import { renderWithProviders } from '../test-utils';
 
 describe('RecurrencePicker', () => {
-  it('renders trigger button with default text "No repeat"', () => {
+  it('renders trigger button with default text', () => {
     renderWithProviders(<RecurrencePicker value="" onChange={vi.fn()} />);
-    expect(screen.getByText('No repeat')).toBeInTheDocument();
+    expect(screen.getByText('\u4e0d\u91cd\u590d')).toBeInTheDocument();
   });
 
   it('renders presets when clicked', async () => {
     const user = userEvent.setup();
     renderWithProviders(<RecurrencePicker value="" onChange={vi.fn()} />);
-    await user.click(screen.getByText('No repeat'));
-    expect(screen.getByText('Every day')).toBeInTheDocument();
-    expect(screen.getByText('Every week')).toBeInTheDocument();
-    expect(screen.getByText('Every month')).toBeInTheDocument();
+    await user.click(screen.getByText('\u4e0d\u91cd\u590d'));
+    expect(screen.getByText('\u6bcf\u5929')).toBeInTheDocument();
+    expect(screen.getByText('\u6bcf\u5468')).toBeInTheDocument();
+    expect(screen.getByText('\u6bcf\u6708')).toBeInTheDocument();
   });
 
   it('shows formatted value in trigger', () => {
     renderWithProviders(<RecurrencePicker value='{"type":"daily","interval":1}' onChange={vi.fn()} />);
-    expect(screen.getByText('Every day')).toBeInTheDocument();
+    expect(screen.getByText('\u6bcf\u5929')).toBeInTheDocument();
   });
 
   it('calls onChange when preset selected', async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     renderWithProviders(<RecurrencePicker value="" onChange={onChange} />);
-    await user.click(screen.getByText('No repeat'));
-    await user.click(screen.getByText('Every week'));
+    await user.click(screen.getByText('\u4e0d\u91cd\u590d'));
+    await user.click(screen.getByText('\u6bcf\u5468'));
     expect(onChange).toHaveBeenCalled();
   });
 });

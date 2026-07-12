@@ -5,15 +5,20 @@ pub mod models;
 mod reminders;
 pub mod shortcuts;
 
+#[cfg(not(mobile))]
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
+#[cfg(not(mobile))]
+use tauri::image::Image;
+#[cfg(not(mobile))]
+use tauri::tray::TrayIconBuilder;
+#[cfg(not(mobile))]
 use tauri::Emitter;
 use tauri::Manager;
-use tauri::tray::TrayIconBuilder;
-use tauri::image::Image;
+#[cfg(not(mobile))]
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
 #[cfg(target_os = "windows")]
@@ -34,10 +39,7 @@ mod single_instance {
 
     #[link(name = "user32")]
     extern "system" {
-        fn FindWindowW(
-            lpClassName: *const u16,
-            lpWindowName: *const u16,
-        ) -> *mut std::ffi::c_void;
+        fn FindWindowW(lpClassName: *const u16, lpWindowName: *const u16) -> *mut std::ffi::c_void;
         fn ShowWindow(hWnd: *mut std::ffi::c_void, nCmdShow: i32) -> i32;
         fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
         fn IsIconic(hWnd: *mut std::ffi::c_void) -> i32;
@@ -92,12 +94,15 @@ mod single_instance {
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
     pub data_dir: PathBuf,
+    #[cfg(not(mobile))]
     pub global_shortcut_map: Arc<Mutex<HashMap<Shortcut, String>>>,
 }
 
 impl AppState {
     pub fn db(&self) -> Result<std::sync::MutexGuard<'_, Connection>, crate::error::AppError> {
-        self.db.lock().map_err(|e| crate::error::AppError::Lock(e.to_string()))
+        self.db
+            .lock()
+            .map_err(|e| crate::error::AppError::Lock(e.to_string()))
     }
 }
 
@@ -111,12 +116,15 @@ pub fn run() {
         }
     }
 
-    let result = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new()
+        .plugin(tauri_plugin_notification::init());
+
+    #[cfg(not(mobile))]
+    let builder = builder.plugin(
+        tauri_plugin_global_shortcut::Builder::new()
             .with_handler(|app, shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     // 从 AppState 中查找当前快捷键对应的操作 ID
@@ -131,21 +139,35 @@ pub fn run() {
                     }
                 }
             })
-            .build())
+            .build(),
+    );
+
+    let result = builder
         .setup(|app| {
             let app_dir = app.path().app_data_dir().map_err(|e| {
                 eprintln!("FATAL: Failed to resolve app data directory: {}", e);
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ))
             })?;
 
             if let Err(e) = std::fs::create_dir_all(&app_dir) {
-                eprintln!("FATAL: Failed to create app data directory '{}': {}", app_dir.display(), e);
+                eprintln!(
+                    "FATAL: Failed to create app data directory '{}': {}",
+                    app_dir.display(),
+                    e
+                );
                 return Err(Box::new(e));
             }
 
             let attachments_dir = app_dir.join("attachments");
             if let Err(e) = std::fs::create_dir_all(&attachments_dir) {
-                eprintln!("FATAL: Failed to create attachments directory '{}': {}", attachments_dir.display(), e);
+                eprintln!(
+                    "FATAL: Failed to create attachments directory '{}': {}",
+                    attachments_dir.display(),
+                    e
+                );
                 return Err(Box::new(e));
             }
 
@@ -153,7 +175,11 @@ pub fn run() {
             let conn = match db::connection::open(&db_path) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("FATAL: Failed to open database '{}': {}", db_path.display(), e);
+                    eprintln!(
+                        "FATAL: Failed to open database '{}': {}",
+                        db_path.display(),
+                        e
+                    );
                     return Err(Box::new(e));
                 }
             };
@@ -164,65 +190,69 @@ pub fn run() {
             }
 
             let db = Arc::new(Mutex::new(conn));
-            let db_for_widget = db.clone();
+            #[cfg(not(mobile))]
             let global_shortcut_map = Arc::new(Mutex::new(HashMap::new()));
             let state = AppState {
                 db: db.clone(),
                 data_dir: app_dir,
-                global_shortcut_map: global_shortcut_map.clone(),
+                #[cfg(not(mobile))]
+                global_shortcut_map,
             };
 
             // Start reminder polling
-            reminders::start_polling(app.handle().clone(), db);
+            reminders::start_polling(app.handle().clone(), db.clone());
 
             app.manage(state);
 
-            // ---- System tray ----
-            let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))
-                .expect("Failed to load tray icon");
+            #[cfg(not(mobile))]
+            {
+                let db_for_widget = db.clone();
 
-            // Build tray context menu
-            use tauri::menu::{MenuBuilder, MenuItemBuilder};
-            let show_item = MenuItemBuilder::with_id("show", "打开主界面")
-                .build(app)
-                .expect("Failed to build show menu item");
-            let settings_item = MenuItemBuilder::with_id("settings", "设置")
-                .build(app)
-                .expect("Failed to build settings menu item");
-            let quit_item = MenuItemBuilder::with_id("quit", "退出")
-                .build(app)
-                .expect("Failed to build quit menu item");
-            let tray_menu = MenuBuilder::new(app)
-                .item(&show_item)
-                .item(&settings_item)
-                .item(&quit_item)
-                .build()
-                .expect("Failed to build tray menu");
+                // ---- System tray ----
+                let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))
+                    .expect("Failed to load tray icon");
 
-            let app_handle = app.handle().clone();
+                // Build tray context menu
+                use tauri::menu::{MenuBuilder, MenuItemBuilder};
+                let show_item = MenuItemBuilder::with_id("show", "打开主界面")
+                    .build(app)
+                    .expect("Failed to build show menu item");
+                let settings_item = MenuItemBuilder::with_id("settings", "设置")
+                    .build(app)
+                    .expect("Failed to build settings menu item");
+                let quit_item = MenuItemBuilder::with_id("quit", "退出")
+                    .build(app)
+                    .expect("Failed to build quit menu item");
+                let tray_menu = MenuBuilder::new(app)
+                    .item(&show_item)
+                    .item(&settings_item)
+                    .item(&quit_item)
+                    .build()
+                    .expect("Failed to build tray menu");
 
-            let _tray = TrayIconBuilder::with_id("todoflow-tray")
-                .icon(icon)
-                .tooltip("TodoFlow")
-                .show_menu_on_left_click(false)
-                .on_tray_icon_event(move |_tray, event| {
-                    if let tauri::tray::TrayIconEvent::Click {
-                        button: tauri::tray::MouseButton::Left,
-                        ..
-                    } = event
-                    {
-                        if let Some(window) = app_handle.get_webview_window("main") {
-                            let _ = window.unminimize();
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                let app_handle = app.handle().clone();
+
+                let _tray = TrayIconBuilder::with_id("todoflow-tray")
+                    .icon(icon)
+                    .tooltip("TodoFlow")
+                    .show_menu_on_left_click(false)
+                    .on_tray_icon_event(move |_tray, event| {
+                        if let tauri::tray::TrayIconEvent::Click {
+                            button: tauri::tray::MouseButton::Left,
+                            ..
+                        } = event
+                        {
+                            if let Some(window) = app_handle.get_webview_window("main") {
+                                let _ = window.unminimize();
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                            if let Some(widget) = app_handle.get_webview_window("widget") {
+                                let _ = widget.hide();
+                            }
                         }
-                        if let Some(widget) = app_handle.get_webview_window("widget") {
-                            let _ = widget.hide();
-                        }
-                    }
-                })
-                .on_menu_event(|tray, event| {
-                    match event.id.as_ref() {
+                    })
+                    .on_menu_event(|tray, event| match event.id.as_ref() {
                         "show" => {
                             if let Some(window) = tray.app_handle().get_webview_window("main") {
                                 let _ = window.unminimize();
@@ -242,160 +272,180 @@ pub fn run() {
                             if let Some(widget) = tray.app_handle().get_webview_window("widget") {
                                 let _ = widget.hide();
                             }
-                            let _ = tray.app_handle().emit_to("main", "navigate-to-settings", ());
+                            let _ = tray
+                                .app_handle()
+                                .emit_to("main", "navigate-to-settings", ());
                         }
                         "quit" => {
                             let app = tray.app_handle();
                             let _ = app.exit(0);
                         }
                         _ => {}
-                    }
-                })
-                .menu(&tray_menu)
-                .build(app)?;
+                    })
+                    .menu(&tray_menu)
+                    .build(app)?;
 
-            // Intercept main window close → hide + maybe show widget
-            if let Some(window) = app.get_webview_window("main") {
-                let win_clone = window.clone();
-                let db_close = db_for_widget.clone();
-                let app_close = app.handle().clone();
-                window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        api.prevent_close();
-                        let _ = win_clone.hide();
-                        let enabled = db_close.lock().ok().and_then(|db| {
-                            db.query_row("SELECT value FROM settings WHERE key = 'widget_enabled'", rusqlite::params![], |row| row.get::<_, String>(0)).ok()
-                        }).map(|v| v != "0").unwrap_or(true);
-                        if enabled {
-                            if let Some(widget) = app_close.get_webview_window("widget") {
-                                let _ = widget.show();
+                // Intercept main window close → hide + maybe show widget
+                if let Some(window) = app.get_webview_window("main") {
+                    let win_clone = window.clone();
+                    let db_close = db_for_widget.clone();
+                    let app_close = app.handle().clone();
+                    window.on_window_event(move |event| {
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                            api.prevent_close();
+                            let _ = win_clone.hide();
+                            let enabled = db_close
+                                .lock()
+                                .ok()
+                                .and_then(|db| {
+                                    db.query_row(
+                                        "SELECT value FROM settings WHERE key = 'widget_enabled'",
+                                        rusqlite::params![],
+                                        |row| row.get::<_, String>(0),
+                                    )
+                                    .ok()
+                                })
+                                .map(|v| v != "0")
+                                .unwrap_or(true);
+                            if enabled {
+                                if let Some(widget) = app_close.get_webview_window("widget") {
+                                    let _ = widget.show();
+                                }
                             }
                         }
-                    }
-                });
-            }
-
-            // ---- Desktop widget window ----
-            let widget = tauri::WebviewWindowBuilder::new(
-                app,
-                "widget",
-                tauri::WebviewUrl::App("/?widget=1".into()),
-            )
-            .title("TodoFlow Widget")
-            .inner_size(300.0, 420.0)
-            .min_inner_size(80.0, 80.0)
-            .decorations(false)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .resizable(false)
-            .visible(false)
-            .transparent(true)
-            .shadow(false)
-            .build()?;
-
-            // Try to restore saved widget position from settings
-            let mut positioned = false;
-            if let Ok(db) = db_for_widget.lock() {
-                let x_str: Option<String> = db
-                    .query_row(
-                        "SELECT value FROM settings WHERE key = 'widget_x'",
-                        rusqlite::params![],
-                        |row| row.get(0),
-                    )
-                    .ok();
-                let y_str: Option<String> = db
-                    .query_row(
-                        "SELECT value FROM settings WHERE key = 'widget_y'",
-                        rusqlite::params![],
-                        |row| row.get(0),
-                    )
-                    .ok();
-                if let (Some(x_str), Some(y_str)) = (x_str, y_str) {
-                    if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
-                        let _ = widget.set_position(tauri::PhysicalPosition::new(x, y));
-                        positioned = true;
-                    }
+                    });
                 }
-            }
-            // Fallback: bottom-right corner of primary monitor
-            if !positioned {
-                if let Ok(monitors) = widget.available_monitors() {
-                    if let Some(monitor) = monitors.into_iter().next() {
-                        let size = monitor.size();
-                        let scale = monitor.scale_factor();
-                        let x = (size.width as f64 / scale) - 310.0;
-                        let y = (size.height as f64 / scale) - 440.0;
-                        let _ = widget.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+
+                // ---- Desktop widget window ----
+                let widget = tauri::WebviewWindowBuilder::new(
+                    app,
+                    "widget",
+                    tauri::WebviewUrl::App("/?widget=1".into()),
+                )
+                .title("TodoFlow Widget")
+                .inner_size(300.0, 420.0)
+                .min_inner_size(80.0, 80.0)
+                .decorations(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false)
+                .visible(false)
+                .transparent(true)
+                .shadow(false)
+                .build()?;
+
+                // Try to restore saved widget position from settings
+                let mut positioned = false;
+                if let Ok(db) = db_for_widget.lock() {
+                    let x_str: Option<String> = db
+                        .query_row(
+                            "SELECT value FROM settings WHERE key = 'widget_x'",
+                            rusqlite::params![],
+                            |row| row.get(0),
+                        )
+                        .ok();
+                    let y_str: Option<String> = db
+                        .query_row(
+                            "SELECT value FROM settings WHERE key = 'widget_y'",
+                            rusqlite::params![],
+                            |row| row.get(0),
+                        )
+                        .ok();
+                    if let (Some(x_str), Some(y_str)) = (x_str, y_str) {
+                        if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
+                            let _ = widget.set_position(tauri::PhysicalPosition::new(x, y));
+                            positioned = true;
+                        }
                     }
                 }
-            }
-
-            // ---- Pomodoro standalone window ----
-            let pomodoro_win = tauri::WebviewWindowBuilder::new(
-                app,
-                "pomodoro",
-                tauri::WebviewUrl::App("/?pomodoro=1".into()),
-            )
-            .title("TodoFlow Pomodoro")
-            .inner_size(190.0, 200.0)
-            .decorations(false)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .resizable(true)
-            .visible(false)
-            .transparent(true)
-            .shadow(false)
-            .build()?;
-
-            // Try to restore saved pomodoro position from settings
-            let mut pomo_positioned = false;
-            if let Ok(db) = db_for_widget.lock() {
-                let x_str: Option<String> = db
-                    .query_row(
-                        "SELECT value FROM settings WHERE key = 'pomodoro_x'",
-                        rusqlite::params![],
-                        |row| row.get(0),
-                    )
-                    .ok();
-                let y_str: Option<String> = db
-                    .query_row(
-                        "SELECT value FROM settings WHERE key = 'pomodoro_y'",
-                        rusqlite::params![],
-                        |row| row.get(0),
-                    )
-                    .ok();
-                if let (Some(x_str), Some(y_str)) = (x_str, y_str) {
-                    if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
-                        let _ = pomodoro_win.set_position(tauri::PhysicalPosition::new(x, y));
-                        pomo_positioned = true;
+                // Fallback: bottom-right corner of primary monitor
+                if !positioned {
+                    if let Ok(monitors) = widget.available_monitors() {
+                        if let Some(monitor) = monitors.into_iter().next() {
+                            let size = monitor.size();
+                            let scale = monitor.scale_factor();
+                            let x = (size.width as f64 / scale) - 310.0;
+                            let y = (size.height as f64 / scale) - 440.0;
+                            let _ = widget
+                                .set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+                        }
                     }
                 }
-            }
-            // Fallback: bottom-right above widget area
-            if !pomo_positioned {
-                if let Ok(monitors) = pomodoro_win.available_monitors() {
-                    if let Some(monitor) = monitors.into_iter().next() {
-                        let size = monitor.size();
-                        let scale = monitor.scale_factor();
-                        let x = (size.width as f64 / scale) - 240.0;
-                        let y = (size.height as f64 / scale) - 540.0;
-                        let _ = pomodoro_win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+
+                // ---- Pomodoro standalone window ----
+                let pomodoro_win = tauri::WebviewWindowBuilder::new(
+                    app,
+                    "pomodoro",
+                    tauri::WebviewUrl::App("/?pomodoro=1".into()),
+                )
+                .title("TodoFlow Pomodoro")
+                .inner_size(190.0, 200.0)
+                .decorations(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(true)
+                .visible(false)
+                .transparent(true)
+                .shadow(false)
+                .build()?;
+
+                // Try to restore saved pomodoro position from settings
+                let mut pomo_positioned = false;
+                if let Ok(db) = db_for_widget.lock() {
+                    let x_str: Option<String> = db
+                        .query_row(
+                            "SELECT value FROM settings WHERE key = 'pomodoro_x'",
+                            rusqlite::params![],
+                            |row| row.get(0),
+                        )
+                        .ok();
+                    let y_str: Option<String> = db
+                        .query_row(
+                            "SELECT value FROM settings WHERE key = 'pomodoro_y'",
+                            rusqlite::params![],
+                            |row| row.get(0),
+                        )
+                        .ok();
+                    if let (Some(x_str), Some(y_str)) = (x_str, y_str) {
+                        if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
+                            let _ = pomodoro_win.set_position(tauri::PhysicalPosition::new(x, y));
+                            pomo_positioned = true;
+                        }
                     }
                 }
-            }
-
-            // ---- Global shortcuts ----
-            // 使用动态注册，从 settings 表中读取用户自定义的快捷键配置
-            {
-                let app_state = app.state::<AppState>();
-                let conn = app_state.db.lock().map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-                if let Err(e) = crate::shortcuts::register_global_shortcuts(app.handle(), &conn) {
-                    eprintln!("Warning: Failed to register global shortcuts: {}", e);
+                // Fallback: bottom-right above widget area
+                if !pomo_positioned {
+                    if let Ok(monitors) = pomodoro_win.available_monitors() {
+                        if let Some(monitor) = monitors.into_iter().next() {
+                            let size = monitor.size();
+                            let scale = monitor.scale_factor();
+                            let x = (size.width as f64 / scale) - 240.0;
+                            let y = (size.height as f64 / scale) - 540.0;
+                            let _ = pomodoro_win
+                                .set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+                        }
+                    }
                 }
-            }
 
-            // Clicking X closes the app; use the tray menu "Quit" or Ctrl+Shift+T to reopen
-            // Hide-to-widget is available via the hide_to_tray command (called from frontend)
+                // ---- Global shortcuts ----
+                // 使用动态注册，从 settings 表中读取用户自定义的快捷键配置
+                {
+                    let app_state = app.state::<AppState>();
+                    let conn = app_state.db.lock().map_err(|e| {
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            e.to_string(),
+                        ))
+                    })?;
+                    if let Err(e) = crate::shortcuts::register_global_shortcuts(app.handle(), &conn)
+                    {
+                        eprintln!("Warning: Failed to register global shortcuts: {}", e);
+                    }
+                }
+
+                // Clicking X closes the app; use the tray menu "Quit" or Ctrl+Shift+T to reopen
+                // Hide-to-widget is available via the hide_to_tray command (called from frontend)
+            }
 
             Ok(())
         })
@@ -446,6 +496,17 @@ pub fn run() {
             commands::habit_commands::delete_habit,
             commands::habit_commands::reorder_habits,
             commands::habit_commands::toggle_habit_log,
+            commands::sync_commands::get_sync_meta,
+            commands::sync_commands::set_sync_meta,
+            commands::sync_commands::list_sync_meta,
+            commands::sync_commands::record_sync_operation,
+            commands::sync_commands::list_sync_operations,
+            commands::sync_commands::mark_sync_operation_status,
+            commands::sync_commands::increment_sync_operation_retry,
+            commands::sync_commands::save_sync_conflict,
+            commands::sync_commands::list_sync_conflicts,
+            commands::sync_commands::resolve_sync_conflict,
+            commands::sync_commands::derive_sync_status,
         ])
         .run(tauri::generate_context!());
 
@@ -478,7 +539,12 @@ pub fn run() {
                         uType: u32,
                     ) -> i32;
                 }
-                MessageBoxW(std::ptr::null_mut(), msg.as_ptr(), title.as_ptr(), 0x00000010);
+                MessageBoxW(
+                    std::ptr::null_mut(),
+                    msg.as_ptr(),
+                    title.as_ptr(),
+                    0x00000010,
+                );
             }
         }
 

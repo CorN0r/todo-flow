@@ -2,6 +2,16 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Task, TaskDetail, CreateTaskInput, UpdateTaskInput, ReorderItem, TaskReminder } from '../types/task';
 import type { Tag, TagWithCount, CreateTagInput } from '../types/tag';
 import type { Attachment } from '../types/attachment';
+import type {
+  CreateSyncConflictInput,
+  CreateSyncOperationInput,
+  SyncConflict,
+  SyncEntityStatus,
+  SyncEntityType,
+  SyncMetaEntry,
+  SyncOperation,
+  SyncOperationStatus,
+} from '../domain/models/sync';
 
 // Task commands
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -202,4 +212,53 @@ export async function reorderHabits(items: ReorderHabitsItem[]): Promise<void> {
 
 export async function toggleHabitLog(habitId: string, date?: string): Promise<HabitLog> {
   return invoke('toggle_habit_log', { habit_id: habitId, date });
+}
+
+// Sync metadata and operation commands
+export async function getSyncMeta(key: string): Promise<string | null> {
+  return invoke('get_sync_meta', { key });
+}
+
+export async function setSyncMeta(key: string, value: string): Promise<void> {
+  return invoke('set_sync_meta', { key, value });
+}
+
+export async function listSyncMeta(): Promise<SyncMetaEntry[]> {
+  return invoke('list_sync_meta');
+}
+
+export async function recordSyncOperation(input: CreateSyncOperationInput): Promise<SyncOperation> {
+  return invoke('record_sync_operation', { req: input });
+}
+
+export async function listSyncOperations(status?: SyncOperationStatus): Promise<SyncOperation[]> {
+  return invoke('list_sync_operations', { status });
+}
+
+export async function markSyncOperationStatus(
+  opId: string,
+  status: SyncOperationStatus,
+  lastError?: string | null,
+): Promise<SyncOperation> {
+  return invoke('mark_sync_operation_status', { op_id: opId, status, last_error: lastError });
+}
+
+export async function incrementSyncOperationRetry(opId: string, lastError: string): Promise<SyncOperation> {
+  return invoke('increment_sync_operation_retry', { op_id: opId, last_error: lastError });
+}
+
+export async function saveSyncConflict(input: CreateSyncConflictInput): Promise<SyncConflict> {
+  return invoke('save_sync_conflict', { req: input });
+}
+
+export async function listSyncConflicts(entityType?: SyncEntityType, entityId?: string): Promise<SyncConflict[]> {
+  return invoke('list_sync_conflicts', { entity_type: entityType, entity_id: entityId });
+}
+
+export async function resolveSyncConflict(id: string): Promise<SyncConflict> {
+  return invoke('resolve_sync_conflict', { id });
+}
+
+export async function deriveSyncStatus(entityType: SyncEntityType, entityId: string): Promise<SyncEntityStatus> {
+  return invoke('derive_sync_status', { entity_type: entityType, entity_id: entityId });
 }

@@ -10,16 +10,45 @@ use crate::models::attachment::Attachment;
 use crate::AppState;
 
 fn is_image(ext: &str) -> bool {
-    matches!(ext.to_lowercase().as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp")
+    matches!(
+        ext.to_lowercase().as_str(),
+        "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp"
+    )
 }
 
 /// Allow common file types: images, documents, archives, text
 fn is_allowed(ext: &str) -> bool {
-    matches!(ext.to_lowercase().as_str(),
-        "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" |
-        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" |
-        "txt" | "md" | "csv" | "json" | "xml" | "html" | "css" | "js" | "ts" | "rs" | "py" |
-        "zip" | "rar" | "7z" | "tar" | "gz"
+    matches!(
+        ext.to_lowercase().as_str(),
+        "png"
+            | "jpg"
+            | "jpeg"
+            | "webp"
+            | "gif"
+            | "bmp"
+            | "pdf"
+            | "doc"
+            | "docx"
+            | "xls"
+            | "xlsx"
+            | "ppt"
+            | "pptx"
+            | "txt"
+            | "md"
+            | "csv"
+            | "json"
+            | "xml"
+            | "html"
+            | "css"
+            | "js"
+            | "ts"
+            | "rs"
+            | "py"
+            | "zip"
+            | "rar"
+            | "7z"
+            | "tar"
+            | "gz"
     )
 }
 
@@ -31,10 +60,7 @@ pub fn upload_attachment(
 ) -> Result<Attachment, AppError> {
     let source = PathBuf::from(&source_path);
 
-    let ext = source
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("");
     if !is_allowed(ext) {
         return Err(AppError::Validation(format!(
             "Unsupported file type: {}",

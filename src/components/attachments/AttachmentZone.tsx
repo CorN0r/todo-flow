@@ -2,8 +2,7 @@
 import { X, FileText, File, Link, Paperclip } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { useUploadAttachment, useDeleteAttachment, useAttachments } from '../../hooks/useAttachments';
-import { open } from '@tauri-apps/plugin-dialog';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { getRepositories } from '../../domain/repositories/current';
 import { getAttachmentFilePath } from '../../lib/db';
 import { ImageLightbox } from './ImageLightbox';
 import type { Attachment } from '../../types/attachment';
@@ -37,7 +36,7 @@ function AttachmentThumbnail({
   useEffect(() => {
     if (isImage) {
       getAttachmentFilePath(attachment.id).then((path) => {
-        setSrc(convertFileSrc(path));
+        setSrc(getRepositories().platform.toFileAssetUrl(path));
       });
     }
   }, [attachment.id, isImage]);
@@ -113,18 +112,15 @@ export function AttachmentZone({ taskId }: AttachmentZoneProps) {
   const [linkTitle, setLinkTitle] = useState('');
 
   const handleAddFile = async () => {
-    const selected = await open({
+    const paths = await getRepositories().platform.chooseFiles({
       multiple: true,
       filters: [{
         name: 'All Files',
         extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'pdf', 'doc', 'docx', 'txt', 'md', 'csv', 'json', 'xml', 'html', 'zip'],
       }],
     });
-    if (selected) {
-      const paths = Array.isArray(selected) ? selected : [selected];
-      for (const path of paths) {
-        uploadMutation.mutate({ taskId, sourcePath: path });
-      }
+    for (const path of paths) {
+      uploadMutation.mutate({ taskId, sourcePath: path });
     }
   };
 

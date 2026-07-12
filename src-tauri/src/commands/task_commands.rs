@@ -148,7 +148,11 @@ pub fn get_today_task_count(state: State<AppState>) -> Result<i64, AppError> {
 }
 
 #[tauri::command]
-pub fn duplicate_task(app: AppHandle, state: State<AppState>, id: String) -> Result<Task, AppError> {
+pub fn duplicate_task(
+    app: AppHandle,
+    state: State<AppState>,
+    id: String,
+) -> Result<Task, AppError> {
     let conn = state.db()?;
     let task = task_repo::duplicate(&conn, &id)?;
     let _ = app.emit("task-changed", ());
@@ -156,7 +160,11 @@ pub fn duplicate_task(app: AppHandle, state: State<AppState>, id: String) -> Res
 }
 
 #[tauri::command]
-pub fn add_task_to_my_day(app: AppHandle, state: State<AppState>, id: String) -> Result<Task, AppError> {
+pub fn add_task_to_my_day(
+    app: AppHandle,
+    state: State<AppState>,
+    id: String,
+) -> Result<Task, AppError> {
     let conn = state.db()?;
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let task = task_repo::update(
@@ -183,7 +191,11 @@ pub fn add_task_to_my_day(app: AppHandle, state: State<AppState>, id: String) ->
 }
 
 #[tauri::command]
-pub fn remove_task_from_my_day(app: AppHandle, state: State<AppState>, id: String) -> Result<Task, AppError> {
+pub fn remove_task_from_my_day(
+    app: AppHandle,
+    state: State<AppState>,
+    id: String,
+) -> Result<Task, AppError> {
     let conn = state.db()?;
     let task = task_repo::update(
         &conn,

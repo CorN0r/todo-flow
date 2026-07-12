@@ -27,6 +27,7 @@ import { CommandPalette } from './components/shared/CommandPalette';
 import { BulkActionBar } from './components/shared/BulkActionBar';
 import { OnboardingOverlay } from './components/shared/OnboardingOverlay';
 import { PomodoroFullscreen } from './components/shared/PomodoroFullscreen';
+import { MobileApp } from './mobile/MobileApp';
 import { usePomodoroSync } from './hooks/usePomodoroSync';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { useTheme } from './hooks/useTheme';
@@ -34,6 +35,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useUIStore } from './stores/uiStore';
 import { usePomodoroStore } from './stores/pomodoroStore';
 import { useShortcutStore } from './stores/shortcutStore';
+import { getBrowserInitialEntryRoute } from './platform/appSurface';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +58,7 @@ function AppLayout() {
     <Routes>
       <Route path="/widget" element={<WidgetPage />} />
       <Route path="/pomodoro-widget" element={<PomodoroWidgetPage />} />
+      <Route path="/mobile/*" element={<MobileApp />} />
       <Route path="*" element={<MainLayout />} />
     </Routes>
   );
@@ -212,12 +215,7 @@ function App() {
   useEffect(() => { loadShortcuts(); }, [loadShortcuts]);
 
   return (
-    <MemoryRouter initialEntries={[(() => {
-      const sp = new URLSearchParams(window.location.search);
-      if (sp.has('widget')) return '/widget';
-      if (sp.has('pomodoro')) return '/pomodoro-widget';
-      return '/date/all';
-    })()]}>
+    <MemoryRouter initialEntries={[getBrowserInitialEntryRoute()]}>
       <QueryClientProvider client={queryClient}>
         <AppLayout />
       </QueryClientProvider>

@@ -17,17 +17,26 @@ pub fn start_polling(app_handle: AppHandle, db: Arc<Mutex<Connection>>) {
 
         let conn = match db.lock() {
             Ok(c) => c,
-            Err(e) => { eprintln!("[reminder] Failed to acquire db lock: {}", e); continue; }
+            Err(e) => {
+                eprintln!("[reminder] Failed to acquire db lock: {}", e);
+                continue;
+            }
         };
 
         let reminders = match reminder_repo::get_due_reminders(&conn, &now) {
             Ok(r) => r,
-            Err(e) => { eprintln!("[reminder] Query failed: {}", e); continue; }
+            Err(e) => {
+                eprintln!("[reminder] Query failed: {}", e);
+                continue;
+            }
         };
 
         for (reminder_id, title) in reminders {
             if let Err(e) = reminder_repo::mark_reminded(&conn, &reminder_id) {
-                eprintln!("[reminder] Failed to mark {} as reminded: {}", reminder_id, e);
+                eprintln!(
+                    "[reminder] Failed to mark {} as reminded: {}",
+                    reminder_id, e
+                );
             }
 
             use tauri_plugin_notification::NotificationExt;
@@ -38,10 +47,14 @@ pub fn start_polling(app_handle: AppHandle, db: Arc<Mutex<Connection>>) {
                 .body(&title)
                 .show();
 
-            let _ = app_handle.emit_to("main", "reminder-triggered", serde_json::json!({
-                "task_id": "",
-                "title": title,
-            }));
+            let _ = app_handle.emit_to(
+                "main",
+                "reminder-triggered",
+                serde_json::json!({
+                    "task_id": "",
+                    "title": title,
+                }),
+            );
         }
     });
 }

@@ -1,9 +1,11 @@
-use chrono::{Datelike, Days, Months, NaiveDate, Local};
+use chrono::{Datelike, Days, Local, Months, NaiveDate};
 use rusqlite::Connection;
+use serde_json::json;
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::db::reminder_repo;
+use crate::db::sync_repo;
 use crate::error::AppError;
 use crate::models::task::{
     CreateTaskRequest, ReorderItem, Task, TaskDetail, TaskFilter, UpdateTaskRequest,
@@ -21,7 +23,11 @@ fn parse_recurrence(recurrence: &str) -> Option<(String, i64)> {
 }
 
 fn parse_due_date_only(due: &str) -> &str {
-    if due.len() > 10 { &due[..10] } else { due }
+    if due.len() > 10 {
+        &due[..10]
+    } else {
+        due
+    }
 }
 
 fn compute_next_due(current_due: &str, rec_type: &str, interval: i64) -> Option<String> {
@@ -48,7 +54,11 @@ fn advance_reminder_time(old_due: &str, old_reminder: &str, new_due: &str) -> Op
     let offset = old_rem_date.signed_duration_since(old_due_date);
     let new_rem_date = new_due_date.checked_add_days(Days::new(offset.num_days().max(0) as u64))?;
     let new_rem_time = old_rem_dt.time();
-    Some(format!("{} {}", new_rem_date.format("%Y-%m-%d"), new_rem_time.format("%H:%M")))
+    Some(format!(
+        "{} {}",
+        new_rem_date.format("%Y-%m-%d"),
+        new_rem_time.format("%H:%M")
+    ))
 }
 
 fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
@@ -129,6 +139,15 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
         ],
     )?;
 
+    let task =
+        get_by_id(conn, &id)?.ok_or(AppError::Generic("Failed to create task".to_string()))?;
+    let _ = sync_repo::record_local_operation(
+        conn,
+        "task",
+        &task.id,
+        "create",
+        json!({ "task": task }),
+    )?;
     get_by_id(conn, &id)?.ok_or(AppError::Generic("Failed to create task".to_string()))
 }
 
@@ -148,7 +167,7 @@ pub fn get_children(conn: &Connection, parent_id: &str) -> Result<Vec<Task>, App
         "SELECT id, title, description, is_completed, is_archived, is_suspended, is_abandoned, is_pinned,
                 priority, due_date, reminder,
                 tag_id, parent_task_id, sort_order, recurrence, my_day_date, created_at, updated_at
-         FROM tasks WHERE parent_task_id = ?1 AND is_archived = 0
+         FROM tasks WHERE parent_task_id = ?1 AND is_archived = 0 AND deleted_at IS NULL
          ORDER BY sort_order ASC",
     )?;
     let rows = stmt.query_map(rusqlite::params![parent_id], row_to_task)?;
@@ -170,9 +189,9 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
         "SELECT t.id, t.title, t.description, t.is_completed, t.is_archived, t.is_suspended, t.is_abandoned, t.is_pinned,
                 t.priority, t.due_date,
                 t.reminder, t.tag_id, t.parent_task_id, t.sort_order, t.recurrence, t.my_day_date,
-                (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id AND c.is_archived = 0) AS children_count,
+                (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id AND c.is_archived = 0 AND c.deleted_at IS NULL) AS children_count,
                 t.created_at, t.updated_at
-         FROM tasks t WHERE 1=1",
+         FROM tasks t WHERE t.deleted_at IS NULL",
     );
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
     let inc_children = filter.include_children.unwrap_or(false);
@@ -270,7 +289,7 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
 
 pub fn get_today_count(conn: &Connection, today: &str) -> Result<i64, AppError> {
     let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND parent_task_id IS NULL AND substr(due_date, 1, 10) = ?1",
+        "SELECT COUNT(*) FROM tasks WHERE is_archived = 0 AND is_completed = 0 AND deleted_at IS NULL AND parent_task_id IS NULL AND substr(due_date, 1, 10) = ?1",
         rusqlite::params![today],
         |row| row.get(0),
     )?;
@@ -278,8 +297,8 @@ pub fn get_today_count(conn: &Connection, today: &str) -> Result<i64, AppError> 
 }
 
 pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Task, AppError> {
-    let existing = get_by_id(conn, id)?
-        .ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
+    let existing =
+        get_by_id(conn, id)?.ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
 
     let title = req.title.unwrap_or(existing.title);
     if title.trim().is_empty() {
@@ -322,10 +341,13 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
         Some(None) => None,
         Some(Some(ref new_parent)) => {
             if new_parent == id {
-                return Err(AppError::Validation("Task cannot be its own parent".to_string()));
+                return Err(AppError::Validation(
+                    "Task cannot be its own parent".to_string(),
+                ));
             }
-            let parent = get_by_id(conn, new_parent)?
-                .ok_or_else(|| AppError::NotFound(format!("Parent task {} not found", new_parent)))?;
+            let parent = get_by_id(conn, new_parent)?.ok_or_else(|| {
+                AppError::NotFound(format!("Parent task {} not found", new_parent))
+            })?;
             if parent.parent_task_id.is_some() {
                 return Err(AppError::Validation(
                     "Maximum subtask depth is 2 levels".to_string(),
@@ -397,10 +419,28 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
         ],
     )?;
 
+    let task =
+        get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update task".to_string()))?;
+    let _ = sync_repo::record_local_operation(conn, "task", id, "update", json!({ "task": task }))?;
     get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update task".to_string()))
 }
 
 pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
+    if sync_repo::is_sync_enabled(conn)? {
+        let _existing = get_by_id(conn, id)?
+            .ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
+        let _ = sync_repo::record_local_operation(conn, "task", id, "delete", json!({ "id": id }))?;
+        conn.execute(
+            "UPDATE tasks
+             SET deleted_at = COALESCE(deleted_at, ?1),
+                 updated_at = ?1,
+                 sync_status = 'deleted'
+             WHERE parent_task_id = ?2",
+            rusqlite::params![now_local(), id],
+        )?;
+        return Ok(());
+    }
+
     let affected = conn.execute("DELETE FROM tasks WHERE id = ?1", rusqlite::params![id])?;
     if affected == 0 {
         return Err(AppError::NotFound(format!("Task {} not found", id)));
@@ -411,8 +451,9 @@ pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
 pub fn reorder(conn: &Connection, items: Vec<ReorderItem>) -> Result<(), AppError> {
     for item in &items {
         if let Some(ref parent_id) = item.parent_task_id {
-            let parent = get_by_id(conn, parent_id)?
-                .ok_or_else(|| AppError::NotFound(format!("Parent task {} not found", parent_id)))?;
+            let parent = get_by_id(conn, parent_id)?.ok_or_else(|| {
+                AppError::NotFound(format!("Parent task {} not found", parent_id))
+            })?;
             if parent.parent_task_id.is_some() {
                 return Err(AppError::Validation(
                     "Maximum subtask depth is 2 levels".to_string(),
@@ -429,12 +470,27 @@ pub fn reorder(conn: &Connection, items: Vec<ReorderItem>) -> Result<(), AppErro
         )?;
     }
     tx.commit()?;
+    if sync_repo::is_sync_enabled(conn)? {
+        for item in &items {
+            let _ = sync_repo::record_local_operation(
+                conn,
+                "task",
+                &item.id,
+                "reorder",
+                json!({
+                    "id": item.id,
+                    "sort_order": item.sort_order,
+                    "parent_task_id": item.parent_task_id,
+                }),
+            )?;
+        }
+    }
     Ok(())
 }
 
 pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
-    let original = get_by_id(conn, id)?
-        .ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
+    let original =
+        get_by_id(conn, id)?.ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
 
     let new_id = Uuid::new_v4().to_string();
     let new_title = format!("{} (copy)", original.title);
@@ -487,6 +543,15 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
 
     let _ = reminder_repo::copy_reminders(conn, id, &new_id);
 
+    let task = get_by_id(conn, &new_id)?
+        .ok_or(AppError::Generic("Failed to duplicate task".to_string()))?;
+    let _ = sync_repo::record_local_operation(
+        conn,
+        "task",
+        &new_id,
+        "create",
+        json!({ "task": task }),
+    )?;
     get_by_id(conn, &new_id)?.ok_or(AppError::Generic("Failed to duplicate task".to_string()))
 }
 
@@ -658,19 +723,43 @@ mod tests {
         reorder(
             &conn,
             vec![
-                ReorderItem { id: t3.id.clone(), sort_order: 0, parent_task_id: None },
-                ReorderItem { id: t1.id.clone(), sort_order: 1, parent_task_id: None },
-                ReorderItem { id: t2.id.clone(), sort_order: 2, parent_task_id: None },
+                ReorderItem {
+                    id: t3.id.clone(),
+                    sort_order: 0,
+                    parent_task_id: None,
+                },
+                ReorderItem {
+                    id: t1.id.clone(),
+                    sort_order: 1,
+                    parent_task_id: None,
+                },
+                ReorderItem {
+                    id: t2.id.clone(),
+                    sort_order: 2,
+                    parent_task_id: None,
+                },
             ],
         )
         .unwrap();
 
-        let all = get_all(&conn, TaskFilter {
-            tag_id: None, is_completed: None, due_date_from: None,
-            due_date_to: None, search_query: None, parent_task_id: None,
-            my_day_date: None, priority: None, is_suspended: None, is_abandoned: None,
-            include_children: None, include_archived: None,
-        }).unwrap();
+        let all = get_all(
+            &conn,
+            TaskFilter {
+                tag_id: None,
+                is_completed: None,
+                due_date_from: None,
+                due_date_to: None,
+                search_query: None,
+                parent_task_id: None,
+                my_day_date: None,
+                priority: None,
+                is_suspended: None,
+                is_abandoned: None,
+                include_children: None,
+                include_archived: None,
+            },
+        )
+        .unwrap();
         assert_eq!(all[0].id, t3.id);
         assert_eq!(all[1].id, t1.id);
         assert_eq!(all[2].id, t2.id);
@@ -683,13 +772,24 @@ mod tests {
         create(&conn, create_req("Read a book", None)).unwrap();
         create(&conn, create_req("Buy a car", None)).unwrap();
 
-        let results = get_all(&conn, TaskFilter {
-            tag_id: None, is_completed: None, due_date_from: None,
-            due_date_to: None, search_query: Some("Buy".to_string()),
-            parent_task_id: None, my_day_date: None, priority: None,
-            is_suspended: None, is_abandoned: None,
-            include_children: None, include_archived: None,
-        }).unwrap();
+        let results = get_all(
+            &conn,
+            TaskFilter {
+                tag_id: None,
+                is_completed: None,
+                due_date_from: None,
+                due_date_to: None,
+                search_query: Some("Buy".to_string()),
+                parent_task_id: None,
+                my_day_date: None,
+                priority: None,
+                is_suspended: None,
+                is_abandoned: None,
+                include_children: None,
+                include_archived: None,
+            },
+        )
+        .unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -698,32 +798,70 @@ mod tests {
         let conn = setup();
         let t1 = create(&conn, create_req("Incomplete", None)).unwrap();
         create(&conn, create_req("Incomplete 2", None)).unwrap();
-        update(&conn, &t1.id, UpdateTaskRequest {
-            title: None, description: None, is_completed: Some(true),
-            priority: None, due_date: None, tag_id: None,
-            parent_task_id: None, reminder: None, recurrence: None,
-            my_day_date: None, is_suspended: None, is_abandoned: None, is_pinned: None,
-        }).unwrap();
+        update(
+            &conn,
+            &t1.id,
+            UpdateTaskRequest {
+                title: None,
+                description: None,
+                is_completed: Some(true),
+                priority: None,
+                due_date: None,
+                tag_id: None,
+                parent_task_id: None,
+                reminder: None,
+                recurrence: None,
+                my_day_date: None,
+                is_suspended: None,
+                is_abandoned: None,
+                is_pinned: None,
+            },
+        )
+        .unwrap();
 
-        let completed = get_all(&conn, TaskFilter {
-            tag_id: None, is_completed: Some(true), due_date_from: None,
-            due_date_to: None, search_query: None, parent_task_id: None,
-            my_day_date: None, priority: None, is_suspended: None, is_abandoned: None,
-            include_children: None, include_archived: None,
-        }).unwrap();
+        let completed = get_all(
+            &conn,
+            TaskFilter {
+                tag_id: None,
+                is_completed: Some(true),
+                due_date_from: None,
+                due_date_to: None,
+                search_query: None,
+                parent_task_id: None,
+                my_day_date: None,
+                priority: None,
+                is_suspended: None,
+                is_abandoned: None,
+                include_children: None,
+                include_archived: None,
+            },
+        )
+        .unwrap();
         assert_eq!(completed.len(), 1);
     }
 
     #[test]
     fn test_update_not_found() {
         let conn = setup();
-        let result = update(&conn, "nonexistent", UpdateTaskRequest {
-            title: Some("Nope".to_string()), description: None,
-            is_completed: None, priority: None, due_date: None,
-            tag_id: None, parent_task_id: None, reminder: None,
-            recurrence: None, my_day_date: None,
-            is_suspended: None, is_abandoned: None, is_pinned: None,
-        });
+        let result = update(
+            &conn,
+            "nonexistent",
+            UpdateTaskRequest {
+                title: Some("Nope".to_string()),
+                description: None,
+                is_completed: None,
+                priority: None,
+                due_date: None,
+                tag_id: None,
+                parent_task_id: None,
+                reminder: None,
+                recurrence: None,
+                my_day_date: None,
+                is_suspended: None,
+                is_abandoned: None,
+                is_pinned: None,
+            },
+        );
         assert!(result.is_err());
     }
 

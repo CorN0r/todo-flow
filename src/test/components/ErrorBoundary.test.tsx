@@ -28,7 +28,7 @@ describe('ErrorBoundary', () => {
         <BrokenComponent />
       </ErrorBoundary>,
     );
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+    expect(screen.getByText('\u51fa\u4e86\u70b9\u95ee\u9898')).toBeInTheDocument();
     expect(screen.getByText('test explosion')).toBeInTheDocument();
     vi.restoreAllMocks();
   });

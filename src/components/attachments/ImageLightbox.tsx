@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { getRepositories } from '../../domain/repositories/current';
 import { getAttachmentFilePath } from '../../lib/db';
 import type { Attachment } from '../../types/attachment';
 
@@ -22,7 +22,7 @@ export function ImageLightbox({ attachments, initialIndex, onClose }: Props) {
     setLoading(true);
     setSrc(null);
     const path = await getAttachmentFilePath(attachments[i].id);
-    setSrc(convertFileSrc(path));
+    setSrc(getRepositories().platform.toFileAssetUrl(path));
     setLoading(false);
   }, [attachments]);
 
@@ -38,7 +38,7 @@ export function ImageLightbox({ attachments, initialIndex, onClose }: Props) {
       const prevIdx = (index - 1 + total) % total;
       for (const i of [prevIdx, nextIdx]) {
         const path = await getAttachmentFilePath(attachments[i].id);
-        new Image().src = convertFileSrc(path);
+        new Image().src = getRepositories().platform.toFileAssetUrl(path);
       }
     };
     preload();

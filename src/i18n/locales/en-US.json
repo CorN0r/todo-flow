@@ -398,5 +398,19 @@
   "filter.collapseSubtasks": "Collapse all subtasks",
   "filter.expandSubtasks": "Expand all subtasks",
   "filter.collapseSubtasksShort": "Collapse subtasks",
-  "filter.expandSubtasksShort": "Expand subtasks"
+  "filter.expandSubtasksShort": "Expand subtasks",
+  "filter.status.all": "All",
+  "filter.status.active": "Active",
+  "filter.status.completed": "Completed",
+  "filter.status.suspended": "Suspended",
+  "filter.status.abandoned": "Abandoned",
+  "filter.status.overdue": "Overdue",
+  "filter.statusMenu": "Filter task status",
+  "filter.moreStatuses": "More statuses",
+  "filter.empty.active": "No active tasks",
+  "filter.empty.completed": "No completed tasks",
+  "filter.empty.suspended": "No suspended tasks",
+  "filter.empty.abandoned": "No abandoned tasks",
+  "filter.empty.overdue": "No overdue tasks",
+  "filter.showAll": "Show all"
 }

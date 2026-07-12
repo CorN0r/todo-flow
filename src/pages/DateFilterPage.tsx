@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useTasks } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
@@ -8,11 +8,14 @@ import { UnifiedLayout } from '../components/tasks/UnifiedLayout';
 import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
-import { PageTitle, type FilterMode } from '../components/shared/PageTitle';
+import { PageTitle } from '../components/shared/PageTitle';
+import { FilteredTaskEmptyState } from '../components/shared/FilteredTaskEmptyState';
 import { todayISO, addDays, format } from '../lib/date';
 import { Inbox, AlertTriangle, Hash, Sunrise, CalendarRange, CalendarDays, CalendarCheck } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { sortTasks, nestChildren } from '../lib/sortTasks';
+import { useDesktopTaskStatusFilter } from '../hooks/useDesktopTaskStatusFilter';
+import type { TaskStatusFilter } from '../lib/taskStatusFilter';
 
 const filterConfig: Record<string, { label: string; days: number; showDates: boolean; fromOffset: number; icon: typeof Hash; iconBg: string; iconColor: string }> = {
   all: { label: '全部任务', days: 0, showDates: false, fromOffset: 0, icon: Hash, iconBg: 'bg-indigo-100 dark:bg-indigo-900/50', iconColor: 'text-indigo-500' },
@@ -26,7 +29,7 @@ export function DateFilterPage() {
   const { filter = 'all' } = useParams<{ filter: string }>();
   const location = useLocation();
   const config = filterConfig[filter] || filterConfig.all;
-  const navFilterMode = (location.state as { filterMode?: FilterMode })?.filterMode;
+  const navStatusFilter = (location.state as { statusFilter?: TaskStatusFilter })?.statusFilter;
 
   const today = todayISO();
   const { dateFrom, dateTo } = useMemo(() => {
@@ -35,8 +38,6 @@ export function DateFilterPage() {
     const to = format(addDays(new Date(), config.days), 'yyyy-MM-dd');
     return { dateFrom: from, dateTo: to };
   }, [filter, config.days, config.fromOffset]);
-
-  const [filterMode, setFilterMode] = useState<FilterMode>(navFilterMode || 'all');
 
   const { data: tasks, isLoading, isError } = useTasks(
     filter === 'all' ? { include_children: true } : { due_date_from: dateFrom, due_date_to: dateTo, include_children: true },
@@ -58,17 +59,11 @@ export function DateFilterPage() {
 
   const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => nestChildren(sorted), [sorted]);
-  const filtered = useMemo(() => {
-    if (filterMode === 'incomplete') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned);
-    if (filterMode === 'completed') return topLevel.filter((t) => t.is_completed || t.is_abandoned);
-    if (filterMode === 'overdue') return topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today);
-    return topLevel;
-  }, [topLevel, filterMode, today]);
-  const completedCount = topLevel.filter((t) => t.is_completed || t.is_abandoned).length;
-  const overdueCount = topLevel.filter((t) => !t.is_completed && !t.is_abandoned && t.due_date && t.due_date < today).length;
+  const { filteredTasks, statusCounts, statusFilter, setStatusFilter } = useDesktopTaskStatusFilter(topLevel, today);
 
-  const setSelectableIds = useUIStore((s) => s.setSelectableIds);
-  useEffect(() => { setSelectableIds(filtered.map((t) => t.id)); }, [filtered, setSelectableIds]);
+  useEffect(() => {
+    if (navStatusFilter) setStatusFilter(navStatusFilter);
+  }, [navStatusFilter, setStatusFilter]);
 
   const dateList = useMemo(() => {
     if (!config.showDates) return [];
@@ -94,10 +89,9 @@ export function DateFilterPage() {
           <PageTitle
             title={config.label}
             taskCount={topLevel.length}
-            completedCount={completedCount}
-            overdueCount={overdueCount}
-            filterMode={filterMode}
-            onFilterChange={setFilterMode}
+            statusCounts={statusCounts}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
             sortMode={sortMode}
             onSortChange={setSortMode}
             onNewTask={() => setShowNewTask(true)}
@@ -143,8 +137,11 @@ export function DateFilterPage() {
       )}
 
       <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
-        {taskViewMode === 'wall' ? <StickyWall tasks={filtered} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filtered} /> : <TaskList tasks={filtered} />}
-        {sorted.length === 0 && !showNewTask && (
+        {filteredTasks.length > 0 && (taskViewMode === 'wall' ? <StickyWall tasks={filteredTasks} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filteredTasks} reorderScope={topLevel} /> : <TaskList tasks={filteredTasks} reorderScope={topLevel} />)}
+        {topLevel.length > 0 && filteredTasks.length === 0 && statusFilter !== 'all' && (
+          <FilteredTaskEmptyState filter={statusFilter} onShowAll={() => setStatusFilter('all')} />
+        )}
+        {topLevel.length === 0 && !showNewTask && (
           <EmptyState
             icon={<Inbox size={40} />}
             title="此时间段暂无任务"
