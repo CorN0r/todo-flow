@@ -2,6 +2,8 @@
 
 面向 Windows 与 Android 的本地优先待办事项管理应用，基于 Tauri v2 + React 19 构建。
 
+![主界面概览](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/01-main-overview.png)
+
 ---
 
 ## 系统要求
@@ -45,6 +47,18 @@
 | **番茄钟** | 独立桌面悬浮窗，专注/短休/长休循环，全屏沉浸模式，Windows 原生通知，统计面板 |
 | **Agent 集成** | 内置 MCP server + CLI，让 Claude Desktop / Claude Code / Cursor 等 AI 直接创建、查询、管理任务 |
 | **桌面便签** | 把任务固定为桌面无边框透明小窗，三款皮肤，Alt+D 一键显示/隐藏 |
+
+## 界面预览
+
+![一体式视图](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/05-unified-view.png)
+
+![日历视图](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/06-calendar-month.png)
+
+![看板视图](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/08-kanban.png)
+
+![桌面便签](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/23-note.png)
+
+![Agent 集成](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/22-mcp-task.png)
 
 ---
 
