@@ -2,7 +2,7 @@
 
 > 原生轻量 · 六种主题 · 多种视图 · 习惯追踪 · 隐私优先
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue)](https://gitcode.com/CorN0r/todo-flow)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue)](https://gitcode.com/CorN0r/todo-flow)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://gitcode.com/CorN0r/todo-flow/blob/main/LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%2064--bit-lightgrey)](https://gitcode.com/CorN0r/todo-flow)
 
@@ -23,8 +23,8 @@
 ### 安装
 
 1. 从 [Release 页面](https://gitcode.com/CorN0r/todo-flow/releases) 下载安装包
-   - `TodoFlow_0.3.0_x64-setup.exe`（NSIS 格式）
-   - `TodoFlow_0.3.0_x64_zh-CN.msi`（MSI 格式）
+   - `TodoFlow_0.7.0_x64-setup.exe`（NSIS 格式）
+   - `TodoFlow_0.7.0_x64_zh-CN.msi`（MSI 格式）
 2. 双击安装，桌面和开始菜单会自动创建快捷方式
 3. 系统要求：**Windows 10 / 11 64 位**
 
@@ -43,8 +43,10 @@
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Ctrl+Shift+T` | 全局热键：唤起主窗口 + 快速新建 |
-| `Ctrl+K` | 聚焦搜索栏 |
+| `Ctrl+Shift+T` | 全局热键：唤起主窗口 |
+| `Alt+D` | 全局热键：显示 / 隐藏桌面便签 |
+| `Ctrl+Shift+P` | 开始番茄钟 |
+| `Ctrl+K` | 打开命令面板 |
 | `Ctrl+B` | 折叠 / 展开侧边栏 |
 | `N` | 快速新建任务 |
 | `1` | 全部任务 |
@@ -64,10 +66,19 @@
 - **优先级**：高 / 中 / 低 / 无（红旗标记）
 - **截止日期**：支持日期 + 具体时间（上午9点 / 下午2点 / 傍晚5点30 等预设，也可自定义）
 - **多个提醒**：准时 / 提前 5分钟 / 30分钟 / 1小时 / 1天 / 1周 / 自定义时间
-- **标签归类**：将任务关联到标签
+- **任务多标签**：一个任务可挂多个标签，出现在所有所属标签下
 - **拖拽排序**：手动排序模式下自由调整任务顺序
 
 ![任务详情面板](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/02-task-detail.png)
+
+### 📝 富文本描述
+
+任务的描述支持所见即所得富文本编辑：
+
+- 文字格式、加粗、斜体、列表、待办清单
+- 表格、链接
+- 图片粘贴 / 拖放直接嵌入
+- 全屏沉浸式编辑
 
 ### 📑 子任务系统
 
@@ -75,6 +86,7 @@
 
 - 任务下可创建多个子任务
 - 子任务支持独立勾选完成
+- 子任务支持独立的截止日期和提醒时间
 - 拖拽排序子任务顺序
 - 详情面板内嵌卡片样式，视觉清晰
 
@@ -181,6 +193,29 @@
 
 ![悬浮窗](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/12-floating-widget.png)
 
+### 🗒 桌面便签
+
+把任意任务「固定」为桌面无边框透明小窗，随时可见：
+
+- 一任务一便签（最多 8 个）
+- 三款皮肤：玻璃 / 纸张 / 极简
+- 右键菜单切换皮肤、置顶、折叠
+- `Alt+D` 一键显示 / 隐藏全部便签
+
+### 🤖 Agent 集成（MCP / CLI）
+
+内置 MCP server + 命令行工具，让 AI 助手直接管理你的任务：
+
+- 让 Claude Desktop / Claude Code / Cursor 等 AI 直接创建、查询、更新任务
+- 通过标签名称引用即可（不存在的标签自动创建）
+- Agent 创建的任务带 ✨ 标记
+- 安装后 `todoflow-mcp.exe` 随应用一起分发，开箱即用
+
+### 📱 Android 与跨端同步
+
+- **Android 移动端**：任务、日历、习惯、专注与设置，支持离线使用
+- **本地优先同步**：任务、标签、提醒在桌面和 Android 之间同步
+
 ---
 
 ## 特色亮点
@@ -227,7 +262,13 @@
 
 ### 🍅 番茄钟
 
-内建 Pomodoro 计时器，专注工作 25 分钟 + 休息 5 分钟的经典循环。
+内建 Pomodoro 计时器，专注 / 短休 / 长休循环：
+
+- **独立悬浮窗**：始终置顶的小窗，SVG 圆环显示剩余时间
+- **全屏沉浸模式**：专注时全屏放大圆环，排除干扰
+- **拖拽边缘吸附**：贴边自动吸附，不挡工作区
+- **Windows 原生通知**：专注结束自动提醒
+- **统计面板**：今日 / 本周专注时长与连续打卡
 
 ---
 
@@ -254,10 +295,10 @@ TodoFlow 采用现代化的技术选型，确保最佳性能和开发体验：
 
 | 安装包 | 格式 | 说明 |
 |--------|------|------|
-| `TodoFlow_0.3.0_x64-setup.exe` | NSIS | 标准 Windows 安装器 |
-| `TodoFlow_0.3.0_x64_zh-CN.msi` | MSI | 企业环境友好，支持组策略部署 |
+| `TodoFlow_0.7.0_x64-setup.exe` | NSIS | 标准 Windows 安装器 |
+| `TodoFlow_0.7.0_x64_en-US.msi` / `zh-CN.msi` | MSI | 企业环境友好，支持组策略部署 |
 
-> 📥 **最新版本：v0.3.0**（2026-06-08）
+> 📥 **最新版本：v0.7.0**（2026-08-14）
 >
 > 下载地址：[https://gitcode.com/CorN0r/todo-flow/releases](https://gitcode.com/CorN0r/todo-flow/releases)
 
@@ -267,7 +308,11 @@ TodoFlow 采用现代化的技术选型，确保最佳性能和开发体验：
 
 | 版本 | 日期 | 主要更新 |
 |------|------|----------|
-| **v0.3.0** | 2026-06-08 | 一体式视图、便签墙展开详情、多提醒、截止日期时间、Warm/Lumina 主题、子任务卡片化、数据看板跳转 |
+| **v0.7.0** | 2026-08-14 | 任务多标签、Agent 集成（MCP/CLI）、桌面便签、子任务时间设置、开机自启与快捷键开关、多项修复 |
+| v0.6.0 | 2026-07-12 | Android 移动端预览、本地优先跨端同步、六状态任务过滤、同步安全与数据库兼容性改进 |
+| v0.5.0 | 2026-06-19 | 富文本描述编辑器（TipTap/ProseMirror）、图片粘贴拖放、表格、全屏编辑、面板宽度可拖拽、时区修复、番茄钟边缘吸附 |
+| v0.4.0 | 2026-06-15 | 番茄钟完整重构（独立悬浮窗+全屏沉浸+统计）、悬浮窗跟随全局主题、气泡颜色自定义 |
+| v0.3.0 | 2026-06-08 | 一体式视图、便签墙展开详情、多提醒、截止日期时间、Warm/Lumina 主题、子任务卡片化、数据看板跳转 |
 | v0.2.0 | 2026-06-01 | 托盘菜单、排序修复、悬浮窗重构、UI 优化 |
 | v0.1.0 | 2026-05-24 | 初始版本 |
 
@@ -311,7 +356,7 @@ npm test
 - [ ] 任务附件增强
 - [ ] 数据云同步（可选，端到端加密）
 - [ ] 更多视图模式
-- [ ] API / Webhook 集成
+- [x] API / Webhook 集成 —— 已通过 MCP / CLI 实现（v0.7.0）
 
 ---
 
