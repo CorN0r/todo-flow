@@ -58,7 +58,7 @@
 
 ![桌面便签](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/23-note.png)
 
-![Agent 集成](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/22-mcp-task.png)
+![Agent 集成](https://cdn.jsdelivr.net/gh/CorN0r/todo-flow@master/docs/images/21-mcp.png)
 
 ---
 
