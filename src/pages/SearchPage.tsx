@@ -94,7 +94,7 @@ export function SearchPage() {
         include_children: true,
       };
       if (f.query) queryFilters.search_query = f.query;
-      if (f.tagId) queryFilters.tag_id = f.tagId;
+      if (f.tagId) queryFilters.tag_ids = [f.tagId];
       if (f.completion === 'incomplete') queryFilters.is_completed = false;
       if (f.completion === 'completed') queryFilters.is_completed = true;
       if (f.priority !== null) queryFilters.priority = f.priority;

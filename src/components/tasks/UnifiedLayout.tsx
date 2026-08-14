@@ -4,7 +4,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import { priorityColors } from '../../lib/priority';
-import { Flag, Pin, Check, RotateCcw, Trash2, PauseCircle, XCircle } from 'lucide-react';
+import { Flag, Pin, Check, RotateCcw, Trash2, PauseCircle, XCircle, ChevronRight, Sparkles } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -49,7 +49,7 @@ export function UnifiedLayout({ tasks, reorderScope = tasks }: UnifiedLayoutProp
     setCtxMenu(null);
     setSelectedTaskId(null);
     deleteTask.mutate(t.id);
-    toast.success(() => (<span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: t.title, description: t.description, priority: t.priority, due_date: t.due_date || undefined, tag_id: t.tag_id || undefined, parent_task_id: t.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 });
+    toast.success(() => (<span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: t.title, description: t.description, priority: t.priority, due_date: t.due_date || undefined, tag_ids: t.tag_ids, parent_task_id: t.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 });
   };
 
   const handleDeleteClick = (t: Task) => {
@@ -243,8 +243,9 @@ function SortableItem({ task, isSelected, onSelect, onContextMenu, updateTask }:
             {task.is_completed && <svg width="8" height="8" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           </button>
         )}
+        {(task.children_count || 0) > 0 && <ChevronRight size={12} className="shrink-0 text-[#9CA3AF]" />}
         <span className={cn('text-[13px] truncate flex-1', task.is_completed && !isAbandoned && 'line-through text-[#9CA3AF]', isSuspended && 'text-[#9CA3AF]', isAbandoned && 'line-through text-red-400/70')}>
-          {task.is_pinned && <Pin size={10} className="inline mr-1 text-[#7C72F6]" />}{task.title}
+          {task.is_pinned && <Pin size={10} className="inline mr-1 text-[#7C72F6]" />}{task.source === 'agent' && <Sparkles size={10} className="inline mr-1 text-[#7C72F6]" />}{task.title}
         </span>
         {task.priority > 0 && <Flag size={10} className={priorityColors[task.priority]} />}
         {(task.children_count || 0) > 0 && <span className="text-[10px] text-[#9CA3AF]">{task.children_count}</span>}

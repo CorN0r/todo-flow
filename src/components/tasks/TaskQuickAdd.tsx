@@ -1,9 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Portal } from '../shared/Portal';
-import { Plus, Tag, Flag, X, Bell } from 'lucide-react';
+import { Plus, Tag, Flag, X, Bell, Check } from 'lucide-react';
 import { useCreateTask, useCreateTaskReminder } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
+import type { TagWithCount } from '../../types/tag';
 
 import { DatePicker } from '../shared/DatePicker';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
@@ -59,7 +60,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
   const { t: _t } = useTranslation();
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState(defaultDueDate || (parentTaskId ? '' : todayISO()));
-  const [selectedTagId, setSelectedTagId] = useState(tagId || '');
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(tagId ? [tagId] : []);
   const [priority, setPriority] = useState(0);
   const [recurrence, setRecurrence] = useState('');
   const [reminderOffset, setReminderOffset] = useState('');
@@ -92,12 +93,12 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
 
   const effectiveTitle = nlp.title || title;
   const effectiveDueDate = dueDate || nlp.dueDate || '';
-  const effectiveTagId = selectedTagId || nlpTagId || tagId || '';
+  const effectiveTagIds = selectedTagIds.length > 0 ? selectedTagIds : (nlpTagId ? [nlpTagId] : (tagId ? [tagId] : []));
   const effectivePriority = priority > 0 ? priority : (nlp.priority ?? 0);
   const effectiveRecurrence = recurrence || nlp.recurrence || '';
   const effectiveReminder = reminderOffset || nlp.reminder || '';
 
-  const selectedTag = tags?.find((t) => t.id === effectiveTagId);
+  const selectedTags = (selectedTagIds || []).map((id) => tags?.find((t) => t.id === id)).filter((t): t is TagWithCount => !!t);
 
   const closeAll = () => { setShowTagPicker(false); setShowPriorityPicker(false); setShowReminderPicker(false); };
 
@@ -106,7 +107,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
     if (!finalTitle) return;
     createTask.mutate({
       title: finalTitle,
-      tag_id: effectiveTagId || undefined,
+      tag_ids: effectiveTagIds.length > 0 ? effectiveTagIds : undefined,
       parent_task_id: parentTaskId,
       due_date: effectiveDueDate || undefined,
       priority: effectivePriority > 0 ? effectivePriority : undefined,
@@ -210,33 +211,41 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
 
         {/* Tag */}
         {tags && tags.length > 0 && (
-          <div className="relative" ref={tagBtnRef}>
-            <ChipBtn
-              active={!!selectedTagId}
-              activeClass="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium"
-              activeStyle={{ backgroundColor: (selectedTag?.color || '#7C72F6') + '20', color: selectedTag?.color }}
-              icon={<Tag size={12} />}
-              label={selectedTag?.name || ''}
-              onClear={() => setSelectedTagId('')}
-              onClick={() => { closeAll(); setShowTagPicker(true); }}
-              title="标签"
-            />
+          <div className="relative flex items-center gap-1" ref={tagBtnRef}>
+            {selectedTags.map((t) => (
+              <span key={t.id} onClick={() => { closeAll(); setShowTagPicker(true); }}
+                className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                style={{ backgroundColor: (t.color || '#7C72F6') + '20', color: t.color }}>
+                <Tag size={12} />
+                <span className="truncate max-w-[90px]">{t.name}</span>
+                <button onClick={(e) => { e.stopPropagation(); setSelectedTagIds((prev) => prev.filter((id) => id !== t.id)); }}
+                  className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+            <button onClick={() => { closeAll(); setShowTagPicker(true); }}
+              className="flex items-center justify-center shrink-0 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1] transition-colors"
+              style={{ width: 28, height: 28 }}
+              title="标签">
+              <Tag size={12} />
+            </button>
             {showTagPicker && (
               <Portal>
                 <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} aria-hidden="true" />
                 <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[150px]"
                   style={{ top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: tagBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
-                  <button onClick={() => { setSelectedTagId(''); setShowTagPicker(false); }}
-                    className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] ${!effectiveTagId ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
-                    无标签
-                  </button>
-                  {tags.map((t) => (
-                    <button key={t.id} onClick={() => { setSelectedTagId(t.id); setShowTagPicker(false); }}
-                      className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${effectiveTagId === t.id ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
-                      {t.name}
-                    </button>
-                  ))}
+                  {tags.map((t) => {
+                    const active = selectedTagIds.includes(t.id);
+                    return (
+                      <button key={t.id} onClick={() => { setSelectedTagIds((prev) => active ? prev.filter((id) => id !== t.id) : [...prev, t.id]); }}
+                        className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${active ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                        {t.name}
+                        {active && <Check size={13} className="ml-auto" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </Portal>
             )}

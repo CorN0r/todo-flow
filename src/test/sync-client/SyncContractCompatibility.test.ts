@@ -86,7 +86,7 @@ describe('Sync contract compatibility', () => {
         entity_type: 'task',
         entity_id: 'task-portable',
         operation: 'create',
-        payload: { title: 'Portable task', due_date: '2026-01-05', tag_id: 'tag-portable', sort_order: 1 },
+        payload: { title: 'Portable task', due_date: '2026-01-05', tag_ids: ['tag-portable'], sort_order: 1 },
         client_time: '2026-01-01T00:00:00.000Z',
         device_id: device.device_id,
       },

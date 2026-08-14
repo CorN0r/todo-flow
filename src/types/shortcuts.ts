@@ -24,6 +24,7 @@ export interface Conflict {
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   // 全局快捷键
   { id: 'global-show-window', label: '显示/隐藏窗口', category: 'global', scope: 'rust' },
+  { id: 'global-toggle-notes', label: '显示/隐藏桌面便签', category: 'global', scope: 'rust' },
 
   // 视图
   { id: 'command-palette', label: '命令面板', category: 'view', scope: 'frontend' },
@@ -38,6 +39,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
 export function getDefaultShortcutMap(): ShortcutMap {
   const defaults: Record<string, string> = {
     'global-show-window': 'Ctrl+Shift+T',
+    'global-toggle-notes': 'Alt+D',
     'command-palette': 'Ctrl+K',
     'toggle-sidebar': 'Ctrl+B',
     'new-task': 'N',
@@ -52,10 +54,11 @@ export function getDefaultShortcutMap(): ShortcutMap {
 
 const SORT_ORDER: Record<string, number> = {
   'global-show-window': 0,
-  'command-palette': 1,
-  'toggle-sidebar': 2,
-  'new-task': 3,
-  'pomodoro-toggle': 4,
+  'global-toggle-notes': 1,
+  'command-palette': 2,
+  'toggle-sidebar': 3,
+  'new-task': 4,
+  'pomodoro-toggle': 5,
 };
 
 export function getShortcutDefsSorted(): ShortcutDef[] {

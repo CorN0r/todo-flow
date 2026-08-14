@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Bell, CalendarDays, Check, Flag, Plus, Repeat, Sun, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { Bell, CalendarDays, Check, Flag, Plus, Repeat, Sun, Trash2 } from 'lucide-react';
 import {
   useClearTaskReminders,
   useCreateTask,
@@ -24,7 +24,7 @@ interface DetailForm {
   description: string;
   priority: number;
   dueDate: string;
-  tagId: string;
+  tagIds: string[];
   reminder: ReminderChoice;
   recurrence: RecurrenceChoice;
   isCompleted: boolean;
@@ -114,7 +114,7 @@ function formFromTask(task: Task): DetailForm {
     description: task.description ?? '',
     priority: task.priority,
     dueDate: task.due_date ?? '',
-    tagId: task.tag_id ?? '',
+    tagIds: task.tag_ids ?? [],
     reminder: (task.reminder ?? '') as ReminderChoice,
     recurrence: recurrenceToChoice(task.recurrence),
     isCompleted: task.is_completed,
@@ -179,7 +179,7 @@ export function MobileTaskDetailSheet({
       is_completed: form.isCompleted,
       priority: form.priority,
       due_date: form.dueDate || null,
-      tag_id: form.tagId || null,
+      tag_ids: form.tagIds,
       reminder: form.reminder || null,
       recurrence: choiceToRecurrence(form.recurrence),
       my_day_date: form.myDay ? todayISO() : null,
@@ -320,16 +320,20 @@ export function MobileTaskDetailSheet({
             <div>
               <p className={fieldLabelClass()}>{T.tag}</p>
               <div className="flex flex-wrap gap-2">
-                <MobileChip active={!form.tagId} onClick={() => updateForm({ tagId: '' })}>
-                  <TagIcon aria-hidden className="h-4 w-4" />
-                  {T.noDate}
-                </MobileChip>
-                {allTags.map((tag) => (
-                  <MobileChip key={tag.id} active={form.tagId === tag.id} onClick={() => updateForm({ tagId: tag.id })}>
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                    {tag.name}
-                  </MobileChip>
-                ))}
+                {allTags.map((tag) => {
+                  const selected = form.tagIds.includes(tag.id);
+                  return (
+                    <MobileChip key={tag.id} active={selected}
+                      onClick={() => updateForm({
+                        tagIds: selected
+                          ? form.tagIds.filter((id) => id !== tag.id)
+                          : [...form.tagIds, tag.id],
+                      })}>
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                      {tag.name}
+                    </MobileChip>
+                  );
+                })}
               </div>
             </div>
 

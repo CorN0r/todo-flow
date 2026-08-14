@@ -202,6 +202,13 @@ export function PomodoroWidgetPage() {
     }
   }, [pomo?.sessionStartTime]);
 
+  // 番茄钟小窗没有自定义右键菜单,禁用 WebView 原生右键菜单
+  useEffect(() => {
+    const prevent = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener('contextmenu', prevent);
+    return () => document.removeEventListener('contextmenu', prevent);
+  }, []);
+
   const handleDragStart = (e: React.MouseEvent) => {
     const t = e.target as HTMLElement;
     if (t.closest('button')) return;

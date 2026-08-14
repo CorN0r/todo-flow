@@ -177,6 +177,77 @@ pub fn import_database(
         count
     };
 
+    // 复制多标签关联(依赖 tasks/tags 已导入;旧库无 task_tags 表则跳过)
+    let _imported_task_tags: usize = {
+        if let Ok(mut stmt) = src_conn.prepare("SELECT task_id, tag_id FROM task_tags") {
+            let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+                .query_map([], |row| {
+                    Ok(vec![
+                        Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                        Box::new(row.get::<_, String>(1)?),
+                    ])
+                })?
+                .flatten()
+                .collect();
+
+            let mut count = 0;
+            for row in &rows {
+                let result = conn.execute(
+                    "INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1,?2)",
+                    rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
+                );
+                if let Ok(n) = result {
+                    if n > 0 {
+                        count += 1;
+                    }
+                }
+            }
+            count
+        } else {
+            0
+        }
+    };
+
+    // 复制桌面便签(依赖 tasks 已导入;旧库无 task_notes 表则跳过)
+    let _imported_task_notes: usize = {
+        if let Ok(mut stmt) = src_conn.prepare(
+            "SELECT task_id, x, y, width, height, always_on_top, style, collapsed FROM task_notes",
+        ) {
+            let rows: Vec<Vec<Box<dyn rusqlite::types::ToSql>>> = stmt
+                .query_map([], |row| {
+                    Ok(vec![
+                        Box::new(row.get::<_, String>(0)?) as Box<dyn rusqlite::types::ToSql>,
+                        Box::new(row.get::<_, Option<i32>>(1)?),
+                        Box::new(row.get::<_, Option<i32>>(2)?),
+                        Box::new(row.get::<_, i32>(3)?),
+                        Box::new(row.get::<_, i32>(4)?),
+                        Box::new(row.get::<_, i32>(5)?),
+                        Box::new(row.get::<_, String>(6)?),
+                        Box::new(row.get::<_, i32>(7)?),
+                    ])
+                })?
+                .flatten()
+                .collect();
+
+            let mut count = 0;
+            for row in &rows {
+                let result = conn.execute(
+                    "INSERT OR IGNORE INTO task_notes (task_id, x, y, width, height, always_on_top, style, collapsed)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+                    rusqlite::params_from_iter(row.iter().map(|v| v.as_ref())),
+                );
+                if let Ok(n) = result {
+                    if n > 0 {
+                        count += 1;
+                    }
+                }
+            }
+            count
+        } else {
+            0
+        }
+    };
+
     let imported_reminders: usize = {
         let mut stmt = src_conn.prepare(
             "SELECT id, task_id, offset, reminder_time, reminded, created_at FROM task_reminders",

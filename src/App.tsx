@@ -22,6 +22,7 @@ import { SearchPage } from './pages/SearchPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { WidgetPage } from './pages/WidgetPage';
 import { PomodoroWidgetPage } from './pages/PomodoroWidgetPage';
+import { NotePage } from './pages/NotePage';
 import { FocusStatsPage } from './pages/FocusStatsPage';
 import { CommandPalette } from './components/shared/CommandPalette';
 import { BulkActionBar } from './components/shared/BulkActionBar';
@@ -58,6 +59,7 @@ function AppLayout() {
     <Routes>
       <Route path="/widget" element={<WidgetPage />} />
       <Route path="/pomodoro-widget" element={<PomodoroWidgetPage />} />
+      <Route path="/note" element={<NotePage />} />
       <Route path="/mobile/*" element={<MobileApp />} />
       <Route path="*" element={<MainLayout />} />
     </Routes>
@@ -85,6 +87,7 @@ function MainLayout() {
   useEffect(() => {
     let unlisten1: (() => void) | null = null;
     let unlisten2: (() => void) | null = null;
+    let unlisten3: (() => void) | null = null;
     let cancelled = false;
 
     (async () => {
@@ -108,19 +111,26 @@ function MainLayout() {
         queryClient.invalidateQueries({ queryKey: ['habits'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       });
+      // 便签行增删/置顶/皮肤/折叠变更时即时刷新(如系统方式销毁便签、其它窗口改动)
+      const u3 = await listen('task-notes-changed', () => {
+        queryClient.invalidateQueries({ queryKey: ['task-notes'] });
+      });
       if (cancelled) {
         u1();
         u2();
+        u3();
         return;
       }
       unlisten1 = u1;
       unlisten2 = u2;
+      unlisten3 = u3;
     })();
 
     return () => {
       cancelled = true;
       unlisten1?.();
       unlisten2?.();
+      unlisten3?.();
     };
   }, []);
 

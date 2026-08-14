@@ -35,7 +35,7 @@ export async function reorderTasks(items: ReorderItem[]): Promise<void> {
 }
 
 export async function getTasks(filters?: {
-  tag_id?: string;
+  tag_ids?: string[];
   is_completed?: boolean;
   due_date_from?: string;
   due_date_to?: string;
@@ -185,6 +185,37 @@ export async function showPomodoroWindow(): Promise<void> {
 
 export async function hidePomodoroWindow(): Promise<void> {
   return invoke('hide_pomodoro_window');
+}
+
+// Task note commands (桌面便签)
+import type { NoteStyle, TaskNote } from '../types/note';
+
+export async function openTaskNote(taskId: string): Promise<void> {
+  return invoke('open_task_note', { task_id: taskId });
+}
+
+export async function closeTaskNote(taskId: string): Promise<void> {
+  return invoke('close_task_note', { task_id: taskId });
+}
+
+export async function getTaskNote(taskId: string): Promise<TaskNote | null> {
+  return invoke('get_task_note', { task_id: taskId });
+}
+
+export async function getAllTaskNotes(): Promise<TaskNote[]> {
+  return invoke('get_all_task_notes');
+}
+
+export async function setNoteAlwaysOnTop(taskId: string, on: boolean): Promise<void> {
+  return invoke('set_note_always_on_top', { task_id: taskId, on });
+}
+
+export async function setNoteStyle(taskId: string, style: NoteStyle): Promise<void> {
+  return invoke('set_note_style', { task_id: taskId, style });
+}
+
+export async function setNoteCollapsed(taskId: string, collapsed: boolean): Promise<void> {
+  return invoke('set_note_collapsed', { task_id: taskId, collapsed });
 }
 
 // Habit commands

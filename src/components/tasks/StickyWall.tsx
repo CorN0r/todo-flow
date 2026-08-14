@@ -31,7 +31,7 @@ export function StickyWall({ tasks }: StickyWallProps) {
 
   const noteData = useMemo(() => tasks.map((task) => {
     const h = hashId(task.id);
-    const colorIdx = task.tag_id ? h % NOTE_COLORS.length : h % NOTE_COLORS.length;
+    const colorIdx = h % NOTE_COLORS.length;
     const rotation = ((h % 30) - 15) / 10;
     return { task, colorIdx, rotation };
   }), [tasks]);

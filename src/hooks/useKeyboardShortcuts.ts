@@ -3,6 +3,11 @@ import { useUIStore } from '../stores/uiStore';
 import { useShortcutStore } from '../stores/shortcutStore';
 import { eventToNormalizedKeys, normalizeKeys, SHORTCUT_DEFS } from '../types/shortcuts';
 
+/** 标记了 applicableInInput 的快捷键 ID —— 在输入框/编辑器内仍然生效 */
+const APPLICABLE_IN_INPUT_IDS = new Set(
+  SHORTCUT_DEFS.filter((d) => d.applicableInInput).map((d) => d.id),
+);
+
 interface ShortcutCallbacks {
   onNewTask?: () => void;
   onPomodoroStart?: () => void;
@@ -15,6 +20,7 @@ interface ShortcutCallbacks {
  */
 export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
   const shortcutMap = useShortcutStore((s) => s.shortcutMap);
+  const shortcutsEnabled = useShortcutStore((s) => s.shortcutsEnabled);
   const {
     setSelectedTaskId,
     selectedTaskId,
@@ -51,6 +57,8 @@ export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
 
   /** 构建 normalizedKeys → actionId 映射表 */
   const actionMap = useMemo(() => {
+    // 快捷键总开关关闭时,不分发任何应用快捷键(Escape、浏览器屏蔽仍保留)
+    if (!shortcutsEnabled) return new Map<string, string>();
     const map = new Map<string, string>();
     for (const def of SHORTCUT_DEFS) {
       if (def.scope !== 'frontend') continue;
@@ -60,7 +68,7 @@ export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
       if (normalized) map.set(normalized, def.id);
     }
     return map;
-  }, [shortcutMap]);
+  }, [shortcutMap, shortcutsEnabled]);
 
   useEffect(() => {
     // 标准文本编辑快捷键（输入框内放行，输入框外也放行避免误拦）
@@ -91,10 +99,15 @@ export function useKeyboardShortcuts(callbacks?: ShortcutCallbacks) {
         // 检查是否为我们的配置项
         const combo = eventToNormalizedKeys(e);
         if (combo && actionMap.has(combo)) {
+          const id = actionMap.get(combo)!;
+          // 输入框/编辑器内:放行非「输入适用」的快捷键,让浏览器/TipTap 处理(Ctrl+B 加粗等)
+          if (isInput && !APPLICABLE_IN_INPUT_IDS.has(id)) return;
           e.preventDefault();
-          executeAction(actionMap.get(combo)!);
+          executeAction(id);
           return;
         }
+        // 输入框内:放行未映射的组合,避免吞掉 Ctrl+I/U 等格式化快捷键
+        if (isInput) return;
         // 其余一律屏蔽
         e.preventDefault();
         return;

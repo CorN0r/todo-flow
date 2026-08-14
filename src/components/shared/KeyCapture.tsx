@@ -23,6 +23,19 @@ export function KeyCapture({ currentKeys, onSave, conflict, error }: KeyCaptureP
     setCaptureBuffer('');
   }, []);
 
+  // 转移焦点(点击组件外部,包括其他快捷键)时取消录制态,还原为未修改状态
+  useEffect(() => {
+    if (!capturing) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setCapturing(false);
+        setCaptureBuffer('');
+      }
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [capturing]);
+
   useEffect(() => {
     if (!capturing) return;
 

@@ -83,13 +83,25 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<Tag>, AppError> {
     Ok(rows.next().transpose()?)
 }
 
+/// 按名称精确查找标签(名称需已 trim;排除已软删除的)。
+/// 供 MCP/CLI 的「按名称自动建标签」与按名过滤使用。
+pub fn get_by_name(conn: &Connection, name: &str) -> Result<Option<Tag>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, color, icon, sort_order, parent_tag_id, created_at, updated_at
+         FROM tags WHERE name = ?1 AND deleted_at IS NULL LIMIT 1",
+    )?;
+    let mut rows = stmt.query_map(rusqlite::params![name], row_to_tag)?;
+    Ok(rows.next().transpose()?)
+}
+
 pub fn get_all_with_counts(conn: &Connection) -> Result<Vec<TagWithCount>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT t.id, t.name, t.color, t.icon, t.sort_order, t.parent_tag_id, t.created_at, t.updated_at,
                 COUNT(CASE WHEN tk.is_archived = 0 AND tk.is_abandoned = 0 THEN tk.id END) as task_count,
                 SUM(CASE WHEN tk.is_completed = 0 AND tk.is_archived = 0 AND tk.is_abandoned = 0 AND tk.parent_task_id IS NULL THEN 1 ELSE 0 END) as incomplete_count
          FROM tags t
-         LEFT JOIN tasks tk ON tk.tag_id = t.id AND tk.deleted_at IS NULL
+         LEFT JOIN task_tags tt ON tt.tag_id = t.id
+         LEFT JOIN tasks tk ON tk.id = tt.task_id AND tk.deleted_at IS NULL
          WHERE t.deleted_at IS NULL
          GROUP BY t.id
          ORDER BY t.sort_order ASC",
@@ -242,6 +254,26 @@ mod tests {
             icon: None,
             parent_tag_id: None,
         }
+    }
+
+    #[test]
+    fn test_get_by_name() {
+        let conn = setup();
+        let tag = create(&conn, create_req("Work")).unwrap();
+        assert_eq!(get_by_name(&conn, "Work").unwrap().unwrap().id, tag.id);
+        assert!(get_by_name(&conn, "Nonexistent").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_by_name_skips_deleted() {
+        let conn = setup();
+        let tag = create(&conn, create_req("Old")).unwrap();
+        conn.execute(
+            "UPDATE tags SET deleted_at = datetime('now') WHERE id = ?1",
+            rusqlite::params![tag.id],
+        )
+        .unwrap();
+        assert!(get_by_name(&conn, "Old").unwrap().is_none());
     }
 
     #[test]

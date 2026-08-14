@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, CalendarDays, Flag, Plus, Sun, Tag as TagIcon } from 'lucide-react';
+import { Bell, CalendarDays, Flag, Plus, Sun } from 'lucide-react';
 import { useCreateTask, useCreateTaskReminder } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { MobileBottomSheet, MobileChip, MobileSyncBadge } from './MobilePrimitives';
@@ -52,7 +52,7 @@ export function MobileQuickAddSheet({
   const [due, setDue] = useState<DueChoice>(defaultDue);
   const [myDay, setMyDay] = useState(defaultMyDay);
   const [priority, setPriority] = useState(0);
-  const [tagId, setTagId] = useState('');
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [reminder, setReminder] = useState<ReminderChoice>('');
   const inputRef = useRef<HTMLInputElement>(null);
   const createTask = useCreateTask();
@@ -66,14 +66,14 @@ export function MobileQuickAddSheet({
     requestAnimationFrame(() => inputRef.current?.focus());
   }, [defaultDue, defaultMyDay, open]);
 
-  const selectedTag = useMemo(() => tags.find((tag) => tag.id === tagId), [tagId, tags]);
+  const selectedTags = useMemo(() => tags.filter((tag) => tagIds.includes(tag.id)), [tagIds, tags]);
   const dueDate = dueChoiceToDate(due);
   const canSubmit = title.trim().length > 0 && !createTask.isPending;
 
   const reset = () => {
     setTitle('');
     setPriority(0);
-    setTagId('');
+    setTagIds([]);
     setReminder('');
     setDue(defaultDue);
     setMyDay(defaultMyDay);
@@ -87,7 +87,7 @@ export function MobileQuickAddSheet({
       due_date: dueDate,
       my_day_date: myDay ? todayISO() : null,
       priority: priority > 0 ? priority : undefined,
-      tag_id: tagId || undefined,
+      tag_ids: tagIds.length > 0 ? tagIds : undefined,
       reminder: reminder || undefined,
     });
     if (reminder && task.id) {
@@ -170,16 +170,18 @@ export function MobileQuickAddSheet({
           <div>
             <p className="mb-2 text-[var(--mobile-font-caption)] font-medium text-[var(--mobile-color-text-muted)]">标签</p>
             <div className="flex flex-wrap gap-2">
-              <MobileChip active={!tagId} onClick={() => setTagId('')}>
-                <TagIcon aria-hidden className="h-4 w-4" />
-                无标签
-              </MobileChip>
-              {tags.map((tag) => (
-                <MobileChip key={tag.id} active={tagId === tag.id} onClick={() => setTagId(tag.id)}>
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                  {tag.name}
-                </MobileChip>
-              ))}
+              {tags.map((tag) => {
+                const selected = tagIds.includes(tag.id);
+                return (
+                  <MobileChip key={tag.id} active={selected}
+                    onClick={() => setTagIds(
+                      selected ? tagIds.filter((id) => id !== tag.id) : [...tagIds, tag.id],
+                    )}>
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                    {tag.name}
+                  </MobileChip>
+                );
+              })}
             </div>
           </div>
         )}
@@ -197,9 +199,9 @@ export function MobileQuickAddSheet({
           />
         </label>
 
-        {selectedTag && (
+        {selectedTags.length > 0 && (
           <p className="text-[var(--mobile-font-caption)] text-[var(--mobile-color-text-muted)]">
-            将创建到标签：{selectedTag.name}
+            将创建到标签：{selectedTags.map((t) => t.name).join('、')}
           </p>
         )}
 

@@ -1,19 +1,23 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTask, useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTags } from '../../hooks/useTags';
+import { useTaskNotes, useToggleTaskNote } from '../../hooks/useTaskNotes';
 import { useUIStore } from '../../stores/uiStore';
 import { todayISO, isOverdue, formatLocalTime } from '../../lib/date';
 import { cn } from '../../lib/cn';
 import type { UpdateTaskInput } from '../../types/task';
-import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer } from 'lucide-react';
+import type { Tag as TagType } from '../../types/tag';
+import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, Check, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer, Sparkles } from 'lucide-react';
 import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
 import { ReminderList } from '../shared/ReminderList';
 import { RichTextEditor } from '../shared/RichTextEditor';
 import { Portal } from '../shared/Portal';
+import { SubtaskReminderButton } from './SubtaskReminderButton';
+import { SubtaskDateChip } from './SubtaskDateChip';
 import { toast } from 'sonner';
 import { hexToRgba, PRIORITY_HEX, priorityLabels } from '../../lib/priority';
 
@@ -26,12 +30,14 @@ const priorityConfig: Record<number, { label: string; color: string; bg: string 
   4: { label: '紧急', color: 'text-[#EF4444]', bg: 'bg-[#FEF2F2] dark:bg-[#450A0A]' },
 };
 
+const tagsEqual = (a: string[], b: string[]) => a.length === b.length && a.every((t) => b.includes(t));
+
 interface LocalState {
   title: string;
   description: string;
   priority: number;
   due_date: string;
-  tag_id: string;
+  tag_ids: string[];
   recurrence: string;
   is_completed: boolean;
 }
@@ -96,6 +102,8 @@ export function TaskDetail() {
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
   const { data: tags } = useTags();
+  const { data: taskNotes } = useTaskNotes();
+  const toggleTaskNote = useToggleTaskNote();
   const { t: _t } = useTranslation();
 
   const [local, setLocal] = useState<LocalState | null>(null);
@@ -122,7 +130,7 @@ export function TaskDetail() {
   useEffect(() => {
     if (detail && selectedTaskId) {
       const server = { title: detail.task.title, description: detail.task.description, priority: detail.task.priority,
-        due_date: detail.task.due_date || '', tag_id: detail.task.tag_id || '',
+        due_date: detail.task.due_date || '', tag_ids: detail.task.tag_ids || [],
         recurrence: detail.task.recurrence || '', is_completed: detail.task.is_completed };
       // 使用函数式更新，在运行时保留本地已修改但尚未保存的字段，
       // 防止异步 doSave 返回后旧服务器数据覆盖用户新输入（快速连续选择时的回弹问题）
@@ -132,7 +140,11 @@ export function TaskDetail() {
         if (!orig) return server;
         const merged = { ...server };
         for (const key of Object.keys(merged) as (keyof LocalState)[]) {
-          if (prev[key] !== orig[key]) {
+          if (key === 'tag_ids') {
+            if (!tagsEqual(prev[key] as string[], orig[key] as string[])) {
+              (merged as any)[key] = prev[key];
+            }
+          } else if (prev[key] !== orig[key]) {
             (merged as any)[key] = prev[key];
           }
         }
@@ -153,7 +165,7 @@ export function TaskDetail() {
     if (currentLocal.description !== task.description) input.description = currentLocal.description;
     if (currentLocal.priority !== task.priority) input.priority = currentLocal.priority;
     if (currentLocal.due_date !== (task.due_date || '')) input.due_date = currentLocal.due_date || '';
-    if (currentLocal.tag_id !== (task.tag_id || '')) input.tag_id = currentLocal.tag_id || '';
+    if (!tagsEqual(currentLocal.tag_ids, task.tag_ids || [])) input.tag_ids = currentLocal.tag_ids;
     if (currentLocal.recurrence !== (task.recurrence || '')) input.recurrence = currentLocal.recurrence || '';
     if (Object.keys(input).length === 1) return;
     // 🔍 诊断：记录描述长度
@@ -168,7 +180,7 @@ export function TaskDetail() {
     if (!local || !originalRef.current) return;
     const orig = originalRef.current;
     const hasChanges = local.title !== orig.title || local.description !== orig.description || local.priority !== orig.priority || local.due_date !== orig.due_date ||
-      local.tag_id !== orig.tag_id || local.recurrence !== orig.recurrence;
+      !tagsEqual(local.tag_ids, orig.tag_ids) || local.recurrence !== orig.recurrence;
     if (!hasChanges) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => { saveTimerRef.current = null; doSave(local); }, 800);
@@ -178,6 +190,12 @@ export function TaskDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const update = (patch: Partial<LocalState>) => { setLocal((prev) => (prev ? { ...prev, ...patch } : null)); };
+
+  // Hooks 必须在所有条件 return 之前调用
+  const tagMap = useMemo(() => {
+    if (!tags) return new Map();
+    return new Map(tags.map((t) => [t.id, t]));
+  }, [tags]);
 
   if (!selectedTaskId) return null;
   if (isLoading) return <p className="text-sm text-[#9CA3AF] py-8 text-center">加载中...</p>;
@@ -205,7 +223,7 @@ export function TaskDetail() {
               const parent = await createTask.mutateAsync({
                 title: deletedTask.title, description: deletedTask.description,
                 priority: deletedTask.priority, due_date: deletedTask.due_date || undefined,
-                tag_id: deletedTask.tag_id || undefined,
+                tag_ids: deletedTask.tag_ids,
                 parent_task_id: deletedTask.parent_task_id || undefined,
                 recurrence: deletedTask.recurrence || undefined,
               });
@@ -222,7 +240,8 @@ export function TaskDetail() {
   };
 
   const toggleComplete = () => { const next = !local.is_completed; updateTask.mutate({ id: task.id, is_completed: next }); setLocal((prev) => (prev ? { ...prev, is_completed: next } : null)); };
-  const taskTag = tags?.find((t) => t.id === local.tag_id);
+  const localTags = (local.tag_ids || []).map((id) => tagMap.get(id)).filter((t): t is TagType => !!t);
+  const hasNote = (taskNotes || []).some((n) => n.task_id === task.id);
 
   const completedCount = children.filter((c) => c.is_completed).length;
 
@@ -240,6 +259,12 @@ export function TaskDetail() {
             <input value={local.title} onChange={(e) => update({ title: e.target.value })}
               className={cn('w-full text-[18px] font-bold bg-transparent border-b-2 border-transparent hover:border-[#D1D5DB] focus:border-[#7C72F6] outline-none pb-0.5 transition-colors', local.is_completed && 'line-through text-[#9CA3AF]')}
               placeholder="任务标题" />
+            {task.source === 'agent' && (
+              <div className="mt-1 flex items-center gap-1 text-[11px] text-[#7C72F6]">
+                <Sparkles size={12} />
+                由 Agent 创建
+              </div>
+            )}
           </div>
         </div>
         <div className="h-px bg-[#F3F4F6] dark:bg-white/[0.06] my-1" />
@@ -264,6 +289,12 @@ export function TaskDetail() {
             className="inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12] hover:bg-[#7C72F6]/[0.12] dark:hover:bg-[#7C72F6]/[0.2]">
             <Timer size={13} />
             番茄钟
+          </button>
+          <button onClick={() => toggleTaskNote(task.id, hasNote)}
+            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
+              hasNote ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
+            <Pin size={13} />
+            {hasNote ? '取消固定' : '固定到桌面'}
           </button>
           {isOverdue(task.due_date) && !task.is_completed && !task.is_suspended && !task.is_abandoned && (
             <span className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium text-[#F97316] bg-[#FFF7ED] dark:bg-orange-950/30">超期</span>
@@ -323,30 +354,34 @@ export function TaskDetail() {
           )}
 
           {/* Tag */}
-          {local.tag_id && taskTag ? (
-            <span ref={tagBtnRef as any} onClick={() => { setOpenTag(true); setOpenPriority(false); }}
+          {localTags.map((t) => (
+            <span key={t.id} onClick={() => { setOpenTag(true); setOpenPriority(false); }}
               className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: hexToRgba(taskTag.color, 0.15), color: taskTag.color }}>
-              {taskTag.name}
-              <span onClick={(e) => { e.stopPropagation(); update({ tag_id: '' }); }}
+              style={{ backgroundColor: hexToRgba(t.color, 0.15), color: t.color }}>
+              {t.name}
+              <span onClick={(e) => { e.stopPropagation(); update({ tag_ids: local.tag_ids.filter((id) => id !== t.id) }); }}
                 className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer"><X size={12} /></span>
             </span>
-          ) : (
-            <button ref={tagBtnRef} onClick={() => { setOpenTag(!openTag); setOpenPriority(false); }}
-              className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors">
-              <Tag size={12} />标签
-            </button>
-          )}
+          ))}
+          <button ref={tagBtnRef} onClick={() => { setOpenTag(!openTag); setOpenPriority(false); }}
+            className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors">
+            <Tag size={12} />{localTags.length > 0 ? '添加' : '标签'}
+          </button>
           {openTag && (
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setOpenTag(false)} />
               <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
                 style={{ top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: tagBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
-                <button onClick={() => { update({ tag_id: '' }); setOpenTag(false); }}
-                  className={`w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] ${!local.tag_id ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>无标签</button>
-                {tags?.map((t) => (<button key={t.id} onClick={() => { update({ tag_id: t.id }); setOpenTag(false); }}
-                  className={`w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${local.tag_id === t.id ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />{t.name}</button>))}
+                {tags?.map((t) => {
+                  const active = local.tag_ids.includes(t.id);
+                  return (
+                    <button key={t.id} onClick={() => { update({ tag_ids: active ? local.tag_ids.filter((id) => id !== t.id) : [...local.tag_ids, t.id] }); }}
+                      className={`w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${active ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />{t.name}
+                      {active && <Check size={13} className="ml-auto" />}
+                    </button>
+                  );
+                })}
               </div>
             </Portal>
           )}
@@ -410,6 +445,8 @@ export function TaskDetail() {
                     {child.is_completed && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                   </button>
                   <EditableSubtaskTitle child={child} />
+                  <SubtaskDateChip child={child} />
+                  <SubtaskReminderButton child={child} />
                   <button onClick={() => { const deleted = child; deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutateAsync({ title: deleted.title, parent_task_id: deleted.parent_task_id || undefined }).then(() => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); } }); }}
                     className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[#9CA3AF] hover:text-[#EF4444] transition-all ml-auto">
                     <X size={12} />

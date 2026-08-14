@@ -1,10 +1,11 @@
-import { X, CheckCheck, Trash2, FolderInput, CheckSquare } from 'lucide-react';
+import { X, CheckCheck, Trash2, FolderInput, CheckSquare, Check } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useUpdateTask, useDeleteTask } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
+import { Portal } from './Portal';
 
 export function BulkActionBar() {
   const { selectionMode, selectedTaskIds, selectableIds, exitSelectionMode } = useUIStore();
@@ -12,6 +13,8 @@ export function BulkActionBar() {
   const deleteTask = useDeleteTask();
   const { data: tags } = useTags();
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [pendingTagIds, setPendingTagIds] = useState<string[]>([]);
+  const tagBtnRef = useRef<HTMLButtonElement>(null);
 
   const count = selectedTaskIds.size;
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedTaskIds.has(id));
@@ -29,10 +32,23 @@ export function BulkActionBar() {
     exitSelectionMode();
   };
 
-  const handleMoveToTag = (tagId: string) => {
-    selectedTaskIds.forEach((id) => updateTask.mutate({ id, tag_id: tagId || undefined }));
-    toast.success(`已移动 ${count} 个任务`);
+  const handleToggleTag = (tagId: string) => {
+    setPendingTagIds((prev) => prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]);
+  };
+
+  const handleApplyTags = () => {
+    selectedTaskIds.forEach((id) => updateTask.mutate({ id, tag_ids: [...pendingTagIds] }));
+    toast.success(`已设置 ${count} 个任务的标签`);
     setShowTagPicker(false);
+    setPendingTagIds([]);
+    exitSelectionMode();
+  };
+
+  const handleClearTags = () => {
+    selectedTaskIds.forEach((id) => updateTask.mutate({ id, tag_ids: [] }));
+    toast.success(`已清除 ${count} 个任务的标签`);
+    setShowTagPicker(false);
+    setPendingTagIds([]);
     exitSelectionMode();
   };
 
@@ -67,6 +83,7 @@ export function BulkActionBar() {
         </button>
 
         <button
+          ref={tagBtnRef}
           onClick={() => setShowTagPicker(!showTagPicker)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
         >
@@ -75,24 +92,45 @@ export function BulkActionBar() {
         </button>
 
         {showTagPicker && (
-          <div className="absolute bottom-full mb-2 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-xl shadow-xl p-1 min-w-[160px]">
-            <button
-              onClick={() => handleMoveToTag('')}
-              className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
-            >
-              无标签
-            </button>
-            {tags?.map((t) => (
+          <Portal>
+            <div className="fixed inset-0 z-[260]" onClick={() => setShowTagPicker(false)} aria-hidden="true" />
+            <div className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-xl shadow-xl p-1 min-w-[190px]"
+              style={(() => {
+                const rect = tagBtnRef.current?.getBoundingClientRect();
+                if (!rect) return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+                const left = Math.max(4, Math.min(rect.left, window.innerWidth - 198));
+                return { bottom: window.innerHeight - rect.top + 8, left };
+              })()}>
+            {tags?.map((t) => {
+              const active = pendingTagIds.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleToggleTag(t.id)}
+                  className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors flex items-center gap-2"
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                  <span className="flex-1 truncate">{t.name}</span>
+                  {active && <Check size={14} className="text-[#7C72F6]" />}
+                </button>
+              );
+            })}
+            <div className="border-t border-[#F3F4F6] dark:border-white/[0.06] mt-1 pt-1 flex gap-1">
               <button
-                key={t.id}
-                onClick={() => handleMoveToTag(t.id)}
-                className="w-full text-left px-3 py-1.5 text-sm rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors flex items-center gap-2"
+                onClick={handleClearTags}
+                className="px-3 py-1.5 text-sm rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
               >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
-                {t.name}
+                清除
               </button>
-            ))}
+              <button
+                onClick={handleApplyTags}
+                className="flex-1 px-3 py-1.5 text-sm rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] transition-colors"
+              >
+                应用
+              </button>
+            </div>
           </div>
+          </Portal>
         )}
 
         <button

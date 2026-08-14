@@ -54,8 +54,8 @@ export function SearchBar() {
     setIsOpen(false);
     setQuery('');
     // Navigate to the appropriate page
-    if (task.tag_id) {
-      navigate(`/tag/${task.tag_id}`);
+    if (task.tag_ids && task.tag_ids.length > 0) {
+      navigate(`/tag/${task.tag_ids[0]}`);
     }
   };
 

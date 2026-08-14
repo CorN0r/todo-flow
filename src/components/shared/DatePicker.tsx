@@ -12,6 +12,10 @@ interface DatePickerProps {
   showTime?: boolean;
   startOpen?: boolean;
   iconOnly?: boolean | 'label';
+  /** 紧凑日期标签（M月d日 HH:mm），用于小尺寸触发器 */
+  compact?: boolean;
+  /** 自定义默认触发器样式（可覆盖内置 padding/边框/颜色等） */
+  triggerClassName?: string;
 }
 
 function getCalendarDays(year: number, month: number) {
@@ -33,7 +37,7 @@ function getCalendarDays(year: number, month: number) {
   return { weeks, month: firstDay.getMonth(), year: firstDay.getFullYear() };
 }
 
-export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, iconOnly }: DatePickerProps) {
+export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, iconOnly, compact, triggerClassName }: DatePickerProps) {
   const { t: _t } = useTranslation();
   const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -138,12 +142,13 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
             ? 'flex items-center justify-center shrink-0 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1] transition-colors'
             : cn('flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors border font-medium',
               value ? 'border-[#7C72F6] bg-[#7C72F6]/[0.06] text-[#7C72F6]' : 'border-[#E5E7EB] dark:border-white/[0.07] text-[#9CA3AF] hover:border-[#D1D5DB] hover:text-[#6B7280]'),
+          triggerClassName,
         )}
         style={iconOnly ? { width: '28px', height: '28px' } : undefined}
         title={iconOnly ? (displayValue || '选择日期') : undefined}
       >
         <CalendarIcon size={iconOnly ? 13 : 14} />
-        {!iconOnly && <span>{displayValue || (showTime ? '选择日期时间' : '选择日期')}</span>}
+        {!iconOnly && <span>{compact ? compactLabel : (displayValue || (showTime ? '选择日期时间' : '选择日期'))}</span>}
         {!iconOnly && value && (
           <span
             role="button"

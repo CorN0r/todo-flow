@@ -33,8 +33,17 @@ vi.mock('@tauri-apps/api/window', () => {
     toggleMaximize: vi.fn(() => Promise.resolve()),
     minimize: vi.fn(() => Promise.resolve()),
     close: vi.fn(() => Promise.resolve()),
+    setSize: vi.fn(() => Promise.resolve()),
   };
-  return { getCurrentWindow: () => currentWindow };
+  class LogicalSize {
+    width: number;
+    height: number;
+    constructor(width: number, height: number) {
+      this.width = width;
+      this.height = height;
+    }
+  }
+  return { getCurrentWindow: () => currentWindow, LogicalSize };
 });
 
 vi.mock('@tauri-apps/api/event', () => ({

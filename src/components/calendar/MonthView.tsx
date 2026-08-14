@@ -215,7 +215,7 @@ export function MonthView() {
                     <div className="space-y-0.5" onClick={(e) => e.stopPropagation()}>
                       {dayEvents.slice(0, 2).map((ev) => (
                         <DraggableTask key={ev.task.id} ev={ev} dateKey={dateKey}
-                          tagColor={ev.task.tag_id ? tagColorMap.get(ev.task.tag_id) : undefined} />
+                          tagColor={ev.task.tag_ids?.[0] ? tagColorMap.get(ev.task.tag_ids[0]) : undefined} />
                       ))}
                       {dayEvents.length > 2 && (
                         <span className="text-[10px] text-[#6B7280] pl-1 font-medium">

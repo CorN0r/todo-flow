@@ -14,7 +14,7 @@ fn setup() -> Connection {
 
 fn empty_filter() -> TaskFilter {
     TaskFilter {
-        tag_id: None,
+        tag_ids: None,
         is_completed: None,
         due_date_from: None,
         due_date_to: None,
@@ -75,13 +75,14 @@ fn full_task_lifecycle() {
         CreateTaskRequest {
             title: "Integration test".into(),
             description: Some("Testing full flow".into()),
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: Some("2026-06-01".into()),
             priority: Some(2),
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -106,7 +107,7 @@ fn full_task_lifecycle() {
             is_completed: Some(true),
             priority: Some(3),
             due_date: Some("2026-07-01".into()),
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             reminder: None,
             recurrence: None,
@@ -136,13 +137,14 @@ fn subtask_cascade_and_depth_limit() {
         CreateTaskRequest {
             title: "Parent".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -152,13 +154,14 @@ fn subtask_cascade_and_depth_limit() {
         CreateTaskRequest {
             title: "Child".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: Some(parent.id.clone()),
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -175,13 +178,14 @@ fn subtask_cascade_and_depth_limit() {
         CreateTaskRequest {
             title: "Grandchild".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: Some(child.id.clone()),
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     );
     assert!(result.is_err());
@@ -213,13 +217,14 @@ fn task_with_tag_integration() {
         CreateTaskRequest {
             title: "Work task".into(),
             description: None,
-            tag_id: Some(tag.id.clone()),
+            tag_ids: Some(vec![tag.id.clone()]),
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -227,12 +232,12 @@ fn task_with_tag_integration() {
     let detail = task_repo::get_detail(&conn, &task.id)
         .unwrap()
         .expect("task should exist");
-    assert_eq!(detail.task.tag_id, Some(tag.id.clone()));
+    assert_eq!(detail.task.tag_ids, vec![tag.id.clone()]);
 
     let results = task_repo::get_all(
         &conn,
         TaskFilter {
-            tag_id: Some(tag.id.clone()),
+            tag_ids: Some(vec![tag.id.clone()]),
             ..empty_filter()
         },
     )
@@ -245,7 +250,7 @@ fn task_with_tag_integration() {
     let after = task_repo::get_detail(&conn, &task.id)
         .unwrap()
         .expect("task should still exist");
-    assert_eq!(after.task.tag_id, None);
+    assert_eq!(after.task.tag_ids, Vec::<String>::new());
 }
 
 // ─── Settings ────────────────────────────────────────────────
@@ -278,13 +283,14 @@ fn task_reorder_preserves_order() {
         CreateTaskRequest {
             title: "First".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -294,13 +300,14 @@ fn task_reorder_preserves_order() {
         CreateTaskRequest {
             title: "Second".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -337,13 +344,14 @@ fn empty_title_is_rejected() {
         CreateTaskRequest {
             title: "  ".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     );
     assert!(result.is_err());
@@ -364,13 +372,14 @@ fn duplicate_task_deep_copies() {
         CreateTaskRequest {
             title: "Original".into(),
             description: Some("desc".into()),
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: Some("2026-08-01".into()),
             priority: Some(4),
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -415,13 +424,14 @@ fn filter_by_tag_id_only_returns_matching_tasks() {
         CreateTaskRequest {
             title: "Task A".into(),
             description: None,
-            tag_id: Some(tag_a.id.clone()),
+            tag_ids: Some(vec![tag_a.id.clone()]),
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -431,13 +441,14 @@ fn filter_by_tag_id_only_returns_matching_tasks() {
         CreateTaskRequest {
             title: "Task B".into(),
             description: None,
-            tag_id: Some(tag_b.id.clone()),
+            tag_ids: Some(vec![tag_b.id.clone()]),
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -448,19 +459,20 @@ fn filter_by_tag_id_only_returns_matching_tasks() {
         CreateTaskRequest {
             title: "Unassigned".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
 
     let filter_a = TaskFilter {
-        tag_id: Some(tag_a.id.clone()),
+        tag_ids: Some(vec![tag_a.id.clone()]),
         ..empty_filter()
     };
     let results_a = task_repo::get_all(&conn, filter_a).unwrap();
@@ -468,7 +480,7 @@ fn filter_by_tag_id_only_returns_matching_tasks() {
     assert_eq!(results_a[0].title, "Task A");
 
     let filter_b = TaskFilter {
-        tag_id: Some(tag_b.id.clone()),
+        tag_ids: Some(vec![tag_b.id.clone()]),
         ..empty_filter()
     };
     let results_b = task_repo::get_all(&conn, filter_b).unwrap();
@@ -487,13 +499,14 @@ fn filter_by_date_range_only_returns_tasks_in_range() {
         CreateTaskRequest {
             title: "Past".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: Some("2026-01-01".into()),
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -503,13 +516,14 @@ fn filter_by_date_range_only_returns_tasks_in_range() {
         CreateTaskRequest {
             title: "This week".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: Some("2026-06-15".into()),
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();
@@ -519,13 +533,14 @@ fn filter_by_date_range_only_returns_tasks_in_range() {
         CreateTaskRequest {
             title: "Future".into(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             due_date: Some("2026-12-31".into()),
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         },
     )
     .unwrap();

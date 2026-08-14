@@ -58,8 +58,8 @@ export function ReminderList({ taskId, dueDate }: ReminderListProps) {
         </button>
         {showMenu && (
           <Portal>
-            <div className="fixed inset-0 z-40" onClick={() => { setShowMenu(false); setShowCustom(false); }} />
-            <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[180px]"
+            <div className="fixed inset-0 z-[280]" onClick={() => { setShowMenu(false); setShowCustom(false); }} />
+            <div className="fixed z-[290] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[180px]"
               style={{ top: (addBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: addBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
               {availablePresets.map(([key, { label }]) => (
                 <button key={key} onClick={() => {

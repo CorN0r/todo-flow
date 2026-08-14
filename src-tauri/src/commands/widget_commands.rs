@@ -5,7 +5,7 @@ use rusqlite::params;
 #[cfg(not(mobile))]
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 #[cfg(not(mobile))]
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri::{AppHandle, State};
 
 #[cfg(not(mobile))]
@@ -16,16 +16,28 @@ pub fn hide_to_tray(app: AppHandle, state: State<AppState>) -> Result<(), AppErr
             .hide()
             .map_err(|e| AppError::Generic(e.to_string()))?;
     }
-    if let Ok(db) = state.db() {
-        let _ = db.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('widget_enabled', '1')",
-            params![],
-        );
-    }
-    if let Some(widget) = app.get_webview_window("widget") {
-        widget
-            .show()
-            .map_err(|e| AppError::Generic(e.to_string()))?;
+    // 不再强制启用悬浮窗：仅当设置开启时才显示
+    let widget_enabled = state
+        .db()
+        .ok()
+        .and_then(|db| {
+            db.query_row(
+                "SELECT value FROM settings WHERE key = 'widget_enabled'",
+                rusqlite::params![],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+        })
+        .map(|v| v != "0")
+        .unwrap_or(true);
+    if widget_enabled {
+        if let Some(widget) = app.get_webview_window("widget") {
+            widget
+                .show()
+                .map_err(|e| AppError::Generic(e.to_string()))?;
+            // 通知前端以气泡形态出现并校正位置
+            let _ = app.emit_to("widget", "widget-shown", ());
+        }
     }
     Ok(())
 }
@@ -101,6 +113,7 @@ pub fn show_widget_context_menu(
                 if let Ok(db) = db.lock() {
                     let _ = db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('widget_enabled', '0')", params![]);
                 }
+                let _ = app_clone.emit("widget-enabled-changed", false);
             }
         });
 

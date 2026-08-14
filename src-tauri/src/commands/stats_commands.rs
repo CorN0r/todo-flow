@@ -120,7 +120,8 @@ fn get_dashboard_stats_impl(conn: &Connection) -> Result<DashboardStats, AppErro
         let mut stmt = conn.prepare(
             "SELECT t.id, t.name, t.color, COUNT(tk.id)
              FROM tags t
-             LEFT JOIN tasks tk ON tk.tag_id = t.id AND tk.is_archived = 0 AND tk.is_suspended = 0 AND tk.is_abandoned = 0 AND tk.parent_task_id IS NULL
+             LEFT JOIN task_tags tt ON tt.tag_id = t.id
+             LEFT JOIN tasks tk ON tk.id = tt.task_id AND tk.is_archived = 0 AND tk.is_suspended = 0 AND tk.is_abandoned = 0 AND tk.parent_task_id IS NULL
              GROUP BY t.id
              ORDER BY COUNT(tk.id) DESC",
         )?;
@@ -224,18 +225,24 @@ mod tests {
             [],
         )
         .unwrap();
+        conn.execute("INSERT INTO tasks (id, title) VALUES ('t1', 'Work task')", [])
+            .unwrap();
         conn.execute(
-            "INSERT INTO tasks (id, title, tag_id) VALUES ('t1', 'Work task', 'l1')",
+            "INSERT INTO task_tags (task_id, tag_id) VALUES ('t1', 'l1')",
             [],
         )
         .unwrap();
+        conn.execute("INSERT INTO tasks (id, title) VALUES ('t2', 'Work task 2')", [])
+            .unwrap();
         conn.execute(
-            "INSERT INTO tasks (id, title, tag_id) VALUES ('t2', 'Work task 2', 'l1')",
+            "INSERT INTO task_tags (task_id, tag_id) VALUES ('t2', 'l1')",
             [],
         )
         .unwrap();
+        conn.execute("INSERT INTO tasks (id, title) VALUES ('t3', 'Home task')", [])
+            .unwrap();
         conn.execute(
-            "INSERT INTO tasks (id, title, tag_id) VALUES ('t3', 'Home task', 'l2')",
+            "INSERT INTO task_tags (task_id, tag_id) VALUES ('t3', 'l2')",
             [],
         )
         .unwrap();

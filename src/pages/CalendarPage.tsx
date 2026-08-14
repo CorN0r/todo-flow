@@ -22,8 +22,9 @@ export function CalendarPage() {
           </div>
           <h3 className="text-[20px] font-bold text-[#111827] dark:text-white/90">{currentDate.getFullYear()}年{currentDate.getMonth() + 1}月</h3>
           <div className="flex items-center gap-1">
-            <button onClick={goPrev} className="p-1 rounded hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors" aria-label="Previous">
-              <ChevronLeft size={18} />
+            <button onClick={goPrev} title="上个月" aria-label="上个月"
+              className="p-1 rounded border border-[#E5E7EB] dark:border-white/[0.07] text-[#6B7280] dark:text-white/70 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <ChevronLeft size={16} />
             </button>
             <button
               onClick={goToday}
@@ -31,8 +32,9 @@ export function CalendarPage() {
             >
               今天
             </button>
-            <button onClick={goNext} className="p-1 rounded hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors" aria-label="Next">
-              <ChevronRight size={18} />
+            <button onClick={goNext} title="下个月" aria-label="下个月"
+              className="p-1 rounded border border-[#E5E7EB] dark:border-white/[0.07] text-[#6B7280] dark:text-white/70 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <ChevronRight size={16} />
             </button>
           </div>
         </div>

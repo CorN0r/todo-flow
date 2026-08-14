@@ -54,7 +54,7 @@ describe('Mobile task experience', () => {
   it('shows today, My Day, overdue, and task card visual signals', async () => {
     const today = todayISO();
     const tasks: Task[] = [
-      buildTask({ id: 'overdue', title: 'Pay bill', due_date: yesterdayISO(), priority: 3, tag_id: tag.id }),
+      buildTask({ id: 'overdue', title: 'Pay bill', due_date: yesterdayISO(), priority: 3, tag_ids: [tag.id] }),
       buildTask({ id: 'my-day', title: 'Plan sprint', my_day_date: today, reminder: 'at_due_time' }),
       buildTask({ id: 'due-today', title: 'Ship build', due_date: today, sync_status: 'pending' } as Partial<Task>),
     ];
@@ -115,7 +115,7 @@ describe('Mobile task experience', () => {
   it('filters, searches, sorts, and enters tags on the Tasks tab', async () => {
     const user = userEvent.setup();
     renderMobile('/mobile/tasks', [
-      buildTask({ id: 'task-a', title: 'Milk run', tag_id: tag.id, priority: 1 }),
+      buildTask({ id: 'task-a', title: 'Milk run', tag_ids: [tag.id], priority: 1 }),
       buildTask({ id: 'task-b', title: 'Done item', is_completed: true, priority: 4 }),
     ]);
 
@@ -141,7 +141,7 @@ describe('Mobile task experience', () => {
     const user = userEvent.setup();
     renderMobile('/mobile/tasks', [
       buildTask({ id: 'active', title: 'Active item' }),
-      buildTask({ id: 'paused', title: 'Paused work', tag_id: tag.id, is_suspended: true }),
+      buildTask({ id: 'paused', title: 'Paused work', tag_ids: [tag.id], is_suspended: true }),
       buildTask({ id: 'abandoned', title: 'Abandoned item', is_abandoned: true }),
     ]);
 
@@ -208,7 +208,7 @@ describe('Mobile task experience', () => {
       const edited = state.tasks.find((task) => task.id === 'task-detail');
       expect(edited?.title).toBe('Edited note');
       expect(edited?.priority).toBe(3);
-      expect(edited?.tag_id).toBe(tag.id);
+      expect(edited?.tag_ids).toEqual([tag.id]);
       expect(edited?.reminder).toBe('at_due_time');
       expect(edited?.description).toBe('Detail body');
       expect(edited?.recurrence).toContain('weekly');

@@ -1,7 +1,8 @@
 [package]
 name = "todo-flow"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
+default-run = "todo-flow"
 description = "A modern Windows desktop TODO app with calendar views, subtasks, tags, habit tracking, and image attachments"
 authors = ["TodoFlow"]
 license = "MIT"
@@ -26,6 +27,14 @@ strip = "symbols"
 name = "todo_flow_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
+[[bin]]
+name = "todo-flow"
+path = "src/main.rs"
+
+[[bin]]
+name = "todoflow-mcp"
+path = "src/bin/mcp.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -34,6 +43,7 @@ tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
@@ -45,6 +55,14 @@ thiserror = "2"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 mime_guess = "2"
 log = "0.4"
+rmcp = { version = "3", features = ["server", "macros", "transport-io", "schemars"] }
+tokio = { version = "1", features = ["rt-multi-thread", "io-std"] }
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+rmcp = { version = "3", features = ["client", "transport-child-process"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "process"] }
+tempfile = "3"
 
 [features]
 default = ["custom-protocol"]

@@ -89,7 +89,7 @@ export function buildTask(overrides: Partial<Task> = {}): Task {
     priority: 0,
     due_date: null,
     reminder: null,
-    tag_id: null,
+    tag_ids: [],
     parent_task_id: null,
     sort_order: 0,
     recurrence: null,

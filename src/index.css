@@ -854,3 +854,18 @@
 .dark .ProseMirror ::selection {
   background: rgba(124, 114, 246, 0.3);
 }
+
+/* ===== 桌面便签 ===== */
+/* 逾期呼吸:glass 顶部色带 / minimal 优先级竖条(paper 保持静态,不挂此类) */
+@keyframes noteOverdueBreath {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.note-overdue-breath {
+  animation: noteOverdueBreath 3s ease-in-out infinite;
+}

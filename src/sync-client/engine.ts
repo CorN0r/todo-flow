@@ -267,7 +267,7 @@ export function createMemorySyncLocalAdapter(state: MemoryRepositoryState): Loca
           priority: Number(change.payload.priority ?? 0),
           due_date: (change.payload.due_date as string | null | undefined) ?? null,
           reminder: (change.payload.reminder as string | null | undefined) ?? null,
-          tag_id: (change.payload.tag_id as string | null | undefined) ?? null,
+          tag_ids: (change.payload.tag_ids as string[] | undefined) ?? (change.payload.tag_id ? [change.payload.tag_id as string] : []),
           parent_task_id: (change.payload.parent_task_id as string | null | undefined) ?? null,
           sort_order: Number(change.payload.sort_order ?? state.tasks.length),
           recurrence: (change.payload.recurrence as string | null | undefined) ?? null,

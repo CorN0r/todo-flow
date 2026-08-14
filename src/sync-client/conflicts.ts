@@ -21,7 +21,7 @@ const entityFieldRules: Record<SyncEntityType, string[]> = {
     'priority',
     'due_date',
     'reminder',
-    'tag_id',
+    'tag_ids',
     'recurrence',
     'sort_order',
     'my_day_date',

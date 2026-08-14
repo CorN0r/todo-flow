@@ -40,7 +40,7 @@ pub fn get_all_shortcuts(state: State<AppState>) -> Result<String, AppError> {
 
     Ok(raw.unwrap_or_else(|| {
         // 返回默认值
-        r#"{"global-show-window":{"keys":"Ctrl+Shift+T","enabled":true},"command-palette":{"keys":"Ctrl+K","enabled":true},"toggle-sidebar":{"keys":"Ctrl+B","enabled":true},"new-task":{"keys":"N","enabled":true}}"#
+        r#"{"global-show-window":{"keys":"Ctrl+Shift+T","enabled":true},"global-toggle-notes":{"keys":"Alt+D","enabled":true},"command-palette":{"keys":"Ctrl+K","enabled":true},"toggle-sidebar":{"keys":"Ctrl+B","enabled":true},"new-task":{"keys":"N","enabled":true}}"#
             .to_string()
     }))
 }

@@ -1,4 +1,4 @@
-# TodoFlow v0.6.0
+# TodoFlow v0.7.0
 
 面向 Windows 与 Android 的本地优先待办事项管理应用，基于 Tauri v2 + React 19 构建。
 
@@ -13,8 +13,8 @@
 
 运行安装包：
 
-- `TodoFlow_0.6.0_x64-setup.exe`（NSIS）
-- `TodoFlow_0.6.0_arm64-preview.apk`（Android ARM64 预览版，测试签名）
+- `TodoFlow_0.7.0_x64-setup.exe`（NSIS）
+- `TodoFlow_0.7.0_arm64-preview.apk`（Android ARM64 预览版，测试签名）
 
 安装后通过桌面快捷方式或开始菜单启动。
 
@@ -32,7 +32,7 @@
 | 子任务 | 支持两级嵌套，拖拽排序，详情面板内嵌卡片样式 |
 | 三种视图 | 列表视图、便签墙视图、一体式左右分栏视图，一键切换 |
 | 日历视图 | 月 / 周 / 日三种视图 |
-| 标签系统 | 多级标签嵌套，颜色标记，右键重命名 / 删除 |
+| 标签系统 | 多级标签嵌套 + 任务多标签，颜色标记，右键重命名 / 删除 |
 | 我的一天 | 聚焦今日重点任务，智能推荐（支持暂不 / 重新推荐） |
 | 四象限 | Eisenhower Matrix 优先级矩阵 |
 | 看板 | 按标签/优先级/完成状态分列的看板视图 |
@@ -43,6 +43,8 @@
 | 悬浮窗 | 独立窗口，拖拽，展开/折叠到气泡，气泡颜色可自定义 |
 | 多主题 | 浅色 / 深色 / 跟随系统 / 玻璃 / 温暖石炭 / 浮光，六种主题随意切换 |
 | **番茄钟** | 独立桌面悬浮窗，专注/短休/长休循环，全屏沉浸模式，Windows 原生通知，统计面板 |
+| **Agent 集成** | 内置 MCP server + CLI，让 Claude Desktop / Claude Code / Cursor 等 AI 直接创建、查询、管理任务 |
+| **桌面便签** | 把任务固定为桌面无边框透明小窗，三款皮肤，Alt+D 一键显示/隐藏 |
 
 ---
 
@@ -128,6 +130,82 @@
 
 ---
 
+## Agent 集成（MCP / 本地接口）
+
+TodoFlow 内置 MCP（Model Context Protocol）服务器，让 Claude Desktop、Claude Code、Cursor 等 AI Agent 直接创建、查询、更新你的任务。数据库本地直连，无需网络。
+
+### 构建二进制
+
+```bash
+cd src-tauri
+cargo build --release --bin todoflow-mcp
+# 产物: src-tauri/target/release/todoflow-mcp.exe
+```
+
+> tauri 安装包不包含此二进制，需用上述命令单独构建。
+
+### 配置 Agent
+
+**Claude Desktop**：编辑 `%APPDATA%\Claude\claude_desktop_config.json`：
+
+```json
+{
+  "mcpServers": {
+    "todoflow": {
+      "command": "C:\\Users\\<你的用户名>\\...\\todoflow-mcp.exe",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+**Claude Code**：
+
+```bash
+claude mcp add todoflow -- "C:\...\todoflow-mcp.exe" serve
+```
+
+**Cursor**：项目根目录 `.cursor/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "todoflow": {
+      "command": "C:\\...\\todoflow-mcp.exe",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+### 提供的工具
+
+`create_task`、`list_tasks`、`get_task`、`update_task`、`complete_task`、`reopen_task`、`delete_task`、`list_tags`、`create_tag`。
+
+- 通过标签**名称**引用即可（不存在的标签自动创建）
+- `due_date` 格式：`YYYY-MM-DD` 或 `YYYY-MM-DD HH:mm`
+- `priority`：0=无 1=低 2=中 3=高 4=紧急
+- 支持子任务（`parent_task_id`）、「我的今天」（`my_day`）、提前提醒（`remind_minutes_before`，需配合 `due_date`）
+
+### 命令行用法（同一二进制）
+
+```bash
+todoflow-mcp add "写周报" --priority 3 --due "2026-08-14" --tag work --my-day
+todoflow-mcp list --search 周报
+todoflow-mcp list --tag work --completed
+todoflow-mcp done <任务ID>
+todoflow-mcp tags
+todoflow-mcp --db-path D:\backup\todo.db list
+```
+
+### 数据位置与安全
+
+- 默认数据库：`%APPDATA%\com.todoflow.desktop\todo.db`（可用 `--db-path` 覆盖）
+- GUI 运行期间，Agent 写入的任务约 2 秒内自动出现在界面中
+- 本地直连 SQLite，无网络请求、无鉴权；Agent 拥有与你相同的读写权限，注意提示词安全
+
+---
+
 ## 技术栈
 
 | 层级 | 技术 |
@@ -160,6 +238,7 @@ npm test             # 运行测试
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v0.7.0 | 2026-08-14 | 任务多标签、Agent 集成（MCP/CLI）、桌面便签、子任务时间设置、开机自启与快捷键开关、多项修复 |
 | v0.6.0 | 2026-07-12 | Android 移动端预览、本地优先跨端同步、六状态任务过滤、同步安全与数据库兼容性改进 |
 | v0.5.0 | 2026-06-19 | 富文本描述编辑器（TipTap/ProseMirror）、图片粘贴拖放、表格、全屏编辑、面板宽度可拖拽、时区修复（localtime）、番茄钟边缘吸附 |
 | v0.4.0 | 2026-06-15 | 番茄钟完整重构（独立悬浮窗+全屏沉浸+统计）、悬浮窗跟随全局主题、气泡颜色自定义 |

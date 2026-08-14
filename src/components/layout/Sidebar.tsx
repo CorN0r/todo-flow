@@ -8,6 +8,7 @@ import {
 import { cn } from '../../lib/cn';
 import { useTags, useCreateTag, useUpdateTag, useDeleteTag, useReorderTags } from '../../hooks/useTags';
 import { useUpdateTask } from '../../hooks/useTasks';
+import { getTask } from '../../lib/db';
 import type { TagWithCount } from '../../types/tag';
 
 import { useUIStore } from '../../stores/uiStore';
@@ -75,7 +76,7 @@ function SortableTagItem({ tag, onEdit, onDelete, onAddChild }: {
         className={cn('relative group/tag cursor-grab active:cursor-grabbing', isDragging && 'opacity-50 z-50', dragOver && 'ring-2 ring-[#7C72F6] rounded-lg')}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const taskId = e.dataTransfer.getData('text/plain'); if (taskId) updateTask.mutate({ id: taskId, tag_id: tag.id }); }}
+        onDrop={async (e) => { e.preventDefault(); setDragOver(false); const taskId = e.dataTransfer.getData('text/plain'); if (!taskId) return; try { const detail = await getTask(taskId); const current = detail.task.tag_ids || []; const next = current.includes(tag.id) ? current.filter((id) => id !== tag.id) : [...current, tag.id]; updateTask.mutate({ id: taskId, tag_ids: next }); } catch (err) { console.error('[Sidebar] drop tag failed:', err); } }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, rawX: e.clientX, rawY: e.clientY }); }}
       >
         <NavLink to={`/tag/${tag.id}`}

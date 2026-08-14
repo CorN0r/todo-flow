@@ -26,7 +26,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 function SortableDayTask({ event, tagName, tagColor, onClick }: {
-  event: { task: { id: string; title: string; is_completed: boolean; tag_id?: string | null } };
+  event: { task: { id: string; title: string; is_completed: boolean; tag_ids?: string[] } };
   tagName?: string;
   tagColor?: string;
   onClick: () => void;
@@ -168,8 +168,8 @@ export function DayView() {
               <SortableDayTask
                 key={ev.task.id}
                 event={ev}
-                tagName={ev.task.tag_id ? tagMap.get(ev.task.tag_id)?.name : undefined}
-                tagColor={ev.task.tag_id ? tagMap.get(ev.task.tag_id)?.color : undefined}
+                tagName={ev.task.tag_ids?.[0] ? tagMap.get(ev.task.tag_ids[0])?.name : undefined}
+                tagColor={ev.task.tag_ids?.[0] ? tagMap.get(ev.task.tag_ids[0])?.color : undefined}
                 onClick={() => setSelectedTaskId(ev.task.id)}
               />
             ))}

@@ -171,15 +171,10 @@ export function WeekView() {
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto pb-6 space-y-1" onClick={(e) => e.stopPropagation()}>
-                  {dayEvents.slice(0, 5).map((ev) => (
+                  {dayEvents.map((ev) => (
                     <DraggableWeekTask key={ev.task.id} ev={ev} dateKey={dateKey}
-                      tagColor={ev.task.tag_id ? tagColorMap.get(ev.task.tag_id) : undefined} />
+                      tagColor={ev.task.tag_ids?.[0] ? tagColorMap.get(ev.task.tag_ids[0]) : undefined} />
                   ))}
-                  {dayEvents.length > 5 && (
-                    <span className="text-[10px] text-[#6B7280] pl-2 font-medium">
-                      +{dayEvents.length - 5} 项
-                    </span>
-                  )}
                 </div>
               </DroppableWeekDay>
             );

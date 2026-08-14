@@ -193,7 +193,7 @@ export function MobileCalendarPage() {
               <MobileTaskCard
                 key={task.id}
                 task={task}
-                tag={task.tag_id ? tagsById.get(task.tag_id) : undefined}
+                tags={task.tag_ids[0] ? [tagsById.get(task.tag_ids[0])].filter((t): t is TagWithCount => !!t) : []}
                 onToggle={() => toggleTask(task)}
               />
             ))}

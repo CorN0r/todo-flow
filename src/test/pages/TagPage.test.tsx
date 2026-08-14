@@ -66,8 +66,8 @@ describe('TagPage', () => {
 
   it('uses the desktop session filter on the tag page', () => {
     mockTasks.data = [
-      buildTask({ id: 'active', title: 'Active tagged task', tag_id: 't1' }),
-      buildTask({ id: 'paused', title: 'Paused tagged task', tag_id: 't1', is_suspended: true }),
+      buildTask({ id: 'active', title: 'Active tagged task', tag_ids: ['t1'] }),
+      buildTask({ id: 'paused', title: 'Paused tagged task', tag_ids: ['t1'], is_suspended: true }),
     ];
     useUIStore.setState({ taskStatusFilter: 'suspended' });
     renderWithProviders(<TagPage />);

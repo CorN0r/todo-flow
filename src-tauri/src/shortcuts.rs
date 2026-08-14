@@ -149,10 +149,22 @@ mod desktop {
     pub type GlobalShortcutMap = HashMap<Shortcut, String>;
 
     /// 仅属于 Rust 后端管理的全局快捷键 ID（scope=rust）
-    const RUST_SCOPE_IDS: &[&str] = &["global-show-window"];
+    const RUST_SCOPE_IDS: &[&str] = &["global-show-window", "global-toggle-notes"];
 
     /// 从 DB 加载快捷键配置并注册所有全局快捷键
     pub fn register_global_shortcuts(app: &AppHandle, conn: &Connection) -> Result<(), AppError> {
+        // 快捷键总开关关闭时,不注册任何全局热键(Ctrl+Shift+T 也一并禁用)
+        let enabled: Option<String> = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'shortcuts_enabled'",
+                rusqlite::params![],
+                |row| row.get(0),
+            )
+            .ok();
+        if enabled.as_deref() == Some("0") {
+            return Ok(());
+        }
+
         let raw: Option<String> = conn
             .query_row(
                 "SELECT value FROM settings WHERE key = 'keyboard_shortcuts'",
@@ -161,8 +173,9 @@ mod desktop {
             )
             .ok();
 
-        let shortcuts =
-            parse_global_shortcuts(&raw).unwrap_or_else(|| get_default_global_shortcuts());
+        let shortcuts = parse_global_shortcuts(&raw)
+            .map(merge_missing_defaults)
+            .unwrap_or_else(get_default_global_shortcuts);
 
         // 构建快速查找映射
         let mut lookup: GlobalShortcutMap = HashMap::new();
@@ -230,12 +243,30 @@ mod desktop {
         serde_json::from_str::<HashMap<String, ShortcutConfig>>(raw).ok()
     }
 
+    /// 老用户配置合并:DB 里的 JSON 可能缺少后加的快捷键 id,用默认值补齐缺失项。
+    /// 只补缺失,不覆盖用户已有配置(含用户改键/禁用)。
+    fn merge_missing_defaults(
+        mut parsed: HashMap<String, ShortcutConfig>,
+    ) -> HashMap<String, ShortcutConfig> {
+        for (id, config) in get_default_global_shortcuts() {
+            parsed.entry(id).or_insert(config);
+        }
+        parsed
+    }
+
     fn get_default_global_shortcuts() -> HashMap<String, ShortcutConfig> {
         let mut map = HashMap::new();
         map.insert(
             "global-show-window".into(),
             ShortcutConfig {
                 keys: "Ctrl+Shift+T".into(),
+                enabled: true,
+            },
+        );
+        map.insert(
+            "global-toggle-notes".into(),
+            ShortcutConfig {
+                keys: "Alt+D".into(),
                 enabled: true,
             },
         );
@@ -253,8 +284,28 @@ mod desktop {
                     if visible && focused && !minimized {
                         // 窗口在前台 → 隐藏主窗口，显示悬浮窗
                         let _ = window.hide();
-                        if let Some(widget) = app.get_webview_window("widget") {
-                            let _ = widget.show();
+                        // 悬浮窗被禁用时（widget_enabled='0'）不显示
+                        let widget_enabled = if let Some(state) = app.try_state::<crate::AppState>() {
+                            state
+                                .db()
+                                .ok()
+                                .and_then(|db| {
+                                    db.query_row(
+                                        "SELECT value FROM settings WHERE key = 'widget_enabled'",
+                                        rusqlite::params![],
+                                        |row| row.get::<_, String>(0),
+                                    )
+                                    .ok()
+                                })
+                                .map(|v| v != "0")
+                                .unwrap_or(true)
+                        } else {
+                            true
+                        };
+                        if widget_enabled {
+                            if let Some(widget) = app.get_webview_window("widget") {
+                                let _ = widget.show();
+                            }
                         }
                     } else {
                         // 不可见 / 最小化 / 在后台 → 显示主窗口，隐藏悬浮窗
@@ -263,6 +314,44 @@ mod desktop {
                         let _ = window.set_focus();
                         if let Some(widget) = app.get_webview_window("widget") {
                             let _ = widget.hide();
+                        }
+                    }
+                }
+            }
+            "global-toggle-notes" => {
+                // 有任意可见便签 → 全部隐藏;否则显示 task_notes 表里仍有行的便签。
+                // 取消固定的窗口只是隐藏(僵尸窗口,不能 destroy),对不上行的跳过。
+                let note_windows: Vec<(String, tauri::WebviewWindow)> = app
+                    .webview_windows()
+                    .into_iter()
+                    .filter(|(label, _)| label.starts_with("note-"))
+                    .collect();
+                let any_visible = note_windows
+                    .iter()
+                    .any(|(_, w)| w.is_visible().unwrap_or(false));
+                if any_visible {
+                    for (_, w) in &note_windows {
+                        let _ = w.hide();
+                    }
+                } else {
+                    for (label, w) in &note_windows {
+                        let task_id = &label["note-".len()..];
+                        let pinned = app
+                            .try_state::<crate::AppState>()
+                            .and_then(|state| {
+                                state.db().ok().map(|conn| {
+                                    crate::db::task_note_repo::get(&conn, task_id)
+                                        .ok()
+                                        .flatten()
+                                        .is_some()
+                                })
+                            })
+                            .unwrap_or(false);
+                        if pinned {
+                            // show 只让窗口可见,不会抬到其它应用之上;
+                            // 逐个 set_focus 把便签抬到前台,确保"显示"真的看得见
+                            let _ = w.show();
+                            let _ = w.set_focus();
                         }
                     }
                 }
@@ -303,6 +392,53 @@ mod desktop {
         fn test_parse_empty_string() {
             let result = parse_keys_to_shortcut("");
             assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_parse_alt_d() {
+            let result = parse_keys_to_shortcut("Alt+D");
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_merge_adds_missing_new_shortcut() {
+            // 老用户配置:只有 global-show-window,缺后加的 global-toggle-notes → 补默认值
+            let mut old = HashMap::new();
+            old.insert(
+                "global-show-window".to_string(),
+                ShortcutConfig {
+                    keys: "Ctrl+Shift+T".into(),
+                    enabled: true,
+                },
+            );
+            let merged = merge_missing_defaults(old);
+            assert_eq!(merged["global-toggle-notes"].keys, "Alt+D");
+            assert!(merged["global-toggle-notes"].enabled);
+            assert_eq!(merged["global-show-window"].keys, "Ctrl+Shift+T");
+        }
+
+        #[test]
+        fn test_merge_preserves_user_config() {
+            // 用户已改键/禁用 → 保留;已存在的新 id 也不被默认值覆盖
+            let mut user = HashMap::new();
+            user.insert(
+                "global-show-window".to_string(),
+                ShortcutConfig {
+                    keys: "Ctrl+Alt+W".into(),
+                    enabled: false,
+                },
+            );
+            user.insert(
+                "global-toggle-notes".to_string(),
+                ShortcutConfig {
+                    keys: "Alt+N".into(),
+                    enabled: true,
+                },
+            );
+            let merged = merge_missing_defaults(user);
+            assert_eq!(merged["global-show-window"].keys, "Ctrl+Alt+W");
+            assert!(!merged["global-show-window"].enabled);
+            assert_eq!(merged["global-toggle-notes"].keys, "Alt+N");
         }
     }
 }

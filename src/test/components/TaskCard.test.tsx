@@ -42,7 +42,7 @@ const baseTask = {
   is_pinned: false,
   priority: 0,
   due_date: null,
-  tag_id: null,
+  tag_ids: [],
   parent_task_id: null,
   sort_order: 0,
   recurrence: null,

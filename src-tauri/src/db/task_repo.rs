@@ -74,12 +74,16 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         priority: row.get("priority")?,
         due_date: row.get("due_date")?,
         reminder: row.get("reminder")?,
-        tag_id: row.get("tag_id")?,
+        tag_ids: {
+            let raw: String = row.get("tag_ids").unwrap_or_else(|_| "[]".into());
+            serde_json::from_str(&raw).unwrap_or_default()
+        },
         parent_task_id: row.get("parent_task_id")?,
         sort_order: row.get("sort_order")?,
         recurrence: row.get("recurrence")?,
         my_day_date: row.get("my_day_date").ok(),
         children_count: row.get("children_count").ok(),
+        source: row.get("source").ok(),
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -120,13 +124,12 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
 
     let now = now_local();
     conn.execute(
-        "INSERT INTO tasks (id, title, description, tag_id, parent_task_id, due_date, priority, reminder, recurrence, my_day_date, sort_order, created_at, updated_at)
+        "INSERT INTO tasks (id, title, description, parent_task_id, due_date, priority, reminder, recurrence, my_day_date, sort_order, source, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         rusqlite::params![
             id,
             title,
             req.description.unwrap_or_default(),
-            req.tag_id,
             req.parent_task_id,
             req.due_date,
             req.priority.unwrap_or(0),
@@ -134,10 +137,23 @@ pub fn create(conn: &Connection, req: CreateTaskRequest) -> Result<Task, AppErro
             req.recurrence,
             req.my_day_date,
             sort_order,
+            req.source,
             now,
             now,
         ],
     )?;
+
+    // 写入多标签关联
+    if let Some(ref tag_ids) = req.tag_ids {
+        for tid in tag_ids {
+            if !tid.is_empty() {
+                conn.execute(
+                    "INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1, ?2)",
+                    rusqlite::params![id, tid],
+                )?;
+            }
+        }
+    }
 
     let task =
         get_by_id(conn, &id)?.ok_or(AppError::Generic("Failed to create task".to_string()))?;
@@ -155,7 +171,8 @@ pub fn get_by_id(conn: &Connection, id: &str) -> Result<Option<Task>, AppError> 
     let mut stmt = conn.prepare(
         "SELECT id, title, description, is_completed, is_archived, is_suspended, is_abandoned, is_pinned,
                 priority, due_date, reminder,
-                tag_id, parent_task_id, sort_order, recurrence, my_day_date, created_at, updated_at
+                COALESCE((SELECT json_group_array(tag_id) FROM task_tags WHERE task_id = tasks.id AND tag_id IS NOT NULL), '[]') AS tag_ids,
+                parent_task_id, sort_order, recurrence, my_day_date, source, created_at, updated_at
          FROM tasks WHERE id = ?1",
     )?;
     let mut rows = stmt.query_map(rusqlite::params![id], row_to_task)?;
@@ -166,7 +183,8 @@ pub fn get_children(conn: &Connection, parent_id: &str) -> Result<Vec<Task>, App
     let mut stmt = conn.prepare(
         "SELECT id, title, description, is_completed, is_archived, is_suspended, is_abandoned, is_pinned,
                 priority, due_date, reminder,
-                tag_id, parent_task_id, sort_order, recurrence, my_day_date, created_at, updated_at
+                COALESCE((SELECT json_group_array(tag_id) FROM task_tags WHERE task_id = tasks.id AND tag_id IS NOT NULL), '[]') AS tag_ids,
+                parent_task_id, sort_order, recurrence, my_day_date, source, created_at, updated_at
          FROM tasks WHERE parent_task_id = ?1 AND is_archived = 0 AND deleted_at IS NULL
          ORDER BY sort_order ASC",
     )?;
@@ -188,7 +206,8 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
     let mut sql = String::from(
         "SELECT t.id, t.title, t.description, t.is_completed, t.is_archived, t.is_suspended, t.is_abandoned, t.is_pinned,
                 t.priority, t.due_date,
-                t.reminder, t.tag_id, t.parent_task_id, t.sort_order, t.recurrence, t.my_day_date,
+                t.reminder, COALESCE((SELECT json_group_array(tag_id) FROM task_tags WHERE task_id = t.id AND tag_id IS NOT NULL), '[]') AS tag_ids,
+                t.parent_task_id, t.sort_order, t.recurrence, t.my_day_date, t.source,
                 (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id AND c.is_archived = 0 AND c.deleted_at IS NULL) AS children_count,
                 t.created_at, t.updated_at
          FROM tasks t WHERE t.deleted_at IS NULL",
@@ -207,13 +226,24 @@ pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppEr
         sql.push_str(" AND t.parent_task_id IS NULL");
     }
 
-    if let Some(ref tag_id) = filter.tag_id {
-        if inc_children {
-            sql.push_str(" AND (t.parent_task_id IS NOT NULL OR t.tag_id = ?)");
-        } else {
-            sql.push_str(" AND t.tag_id = ?");
+    if let Some(ref tag_ids) = filter.tag_ids {
+        if !tag_ids.is_empty() {
+            let placeholders = vec!["?"; tag_ids.len()].join(", ");
+            if inc_children {
+                sql.push_str(&format!(
+                    " AND (t.parent_task_id IS NOT NULL OR t.id IN (SELECT task_id FROM task_tags WHERE tag_id IN ({})))",
+                    placeholders
+                ));
+            } else {
+                sql.push_str(&format!(
+                    " AND t.id IN (SELECT task_id FROM task_tags WHERE tag_id IN ({}))",
+                    placeholders
+                ));
+            }
+            for tid in tag_ids {
+                params.push(Box::new(tid.clone()));
+            }
         }
-        params.push(Box::new(tag_id.clone()));
     }
 
     if let Some(completed) = filter.is_completed {
@@ -313,10 +343,9 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
         Some(ref d) if d.is_empty() => None,
         Some(ref d) => Some(d.clone()),
     };
-    let tag_id = match req.tag_id {
-        None => existing.tag_id.clone(),
-        Some(ref d) if d.is_empty() => None,
-        Some(ref d) => Some(d.clone()),
+    let tag_ids = match req.tag_ids {
+        None => existing.tag_ids.clone(),
+        Some(ref list) => list.clone(),
     };
     let original_reminder = existing.reminder.clone();
     let reminder = req.reminder.or(original_reminder.clone());
@@ -375,13 +404,14 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
                             CreateTaskRequest {
                                 title: title.clone(),
                                 description: Some(description.clone()),
-                                tag_id: tag_id.clone(),
+                                tag_ids: Some(tag_ids.clone()),
                                 parent_task_id: existing_parent_task_id.clone(),
                                 due_date: Some(next_due),
                                 priority: Some(priority),
                                 reminder: next_reminder,
                                 recurrence: Some(rec.clone()),
                                 my_day_date: None,
+                                source: None,
                             },
                         );
                     }
@@ -394,18 +424,17 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
     let now = now_local();
     conn.execute(
         "UPDATE tasks SET title = ?1, description = ?2, is_completed = ?3, priority = ?4,
-         due_date = ?5, tag_id = ?6, parent_task_id = ?7, reminder = ?8, recurrence = ?9,
-         my_day_date = ?10, is_suspended = ?11, is_abandoned = ?12,
-         is_pinned = ?16,
-         reminded = CASE WHEN ?14 THEN 0 ELSE reminded END,
-         updated_at = ?15 WHERE id = ?13",
+         due_date = ?5, parent_task_id = ?6, reminder = ?7, recurrence = ?8,
+         my_day_date = ?9, is_suspended = ?10, is_abandoned = ?11,
+         is_pinned = ?15,
+         reminded = CASE WHEN ?13 THEN 0 ELSE reminded END,
+         updated_at = ?14 WHERE id = ?12",
         rusqlite::params![
             title,
             description,
             is_completed as i32,
             priority,
             due_date,
-            tag_id,
             parent_task_id,
             reminder,
             recurrence,
@@ -418,6 +447,22 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
             is_pinned as i32,
         ],
     )?;
+
+    // 多标签关联:tag_ids 显式传入时替换
+    if let Some(ref list) = req.tag_ids {
+        conn.execute(
+            "DELETE FROM task_tags WHERE task_id = ?1",
+            rusqlite::params![id],
+        )?;
+        for tid in list {
+            if !tid.is_empty() {
+                conn.execute(
+                    "INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1, ?2)",
+                    rusqlite::params![id, tid],
+                )?;
+            }
+        }
+    }
 
     let task =
         get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update task".to_string()))?;
@@ -497,21 +542,20 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
     let now = now_local();
 
     conn.execute(
-        "UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS ?1 AND tag_id IS ?2",
-        rusqlite::params![original.parent_task_id, original.tag_id],
+        "UPDATE tasks SET sort_order = sort_order + 1 WHERE parent_task_id IS ?1",
+        rusqlite::params![original.parent_task_id],
     )?;
 
     conn.execute(
-        "INSERT INTO tasks (id, title, description, is_completed, priority, due_date, tag_id,
+        "INSERT INTO tasks (id, title, description, is_completed, priority, due_date,
          parent_task_id, sort_order, recurrence, created_at, updated_at)
-         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, 0, ?8, ?9, ?10)",
+         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, 0, ?7, ?8, ?9)",
         rusqlite::params![
             new_id,
             new_title,
             original.description,
             original.priority,
             original.due_date,
-            original.tag_id,
             original.parent_task_id,
             original.recurrence,
             now,
@@ -519,26 +563,39 @@ pub fn duplicate(conn: &Connection, id: &str) -> Result<Task, AppError> {
         ],
     )?;
 
+    // 复制标签关联
+    for tid in &original.tag_ids {
+        conn.execute(
+            "INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1, ?2)",
+            rusqlite::params![new_id, tid],
+        )?;
+    }
+
     let children = get_children(conn, id)?;
     for (i, child) in children.iter().enumerate() {
         let child_id = Uuid::new_v4().to_string();
         conn.execute(
-            "INSERT INTO tasks (id, title, description, is_completed, priority, due_date, tag_id,
+            "INSERT INTO tasks (id, title, description, is_completed, priority, due_date,
              parent_task_id, sort_order, created_at, updated_at)
-             VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, ?8, ?9)",
             rusqlite::params![
                 child_id,
                 child.title,
                 child.description,
                 child.priority,
                 child.due_date,
-                child.tag_id,
                 new_id,
                 i as i32,
                 now,
                 now,
             ],
         )?;
+        for tid in &child.tag_ids {
+            conn.execute(
+                "INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1, ?2)",
+                rusqlite::params![child_id, tid],
+            )?;
+        }
     }
 
     let _ = reminder_repo::copy_reminders(conn, id, &new_id);
@@ -571,13 +628,14 @@ mod tests {
         CreateTaskRequest {
             title: title.to_string(),
             description: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: parent,
             due_date: None,
             priority: None,
             reminder: None,
             recurrence: None,
             my_day_date: None,
+            source: None,
         }
     }
 
@@ -635,7 +693,7 @@ mod tests {
                 is_completed: Some(true),
                 priority: Some(3),
                 due_date: None,
-                tag_id: None,
+                tag_ids: None,
                 parent_task_id: None,
                 reminder: None,
                 recurrence: None,
@@ -680,7 +738,7 @@ mod tests {
                 due_date_from: Some("2026-06-01".to_string()),
                 due_date_to: Some("2026-12-31".to_string()),
                 ..TaskFilter {
-                    tag_id: None,
+                    tag_ids: None,
                     is_completed: None,
                     due_date_from: None,
                     due_date_to: None,
@@ -745,7 +803,7 @@ mod tests {
         let all = get_all(
             &conn,
             TaskFilter {
-                tag_id: None,
+                tag_ids: None,
                 is_completed: None,
                 due_date_from: None,
                 due_date_to: None,
@@ -775,7 +833,7 @@ mod tests {
         let results = get_all(
             &conn,
             TaskFilter {
-                tag_id: None,
+                tag_ids: None,
                 is_completed: None,
                 due_date_from: None,
                 due_date_to: None,
@@ -807,7 +865,7 @@ mod tests {
                 is_completed: Some(true),
                 priority: None,
                 due_date: None,
-                tag_id: None,
+                tag_ids: None,
                 parent_task_id: None,
                 reminder: None,
                 recurrence: None,
@@ -822,7 +880,7 @@ mod tests {
         let completed = get_all(
             &conn,
             TaskFilter {
-                tag_id: None,
+                tag_ids: None,
                 is_completed: Some(true),
                 due_date_from: None,
                 due_date_to: None,
@@ -852,7 +910,7 @@ mod tests {
                 is_completed: None,
                 priority: None,
                 due_date: None,
-                tag_id: None,
+                tag_ids: None,
                 parent_task_id: None,
                 reminder: None,
                 recurrence: None,

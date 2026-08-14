@@ -559,13 +559,14 @@ mod tests {
             CreateTaskRequest {
                 title: "Delete through sync".to_string(),
                 description: None,
-                tag_id: None,
+                tag_ids: None,
                 parent_task_id: None,
                 due_date: None,
                 priority: None,
                 reminder: None,
                 recurrence: None,
                 my_day_date: None,
+                source: None,
             },
         )
         .unwrap();
@@ -584,7 +585,7 @@ mod tests {
         let visible_tasks = task_repo::get_all(
             &conn,
             crate::models::task::TaskFilter {
-                tag_id: None,
+                tag_ids: None,
                 is_completed: None,
                 due_date_from: None,
                 due_date_to: None,

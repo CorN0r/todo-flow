@@ -1,6 +1,8 @@
 pub mod commands;
 pub mod db;
+mod db_watcher;
 pub mod error;
+pub mod mcp;
 pub mod models;
 mod reminders;
 pub mod shortcuts;
@@ -20,6 +22,32 @@ use tauri::Emitter;
 use tauri::Manager;
 #[cfg(not(mobile))]
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
+
+/// 解析 TodoFlow 数据目录(与 Tauri app_data_dir 对齐,identifier = com.todoflow.desktop)。
+/// 供 CLI/MCP 入口在无 Tauri AppHandle 时定位数据库。
+pub fn default_data_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var_os("APPDATA").map(PathBuf::from).map(|p| p.join("com.todoflow.desktop"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var_os("HOME")
+            .map(|h| PathBuf::from(h).join("Library/Application Support/com.todoflow.desktop"))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var_os("XDG_DATA_HOME")
+            .map(|d| PathBuf::from(d).join("com.todoflow.desktop"))
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share/com.todoflow.desktop"))
+            })
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        None
+    }
+}
 
 #[cfg(target_os = "windows")]
 mod single_instance {
@@ -123,7 +151,12 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init());
 
     #[cfg(not(mobile))]
-    let builder = builder.plugin(
+    let builder = builder
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(
         tauri_plugin_global_shortcut::Builder::new()
             .with_handler(|app, shortcut, event| {
                 if event.state == ShortcutState::Pressed {
@@ -201,6 +234,9 @@ pub fn run() {
 
             // Start reminder polling
             reminders::start_polling(app.handle().clone(), db.clone());
+
+            // Start DB watcher: 检测外部进程(Agent/CLI)写入,触发前端刷新
+            db_watcher::start_polling(app.handle().clone(), db_path.clone(), db.clone());
 
             app.manage(state);
 
@@ -310,6 +346,8 @@ pub fn run() {
                             if enabled {
                                 if let Some(widget) = app_close.get_webview_window("widget") {
                                     let _ = widget.show();
+                                    // 通知前端以气泡形态出现并校正位置(悬浮球贴边时面板会展开到屏外)
+                                    let _ = app_close.emit_to("widget", "widget-shown", ());
                                 }
                             }
                         }
@@ -427,6 +465,27 @@ pub fn run() {
                     }
                 }
 
+                // ---- Task note windows (启动时重建全部便签) ----
+                {
+                    let notes = db_for_widget
+                        .lock()
+                        .ok()
+                        .and_then(|conn| crate::db::task_note_repo::get_all(&conn).ok())
+                        .unwrap_or_default();
+                    for note in notes.iter() {
+                        if let Err(e) = commands::note_commands::build_note_window(
+                            app.handle(),
+                            db_for_widget.clone(),
+                            note,
+                        ) {
+                            eprintln!(
+                                "Warning: Failed to restore note window for task {}: {}",
+                                note.task_id, e
+                            );
+                        }
+                    }
+                }
+
                 // ---- Global shortcuts ----
                 // 使用动态注册，从 settings 表中读取用户自定义的快捷键配置
                 {
@@ -489,6 +548,13 @@ pub fn run() {
             commands::widget_commands::show_widget_context_menu,
             commands::widget_commands::show_pomodoro_window,
             commands::widget_commands::hide_pomodoro_window,
+            commands::note_commands::open_task_note,
+            commands::note_commands::close_task_note,
+            commands::note_commands::get_task_note,
+            commands::note_commands::get_all_task_notes,
+            commands::note_commands::set_note_always_on_top,
+            commands::note_commands::set_note_style,
+            commands::note_commands::set_note_collapsed,
             commands::stats_commands::get_dashboard_stats,
             commands::habit_commands::create_habit,
             commands::habit_commands::get_habits,

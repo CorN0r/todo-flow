@@ -3,16 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import type { Task } from '../../types/task';
+import type { Tag } from '../../types/tag';
 import { formatDate, isOverdue } from '../../lib/date';
-import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X, PauseCircle, Play, XCircle, Pin, Timer } from 'lucide-react';
+import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X, PauseCircle, Play, XCircle, Pin, PinOff, Timer, Bell, Sparkles } from 'lucide-react';
 import { useUpdateTask, useDeleteTask, useCreateTask, useReorderTasks } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
+import { useTaskNotes, useToggleTaskNote } from '../../hooks/useTaskNotes';
 import { useUIStore } from '../../stores/uiStore';
 import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { todayISO } from '../../lib/date';
 import { priorityColors, priorityLabels, hexToRgba } from '../../lib/priority';
 import { stripHtml } from '../../lib/html';
 import { Portal } from '../shared/Portal';
+import { DatePicker } from '../shared/DatePicker';
+import { ReminderList } from '../shared/ReminderList';
+import { SubtaskReminderButton } from './SubtaskReminderButton';
+import { SubtaskDateChip } from './SubtaskDateChip';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -51,6 +57,12 @@ function SortableSubtaskRow({ child, onToggle, onDelete, onEditingChange }: {
           )}
         </button>
         <SubtaskContent child={child} onDelete={onDelete} onEditingChange={handleEditingChange} />
+        {!isEditing && (
+          <>
+            <SubtaskDateChip child={child} />
+            <SubtaskReminderButton child={child} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -62,6 +74,8 @@ function SubtaskContent({ child, onDelete, onEditingChange }: { child: Task; onD
   const subMenuRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(child.title);
+  const [datePopOpen, setDatePopOpen] = useState(false);
+  const [reminderPopOpen, setReminderPopOpen] = useState(false);
 
   useEffect(() => {
     if (editing) setTimeout(() => {
@@ -134,12 +148,43 @@ function SubtaskContent({ child, onDelete, onEditingChange }: { child: Task; onD
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               <Copy size={15} className="text-[#6B7280]" /> 复制标题
             </button>
+            <button onClick={() => { setSubMenu(null); setDatePopOpen(true); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <Calendar size={15} className="text-[#6B7280]" /> 设置截止日期
+            </button>
+            <button onClick={() => {
+              setSubMenu(null);
+              if (child.due_date) setReminderPopOpen(true);
+              else toast.info('请先设置截止日期');
+            }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <Bell size={15} className="text-[#6B7280]" /> 管理提醒
+            </button>
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] mt-1 pt-1">
               <button onClick={() => { onDelete(); setSubMenu(null); }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 text-red-600 transition-colors">
                 <Trash2 size={15} /> 删除
               </button>
             </div>
+          </div>
+        </Portal>
+      )}
+      {datePopOpen && (
+        <Portal>
+          <div className="fixed inset-0 z-[260]" onClick={() => setDatePopOpen(false)} aria-hidden="true" />
+          <div className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl p-2"
+            style={{ top: '20%', left: '50%', transform: 'translateX(-50%)' }}>
+            <DatePicker startOpen showTime value={child.due_date || ''}
+              onChange={(v) => { updateTask.mutate({ id: child.id, due_date: v }); setDatePopOpen(false); }} />
+          </div>
+        </Portal>
+      )}
+      {reminderPopOpen && child.due_date && (
+        <Portal>
+          <div className="fixed inset-0 z-[260]" onClick={() => setReminderPopOpen(false)} aria-hidden="true" />
+          <div className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl p-3 min-w-[240px]"
+            style={{ top: '20%', left: '50%', transform: 'translateX(-50%)' }}>
+            <ReminderList taskId={child.id} dueDate={child.due_date} />
           </div>
         </Portal>
       )}
@@ -165,6 +210,9 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
   const isAbandoned = task.is_abandoned;
   const overdue = !isSuspended && !isAbandoned && isOverdue(task.due_date);
   const { data: tags } = useTags();
+  const { data: taskNotes } = useTaskNotes();
+  const toggleTaskNote = useToggleTaskNote();
+  const hasNote = useMemo(() => (taskNotes || []).some((n) => n.task_id === task.id), [taskNotes, task.id]);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; rawX: number; rawY: number } | null>(null);
   const [subtaskExpanded, setSubtaskExpanded] = useState(false);
@@ -233,7 +281,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
     if (!tags) return new Map();
     return new Map(tags.map((t) => [t.id, t]));
   }, [tags]);
-  const taskTag = task.tag_id ? tagMap.get(task.tag_id) : undefined;
+  const taskTags = (task.tag_ids || []).map((id) => tagMap.get(id)).filter((t): t is Tag => !!t);
 
   const children = task.children || [];
   const hasChildren = children.length > 0;
@@ -247,7 +295,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
     deleteTask.mutate(task.id);
     toast.success(
       () => (
-        <span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_id: deleted.tag_id || undefined, parent_task_id: deleted.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
+        <span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_ids: deleted.tag_ids, parent_task_id: deleted.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
       ),
       { duration: 8000 },
     );
@@ -386,6 +434,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
                 ) : (
                   <span className="flex items-center gap-1 min-w-0" onClick={handleStartEdit} title="点击编辑标题">
                     {task.is_pinned && <Pin size={13} className="text-[#7C72F6] flex-shrink-0" />}
+                    {task.source === 'agent' && <Sparkles size={13} className="text-[#7C72F6] flex-shrink-0" />}
                     <span className={cn('text-[14px] font-medium truncate cursor-text',
                         isAbandoned && 'line-through text-red-400/70',
                         isSuspended && 'text-[#9CA3AF]',
@@ -393,10 +442,10 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
                         !task.is_completed && !isSuspended && !isAbandoned && 'text-[#111827] dark:text-white/90')}>{task.title}</span>
                   </span>
                 )}
-                {taskTag && (
-                  <span className="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0"
-                    style={{ backgroundColor: hexToRgba(taskTag.color, 0.15), color: taskTag.color }}>{taskTag.name}</span>
-                )}
+                {taskTags.map((t) => (
+                  <span key={t.id} className="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0"
+                    style={{ backgroundColor: hexToRgba(t.color, 0.15), color: t.color }}>{t.name}</span>
+                ))}
               </div>
               {task.description && <p className="text-[12px] text-[#9CA3AF] truncate mt-0.5">{stripHtml(task.description)}</p>}
             </div>
@@ -478,6 +527,10 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
             <button onClick={() => { updateTask.mutate({ id: task.id, is_pinned: !task.is_pinned }); setContextMenu(null); }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               {task.is_pinned ? <><Pin size={15} className="text-[#7C72F6]" /> 取消置顶</> : <><Pin size={15} className="text-[#6B7280]" /> 置顶</>}
+            </button>
+            <button onClick={() => { toggleTaskNote(task.id, hasNote); setContextMenu(null); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              {hasNote ? <><PinOff size={15} className="text-[#7C72F6]" /> 取消固定</> : <><Pin size={15} className="text-[#6B7280]" /> 固定到桌面</>}
             </button>
             <button onClick={() => {
               updateTask.mutate({ id: task.id, is_suspended: !isSuspended, is_abandoned: false });

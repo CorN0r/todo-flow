@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { X, Flag, Trash2, Sun, SunDim, Pin, Repeat, Tag } from 'lucide-react';
+import { X, Flag, Trash2, Sun, SunDim, Pin, Repeat, Tag, Check } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { todayISO, formatLocalTime } from '../../lib/date';
 import { PRIORITY_HEX, hexToRgba, priorityLabels } from '../../lib/priority';
@@ -10,8 +10,11 @@ import { toast } from 'sonner';
 import { Portal } from '../shared/Portal';
 import { RichTextEditor } from '../shared/RichTextEditor';
 import type { Task, UpdateTaskInput } from '../../types/task';
+import type { Tag as TagType } from '../../types/tag';
 import { formatRecurrence, parseRecurrence, serializeRecurrence, type RecurrenceConfig } from '../../lib/recurrence';
 import { DatePicker } from '../shared/DatePicker';
+
+const tagsEqual = (a: string[], b: string[]) => a.length === b.length && a.every((t) => b.includes(t));
 
 // Theme color definitions matching NOTE_COLORS in StickyWall
 const NOTE_THEMES = [
@@ -50,23 +53,29 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
   const [localDescription, setLocalDescription] = useState(task.description);
   const [localPriority, setLocalPriority] = useState(task.priority);
   const [localDueDate, setLocalDueDate] = useState(task.due_date || '');
-  const [localTagId, setLocalTagId] = useState(task.tag_id || '');
+  const [localTagIds, setLocalTagIds] = useState<string[]>(task.tag_ids || []);
   const [localRecurrence, setLocalRecurrence] = useState(task.recurrence || '');
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const tagBtnRef = useRef<HTMLButtonElement>(null);
   // 跟踪上次从服务器同步的值，用于判断本地是否有未保存的修改
-  const lastSyncedRef = useRef({ tag_id: task.tag_id || '', due_date: task.due_date || '', recurrence: task.recurrence || '' });
+  const lastSyncedRef = useRef({ tag_ids: task.tag_ids || [], due_date: task.due_date || '', recurrence: task.recurrence || '' });
 
   // Sync local state with task changes
   // 使用函数式 setState 保留本地已修改但尚未保存的值，
   // 防止异步 mutation 返回后旧服务器数据覆盖用户新输入（快速连续选择时的回弹问题）
   useEffect(() => {
     const prev = lastSyncedRef.current;
-    setLocalTagId((cur) => cur === prev.tag_id ? (task.tag_id || '') : cur);
+    setLocalTagIds((cur) => tagsEqual(cur, prev.tag_ids) ? [...(task.tag_ids || [])] : cur);
     setLocalDueDate((cur) => cur === prev.due_date ? (task.due_date || '') : cur);
     setLocalRecurrence((cur) => cur === prev.recurrence ? (task.recurrence || '') : cur);
-    lastSyncedRef.current = { tag_id: task.tag_id || '', due_date: task.due_date || '', recurrence: task.recurrence || '' };
-  }, [task.id, task.tag_id, task.due_date, task.recurrence]);
+    lastSyncedRef.current = { tag_ids: task.tag_ids || [], due_date: task.due_date || '', recurrence: task.recurrence || '' };
+  }, [task.id, task.tag_ids, task.due_date, task.recurrence]);
 
-  const taskTag = tags?.find((t) => t.id === localTagId);
+  const tagMap = useMemo(() => {
+    if (!tags) return new Map();
+    return new Map(tags.map((t) => [t.id, t]));
+  }, [tags]);
+  const localTags = (localTagIds || []).map((id) => tagMap.get(id)).filter((t): t is TagType => !!t);
   const priorityInfo = PRIORITY_HEX[localPriority] || '#9CA3AF';
   // overdue computed inline where needed
 
@@ -74,21 +83,13 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
     updateTask.mutate({ id: task.id, ...patch });
   }, [task.id, updateTask]);
 
-  // Cycle through tags
-  const cycleTag = useCallback(() => {
-    if (!tags || tags.length === 0) return;
-    // Use localTagId since it updates immediately on click
-    const currentTagId = localTagId || '';
-    const currentIndex = tags.findIndex((t) => t.id === currentTagId);
-    const nextIndex = (currentIndex + 1) % (tags.length + 1);
-    if (nextIndex === tags.length) {
-      setLocalTagId('');
-      handleUpdate({ tag_id: '' });
-    } else {
-      setLocalTagId(tags[nextIndex].id);
-      handleUpdate({ tag_id: tags[nextIndex].id });
-    }
-  }, [tags, localTagId, handleUpdate]);
+  const toggleTag = useCallback((tagId: string) => {
+    setLocalTagIds((prev) => {
+      const next = prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId];
+      handleUpdate({ tag_ids: next });
+      return next;
+    });
+  }, [handleUpdate]);
 
   // Cycle through recurrence presets
   const cycleRecurrence = useCallback(() => {
@@ -119,7 +120,7 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
     deleteTask.mutate(task.id, {
       onSuccess: () => {
         toast.success(() => (
-          <span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_id: deleted.tag_id || undefined, parent_task_id: deleted.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
+          <span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_ids: deleted.tag_ids, parent_task_id: deleted.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
         ), { duration: 8000 });
       },
     });
@@ -205,11 +206,39 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
               style={{ backgroundColor: hexToRgba(priorityInfo, 0.12), color: priorityInfo }}>
               <Flag size={10} />{priorityLabels[localPriority]}
             </button>
-            {/* Tag - click to cycle */}
-            <button onClick={cycleTag} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
-              style={taskTag ? { backgroundColor: hexToRgba(taskTag.color, 0.15), color: taskTag.color } : { backgroundColor: hexToRgba('#9CA3AF', 0.12), color: '#9CA3AF' }}>
-              <Tag size={10} />{taskTag ? taskTag.name : '标签'}
+            {/* Tag - multi-select */}
+            {localTags.map((t) => (
+              <span key={t.id} onClick={() => setShowTagPicker(true)}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                style={{ backgroundColor: hexToRgba(t.color, 0.15), color: t.color }}>
+                {t.name}
+                <span onClick={(e) => { e.stopPropagation(); const next = localTagIds.filter((id) => id !== t.id); setLocalTagIds(next); handleUpdate({ tag_ids: next }); }}
+                  className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer"><X size={10} /></span>
+              </span>
+            ))}
+            <button ref={tagBtnRef} onClick={() => setShowTagPicker(true)}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: hexToRgba('#9CA3AF', 0.12), color: '#9CA3AF' }}>
+              <Tag size={10} />{localTags.length > 0 ? '添加' : '标签'}
             </button>
+            {showTagPicker && (
+              <Portal>
+                <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} />
+                <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
+                  style={{ top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: tagBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+                  {tags?.map((t) => {
+                    const active = localTagIds.includes(t.id);
+                    return (
+                      <button key={t.id} onClick={() => { toggleTag(t.id); }}
+                        className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${active ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />{t.name}
+                        {active && <Check size={13} className="ml-auto" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Portal>
+            )}
             {/* Due date - DatePicker */}
             <DatePicker
               value={localDueDate}

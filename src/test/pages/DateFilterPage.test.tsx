@@ -59,7 +59,7 @@ describe('DateFilterPage', () => {
     mockTasks.data = [{
       id: 't1', title: 'T1', is_completed: false, is_archived: false,
       is_suspended: false, is_abandoned: false, is_pinned: false,
-      priority: 0, due_date: null, reminder: null, tag_id: null,
+      priority: 0, due_date: null, reminder: null, tag_ids: [],
       parent_task_id: null, sort_order: 0, recurrence: null,
       my_day_date: null, children_count: 0, created_at: '', updated_at: '',
     }];

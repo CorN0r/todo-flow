@@ -13,7 +13,7 @@ pub fn create_task(
     state: State<AppState>,
     title: String,
     description: Option<String>,
-    tag_id: Option<String>,
+    tag_ids: Option<Vec<String>>,
     parent_task_id: Option<String>,
     due_date: Option<String>,
     priority: Option<i32>,
@@ -27,13 +27,14 @@ pub fn create_task(
         CreateTaskRequest {
             title,
             description,
-            tag_id,
+            tag_ids,
             parent_task_id,
             due_date,
             priority,
             reminder,
             recurrence,
             my_day_date,
+            source: None,
         },
     )?;
     let _ = app.emit("task-changed", ());
@@ -57,7 +58,7 @@ pub fn update_task(
     is_completed: Option<bool>,
     priority: Option<i32>,
     due_date: Option<String>,
-    tag_id: Option<String>,
+    tag_ids: Option<Vec<String>>,
     parent_task_id: Option<Option<String>>,
     reminder: Option<String>,
     recurrence: Option<String>,
@@ -76,7 +77,7 @@ pub fn update_task(
             is_completed,
             priority,
             due_date,
-            tag_id,
+            tag_ids,
             parent_task_id,
             reminder,
             recurrence,
@@ -107,7 +108,7 @@ pub fn reorder_tasks(state: State<AppState>, items: Vec<ReorderItem>) -> Result<
 #[tauri::command(rename_all = "snake_case")]
 pub fn get_tasks(
     state: State<AppState>,
-    tag_id: Option<String>,
+    tag_ids: Option<Vec<String>>,
     is_completed: Option<bool>,
     due_date_from: Option<String>,
     due_date_to: Option<String>,
@@ -124,7 +125,7 @@ pub fn get_tasks(
     task_repo::get_all(
         &conn,
         TaskFilter {
-            tag_id,
+            tag_ids,
             is_completed,
             due_date_from,
             due_date_to,
@@ -176,7 +177,7 @@ pub fn add_task_to_my_day(
             is_completed: None,
             priority: None,
             due_date: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             reminder: None,
             recurrence: None,
@@ -206,7 +207,7 @@ pub fn remove_task_from_my_day(
             is_completed: None,
             priority: None,
             due_date: None,
-            tag_id: None,
+            tag_ids: None,
             parent_task_id: None,
             reminder: None,
             recurrence: None,

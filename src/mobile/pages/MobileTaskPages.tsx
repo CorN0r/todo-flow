@@ -80,7 +80,7 @@ function TaskSection({
           <MobileTaskCard
             key={task.id}
             task={task}
-            tag={task.tag_id ? tags.get(task.tag_id) : undefined}
+            tags={task.tag_ids.map((id) => tags.get(id)).filter((t): t is TagWithCount => !!t)}
             onToggle={() => onToggle(task)}
             onOpen={() => onOpen(task)}
             onLongPress={() => onLongPress(task)}
@@ -178,7 +178,7 @@ export function MobileTasksPage() {
 
   const scopedTasks = useMemo(() => {
     let next = tasks.filter(isVisibleRootTask).filter((task) => taskMatchesSearch(task, query));
-    if (selectedTagId) next = next.filter((task) => task.tag_id === selectedTagId);
+    if (selectedTagId) next = next.filter((task) => task.tag_ids.includes(selectedTagId));
     return next;
   }, [query, selectedTagId, tasks]);
   const statusCounts = useMemo(() => getTaskStatusCounts(scopedTasks), [scopedTasks]);
@@ -262,7 +262,7 @@ export function MobileTasksPage() {
             <MobileTaskCard
               key={task.id}
               task={task}
-              tag={task.tag_id ? tagsById.get(task.tag_id) : undefined}
+              tags={task.tag_ids.map((id) => tagsById.get(id)).filter((t): t is TagWithCount => !!t)}
               onToggle={() => toggleTask(task)}
               onOpen={() => setSelectedTaskId(task.id)}
               onLongPress={() => setActionTask(task)}

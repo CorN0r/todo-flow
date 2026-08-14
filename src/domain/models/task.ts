@@ -7,7 +7,7 @@ export type {
 } from '../../types/task';
 
 export interface TaskFilters {
-  tag_id?: string;
+  tag_ids?: string[];
   is_completed?: boolean;
   due_date_from?: string;
   due_date_to?: string;

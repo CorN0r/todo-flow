@@ -19,7 +19,7 @@ import { useDesktopTaskStatusFilter } from '../hooks/useDesktopTaskStatusFilter'
 export function TagPage() {
   const { tagId } = useParams<{ tagId: string }>();
   const { data: tasks, isLoading, isError } = useTasks(
-    tagId ? { tag_id: tagId, include_children: true } : { include_children: true },
+    tagId ? { tag_ids: [tagId], include_children: true } : { include_children: true },
   );
   const { data: tags } = useTags();
   const tag = tagId ? tags?.find((t) => t.id === tagId) : undefined;

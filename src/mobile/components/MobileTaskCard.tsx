@@ -30,13 +30,13 @@ function formatDate(value: string) {
 
 export function MobileTaskCard({
   task,
-  tag,
+  tags,
   onToggle,
   onOpen,
   onLongPress,
 }: {
   task: Task;
-  tag?: TagWithCount;
+  tags?: TagWithCount[];
   onToggle: () => void;
   onOpen?: () => void;
   onLongPress?: () => void;
@@ -144,12 +144,12 @@ export function MobileTaskCard({
                 {priorityText[task.priority]}
               </span>
             )}
-            {tag && (
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-1" style={{ color: tag.color, backgroundColor: `${tag.color}18` }}>
+            {tags?.map((tag) => (
+              <span key={tag.id} className="inline-flex items-center gap-1 rounded-full px-2 py-1" style={{ color: tag.color, backgroundColor: `${tag.color}18` }}>
                 <TagIcon aria-hidden className="h-3.5 w-3.5" />
                 {tag.name}
               </span>
-            )}
+            ))}
             {task.reminder && (
               <span className="inline-flex items-center gap-1 rounded-full border border-[var(--mobile-color-border)] px-2 py-1">
                 <Bell aria-hidden className="h-3.5 w-3.5" />

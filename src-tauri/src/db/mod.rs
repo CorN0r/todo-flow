@@ -5,4 +5,5 @@ pub mod migrations;
 pub mod reminder_repo;
 pub mod sync_repo;
 pub mod tag_repo;
+pub mod task_note_repo;
 pub mod task_repo;

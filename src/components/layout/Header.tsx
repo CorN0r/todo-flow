@@ -40,8 +40,7 @@ export function Header() {
           ? 'bg-[rgba(10,10,30,0.55)] backdrop-blur-[20px] border-white/[0.06]'
           : 'bg-white dark:bg-[#1e1e32] border-[#F3F4F6] dark:border-white/[0.06]'
       }`}
-      data-tauri-drag-region
-      onDoubleClick={() => { getCurrentWindow().toggleMaximize().catch(() => {}); }}
+      data-tauri-drag-region="deep"
     >
       <div className="flex-1" />
       <div className="flex items-center gap-1.5">

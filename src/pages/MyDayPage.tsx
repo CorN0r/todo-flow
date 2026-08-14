@@ -10,8 +10,10 @@ import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageTitle } from '../components/shared/PageTitle';
 import { FilteredTaskEmptyState } from '../components/shared/FilteredTaskEmptyState';
-import { Sun, AlertTriangle, Lightbulb, ArrowRight, Plus } from 'lucide-react';
+import { Portal } from '../components/shared/Portal';
+import { Sun, AlertTriangle, Lightbulb, ArrowRight, Plus, Info, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import { sortTasks, nestChildren } from '../lib/sortTasks';
+import { buildSuggestions, suggestionReason, SUGGESTION_COLLAPSED_COUNT } from '../lib/myDaySuggestions';
 import { cn } from '../lib/cn';
 import { useTheme } from '../hooks/useTheme';
 import { useDesktopTaskStatusFilter } from '../hooks/useDesktopTaskStatusFilter';
@@ -53,7 +55,9 @@ export function MyDayPage() {
   const exitSelection = useUIStore((s) => s.exitSelectionMode);
   const showNewTask = useUIStore((s) => s.showQuickAdd);
   const setShowNewTask = useUIStore((s) => s.setShowQuickAdd);
+  const [expandSuggestions, setExpandSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [ruleTipPos, setRuleTipPos] = useState<{ top: number; left: number } | null>(null);
   const [showYesterday, setShowYesterday] = useState(true);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(sessionStorage.getItem('myday-dismissed') || '[]')); } catch { return new Set(); }
@@ -76,7 +80,8 @@ export function MyDayPage() {
 
   const myDayIds = new Set(tasks?.map((t) => t.id) || []);
   const yesterdayList = (yesterdayTasks || []).filter((t) => !myDayIds.has(t.id) && !t.parent_task_id);
-  const suggestionList = (suggestions || []).filter((t) => !myDayIds.has(t.id) && !t.parent_task_id && t.priority > 0 && !t.is_suspended && !t.is_abandoned && !dismissedIds.has(t.id));
+  const suggestionList = buildSuggestions(suggestions || [], myDayIds, dismissedIds);
+  const visibleSuggestions = expandSuggestions ? suggestionList : suggestionList.slice(0, SUGGESTION_COLLAPSED_COUNT);
 
   const handleToggleSelection = useCallback(() => {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }
@@ -167,44 +172,71 @@ export function MyDayPage() {
           </button>
         )}
         {/* 每日建议 */}
-        {suggestionList.length > 0 && showSuggestions && (
+        {suggestionList.length > 0 && (
           <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-[#6B7280] tracking-wide">
+            <div className="flex items-center gap-1 mb-1.5 text-[11px] font-semibold text-[#6B7280] tracking-wide">
+              <button onClick={() => setShowSuggestions(!showSuggestions)}
+                aria-label={showSuggestions ? '收起建议区块' : '展开建议区块'}
+                className="flex items-center gap-0.5 hover:text-[#374151] dark:hover:text-white/80 transition-colors">
+                <ChevronRight size={12} className={cn('transition-transform', showSuggestions && 'rotate-90')} />
                 建议 &middot; {suggestionList.length}
+              </button>
+              <span className="flex items-center cursor-help"
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setRuleTipPos({ top: rect.bottom + 6, left: rect.left });
+                }}
+                onMouseLeave={() => setRuleTipPos(null)}>
+                <Info size={11} className="text-[#9CA3AF]" />
               </span>
-              <button onClick={() => setShowSuggestions(false)}
-                className="text-[10px] px-1 py-0.5 rounded text-[#9CA3AF] hover:text-[#6B7280]">收起</button>
             </div>
+            {showSuggestions && (
             <div className="space-y-0.5">
-              {suggestionList.slice(0, 6).map((task) => (
-                <div key={task.id}
-                  className={cn(
-                    'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors',
-                    isDark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-[#F9FAFB] hover:bg-[#F3F4F6]',
-                  )}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#7C72F6] shrink-0" />
-                  <span className={cn('flex-1 truncate', isDark ? 'text-white/70' : 'text-[#374151]')}>{task.title}</span>
-                  <button onClick={() => addToMyDay(task.id)}
-                    className="shrink-0 flex items-center gap-0.5 text-[10px] text-[#7C72F6] hover:underline">
-                    <Plus size={10} />加入
-                  </button>
-                  <button onClick={() => addDismissed(task.id)}
-                    className="shrink-0 text-[10px] text-[#9CA3AF] hover:text-[#6B7280] ml-1">暂不</button>
-                </div>
-              ))}
+              {visibleSuggestions.map((task) => {
+                const reason = suggestionReason(task, today);
+                return (
+                  <div key={task.id}
+                    className={cn(
+                      'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors',
+                      isDark ? 'bg-white/[0.03] hover:bg-white/[0.06]' : 'bg-[#F9FAFB] hover:bg-[#F3F4F6]',
+                    )}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#7C72F6] shrink-0" />
+                    <span className={cn('flex-1 truncate', isDark ? 'text-white/70' : 'text-[#374151]')}>{task.title}</span>
+                    <span className={cn('shrink-0 text-[10px]', reason.overdue ? 'text-[#EF4444]' : 'text-amber-500')}>
+                      {reason.label}
+                    </span>
+                    <button onClick={() => addToMyDay(task.id)}
+                      className="shrink-0 flex items-center gap-0.5 text-[10px] text-[#7C72F6] hover:underline">
+                      <Plus size={10} />加入
+                    </button>
+                    <button onClick={() => addDismissed(task.id)}
+                      className="shrink-0 text-[10px] text-[#9CA3AF] hover:text-[#6B7280] ml-1">暂不</button>
+                  </div>
+                );
+              })}
             </div>
+            )}
+            {showSuggestions && (suggestionList.length > SUGGESTION_COLLAPSED_COUNT || dismissedIds.size > 0) && (
+              <div className="flex items-center justify-between mt-1 px-1">
+                {suggestionList.length > SUGGESTION_COLLAPSED_COUNT ? (
+                  <button onClick={() => setExpandSuggestions(!expandSuggestions)}
+                    className="flex items-center gap-0.5 text-[10px] font-medium text-[#7C72F6] hover:underline">
+                    {expandSuggestions ? '收起列表' : `展开其余 ${suggestionList.length - SUGGESTION_COLLAPSED_COUNT} 项`}
+                    {expandSuggestions ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                  </button>
+                ) : <span />}
+                {dismissedIds.size > 0 && (
+                  <button onClick={clearDismissed}
+                    className="text-[10px] text-[#9CA3AF] hover:text-[#6B7280]">
+                    重新推荐 &middot; {dismissedIds.size} 项
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {!showSuggestions && suggestionList.length > 0 && (
-          <button onClick={() => setShowSuggestions(true)}
-            className="w-full mb-3 px-3 py-1.5 rounded-lg text-[11px] text-[#6B7280] hover:text-[#374151] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-left">
-            <ArrowRight size={11} className="inline mr-1" />
-            建议 &middot; {suggestionList.length} 项
-          </button>
-        )}
-        {dismissedIds.size > 0 && (
+        {suggestionList.length === 0 && dismissedIds.size > 0 && (
           <button onClick={clearDismissed}
             className="w-full mb-3 px-3 py-1.5 rounded-lg text-[11px] text-[#9CA3AF] hover:text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-left">
             重新推荐 &middot; {dismissedIds.size} 项
@@ -221,6 +253,15 @@ export function MyDayPage() {
             description='右键任务选择"加入我的一天"，或点击上方新建任务' />
         )}
       </div>
+
+      {ruleTipPos && (
+        <Portal>
+          <div className="fixed z-50 px-2 py-1 rounded-md text-[10px] text-white bg-[#1F2937] shadow-lg whitespace-nowrap pointer-events-none"
+            style={{ top: ruleTipPos.top, left: ruleTipPos.left }}>
+            推荐规则：今天或之前到期、未完成的任务，按优先级排序
+          </div>
+        </Portal>
+      )}
     </div>
   );
 }

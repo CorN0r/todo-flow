@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listen } from '@tauri-apps/api/event';
+import { listen, emit } from '@tauri-apps/api/event';
 import { getCurrentWindow, LogicalSize, PhysicalPosition, currentMonitor, availableMonitors } from '@tauri-apps/api/window';
 import { motion } from 'motion/react';
 import { getTasks, createTask, updateTask, getSetting, setSetting, showMainFromWidget, showWidgetContextMenu } from '../lib/db';
@@ -15,7 +15,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'myday', label: '我的一天' },
   { key: 'overdue', label: '逾期' },
   { key: 'today', label: '今天' },
-  { key: 'all', label: '全部任务' },
+  { key: 'all', label: '未完成' },
 ];
 
 const VALID_THEMES = ['light', 'dark', 'system', 'glass', 'warm', 'lumina'] as const;
@@ -164,6 +164,7 @@ export function WidgetPage() {
 
   const [activeTab, setActiveTab] = useState<TabKey>('today');
   const [sizeMode, setSizeMode] = useState<'compact' | 'normal'>('compact');
+  const [sizeLoaded, setSizeLoaded] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -181,7 +182,8 @@ export function WidgetPage() {
   useEffect(() => {
     getSetting('widget_size').then((s) => {
       if (s === 'compact' || s === 'normal') setSizeMode(s);
-    }).catch(() => {});
+      setSizeLoaded(true);
+    }).catch(() => { setSizeLoaded(true); });
   }, []);
 
   const collapsingRef = useRef(false);
@@ -256,6 +258,21 @@ export function WidgetPage() {
     }).catch(() => {});
     return () => { cancelled = true; unlisten?.(); };
   }, [queryClient]);
+
+  // 悬浮窗被禁用时（来自设置页开关），隐藏自身窗口
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    listen<boolean>('widget-enabled-changed', (event) => {
+      if (event.payload === false) {
+        getCurrentWindow().hide().catch(() => {});
+      }
+    }).then((u) => {
+      if (cancelled) { u(); return; }
+      unlisten = u;
+    }).catch(() => {});
+    return () => { cancelled = true; unlisten?.(); };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -423,6 +440,38 @@ export function WidgetPage() {
     setTimeout(() => { collapsingRef.current = false; }, 500);
   };
 
+  // 挂载后校正:窗口建窗时固定 300x420,若当前是气泡模式则压回 60x60;位置越界则收拢回屏内
+  useEffect(() => {
+    if (!sizeLoaded) return;
+    (async () => {
+      if (sizeMode === 'compact') {
+        try { await getCurrentWindow().setSize(new LogicalSize(60, 60)); } catch { /* 忽略 */ }
+        try { await clampInScreen(60, 60); } catch { /* 忽略 */ }
+      } else {
+        try { await clampInScreen(300, 420); } catch { /* 忽略 */ }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sizeLoaded]);
+
+  // 主窗关闭/隐藏到托盘后悬浮窗被 show 出来:统一以气泡形态出现,并把越界位置收拢回屏内
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    listen('widget-shown', () => {
+      if (sizeMode === 'normal') {
+        collapseToBubble();
+      } else {
+        clampInScreen(60, 60).catch(() => {});
+      }
+    }).then((u) => {
+      if (cancelled) { u(); return; }
+      unlisten = u;
+    }).catch(() => {});
+    return () => { cancelled = true; unlisten?.(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sizeMode]);
+
   const handleCheck = (id: string, completed: boolean) => {
     updateTaskMutation.mutate({ id, is_completed: !completed });
   };
@@ -492,7 +541,11 @@ export function WidgetPage() {
               const onUp = (_ev: MouseEvent) => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('mouseup', onUp);
-                if (!dragged) { setSetting('widget_enabled', '1').catch(() => {}); expandToNormal(); }
+                if (!dragged) {
+                  setSetting('widget_enabled', '1').catch(() => {});
+                  emit('widget-enabled-changed', true).catch(() => {});
+                  expandToNormal();
+                }
               };
               window.addEventListener('mousemove', onMove);
               window.addEventListener('mouseup', onUp);
@@ -641,7 +694,12 @@ export function WidgetPage() {
               <ExternalLink size={12} className="text-[#6B7280]" /> 打开主界面
             </button>
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] my-0.5" />
-            <button onClick={() => { setSetting('widget_enabled', '0').catch(() => {}); setContextMenu(null); getCurrentWindow().hide().catch(() => {}); }}
+            <button onClick={() => {
+              setSetting('widget_enabled', '0').catch(() => {});
+              emit('widget-enabled-changed', false).catch(() => {});
+              setContextMenu(null);
+              getCurrentWindow().hide().catch(() => {});
+            }}
               className="w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 transition-colors">
               <X size={12} /> 不再显示悬浮窗
             </button>

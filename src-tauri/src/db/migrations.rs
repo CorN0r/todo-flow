@@ -328,6 +328,46 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 13)?;
     }
 
+    // v14: 任务多标签关联表(多对多)
+    if current_version < 14 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS task_tags (
+                task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                tag_id  TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                PRIMARY KEY (task_id, tag_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_task_tags_tag ON task_tags(tag_id);
+            INSERT OR IGNORE INTO task_tags (task_id, tag_id)
+                SELECT id, tag_id FROM tasks WHERE tag_id IS NOT NULL AND tag_id != '';",
+        )?;
+        conn.pragma_update(None, "user_version", 14)?;
+    }
+
+    // v15: 任务桌面便签(与任务 1:1,记录窗口位置/皮肤;不进 sync 系统)
+    if current_version < 15 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS task_notes (
+                task_id       TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+                x             INTEGER,
+                y             INTEGER,
+                width         INTEGER NOT NULL DEFAULT 280,
+                height        INTEGER NOT NULL DEFAULT 300,
+                always_on_top INTEGER NOT NULL DEFAULT 0,
+                style         TEXT NOT NULL DEFAULT 'glass',
+                collapsed     INTEGER NOT NULL DEFAULT 0,
+                created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                updated_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );",
+        )?;
+        conn.pragma_update(None, "user_version", 15)?;
+    }
+
+    // v16: 任务来源标记(source = 'agent' 表示由 Agent/MCP 创建,其余为 NULL)
+    if current_version < 16 {
+        conn.execute_batch("ALTER TABLE tasks ADD COLUMN source TEXT;")?;
+        conn.pragma_update(None, "user_version", 16)?;
+    }
+
     Ok(())
 }
 
@@ -464,7 +504,18 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 13);
+        assert_eq!(version, 16);
+
+        assert_eq!(table_count(&conn, "task_tags"), 1);
+        // 迁移:task-1 的 tag-1 已写入关联表
+        let linked: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_tags WHERE task_id = 'task-1' AND tag_id = 'tag-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(linked, 1);
 
         assert_eq!(table_count(&conn, "tasks"), 1);
         assert_eq!(table_count(&conn, "task_reminders"), 1);
@@ -485,5 +536,10 @@ mod tests {
         assert_eq!(table_count(&conn, "sync_meta"), 0);
         assert_eq!(table_count(&conn, "sync_operations"), 0);
         assert_eq!(table_count(&conn, "sync_conflicts"), 0);
+
+        assert!(column_exists(&conn, "task_notes", "style"));
+        assert_eq!(table_count(&conn, "task_notes"), 0);
+
+        assert!(column_exists(&conn, "tasks", "source"));
     }
 }

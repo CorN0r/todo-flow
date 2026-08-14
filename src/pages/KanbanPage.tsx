@@ -23,6 +23,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Task } from '../types/task';
+import type { Tag } from '../types/tag';
 
 type GroupBy = 'priority' | 'tag' | 'completed';
 
@@ -70,7 +71,7 @@ function DraggableKanbanCard({ task }: { task: Task }) {
     if (!tags) return new Map();
     return new Map(tags.map((t) => [t.id, t]));
   }, [tags]);
-  const taskTag = task.tag_id ? tagMap.get(task.tag_id) : undefined;
+  const taskTags = (task.tag_ids || []).map((id) => tagMap.get(id)).filter((t): t is Tag => !!t);
 
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
 
@@ -136,12 +137,12 @@ function DraggableKanbanCard({ task }: { task: Task }) {
 
             {/* Meta row */}
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {taskTag && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
-                  style={{ backgroundColor: taskTag.color + '20', color: taskTag.color }}>
-                  {taskTag.name}
+              {taskTags.map((t) => (
+                <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
+                  style={{ backgroundColor: t.color + '20', color: t.color }}>
+                  {t.name}
                 </span>
-              )}
+              ))}
               {task.priority > 0 && (
                 <span className={cn('text-[11px] flex items-center gap-0.5 shrink-0', priorityColors[task.priority])}>
                   <Flag size={10} />
@@ -240,7 +241,7 @@ export function KanbanPage() {
         color: tag.color,
         bgClass: 'bg-gray-50 dark:bg-gray-950/15',
         icon: <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />,
-        tasks: topLevel.filter((t) => t.tag_id === tag.id),
+        tasks: topLevel.filter((t) => (t.tag_ids || []).includes(tag.id)),
       }));
       const untagged: ColumnDef = {
         id: 'untagged',
@@ -248,7 +249,7 @@ export function KanbanPage() {
         color: '#9CA3AF',
         bgClass: 'bg-gray-50 dark:bg-gray-950/15',
         icon: <Layers size={16} color="#9CA3AF" />,
-        tasks: topLevel.filter((t) => !t.tag_id),
+        tasks: topLevel.filter((t) => !t.tag_ids || t.tag_ids.length === 0),
       };
       return [...tagCols, untagged];
     }
@@ -293,8 +294,15 @@ export function KanbanPage() {
       const priority = parseInt(columnId.replace('p', ''), 10);
       updateTask.mutate({ id: taskId, priority });
     } else if (groupBy === 'tag') {
-      const tagId = columnId === 'untagged' ? undefined : columnId.replace('tag_', '');
-      updateTask.mutate({ id: taskId, tag_id: tagId });
+      if (columnId === 'untagged') {
+        updateTask.mutate({ id: taskId, tag_ids: [] });
+      } else {
+        const tagId = columnId.replace('tag_', '');
+        const task = event.active.data.current?.task as Task | undefined;
+        const current = task?.tag_ids || [];
+        const next = current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId];
+        updateTask.mutate({ id: taskId, tag_ids: next });
+      }
     } else if (groupBy === 'completed') {
       updateTask.mutate({ id: taskId, is_completed: columnId === 'done', is_abandoned: false });
     }

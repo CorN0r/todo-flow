@@ -136,7 +136,7 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
           priority: input.priority ?? 0,
           due_date: input.due_date ?? null,
           reminder: input.reminder ?? null,
-          tag_id: input.tag_id ?? null,
+          tag_ids: input.tag_ids ?? [],
           parent_task_id: input.parent_task_id ?? null,
           sort_order: state.tasks.length,
           recurrence: input.recurrence ?? null,
@@ -160,7 +160,7 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
         const includeChildren = filters.include_children ?? false;
         let tasks = [...state.tasks];
         if (!filters.include_archived) tasks = tasks.filter((task) => !task.is_archived);
-        if (filters.tag_id !== undefined) tasks = tasks.filter((task) => task.tag_id === filters.tag_id);
+        if (filters.tag_ids !== undefined) tasks = tasks.filter((task) => filters.tag_ids!.some((tid) => task.tag_ids.includes(tid)));
         if (filters.is_completed !== undefined) tasks = tasks.filter((task) => task.is_completed === filters.is_completed);
         if (filters.due_date_from) tasks = tasks.filter((task) => task.due_date !== null && task.due_date >= filters.due_date_from!);
         if (filters.due_date_to) tasks = tasks.filter((task) => task.due_date !== null && task.due_date <= filters.due_date_to!);
@@ -205,7 +205,7 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
         return repositories.tasks.create({
           title: `${detail.task.title} copy`,
           description: detail.task.description,
-          tag_id: detail.task.tag_id ?? undefined,
+          tag_ids: detail.task.tag_ids,
           parent_task_id: detail.task.parent_task_id ?? undefined,
           due_date: detail.task.due_date ?? undefined,
           priority: detail.task.priority,
@@ -275,7 +275,11 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
           if (ids.has(tag.parent_tag_id ?? '')) ids.add(tag.id);
         }
         state.tags = state.tags.filter((tag) => !ids.has(tag.id));
-        state.tasks = state.tasks.map((task) => (task.tag_id && ids.has(task.tag_id) ? { ...task, tag_id: null } : task));
+        state.tasks = state.tasks.map((task) =>
+          task.tag_ids.some((tid) => ids.has(tid))
+            ? { ...task, tag_ids: task.tag_ids.filter((tid) => !ids.has(tid)) }
+            : task,
+        );
       },
       async reorder(items) {
         for (const item of items) {
