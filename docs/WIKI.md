@@ -197,6 +197,8 @@
 
 把任意任务「固定」为桌面无边框透明小窗，随时可见：
 
+![桌面便签](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/23-note.png)
+
 - 一任务一便签（最多 8 个）
 - 三款皮肤：玻璃 / 纸张 / 极简
 - 右键菜单切换皮肤、置顶、折叠
@@ -205,6 +207,10 @@
 ### 🤖 Agent 集成（MCP / CLI）
 
 内置 MCP server + 命令行工具，让 AI 助手直接管理你的任务：
+
+![MCP 工具列表](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/21-mcp.png)
+
+![Agent 创建的任务](https://raw.githubusercontent.com/CorN0r/todo-flow/master/docs/images/22-mcp-task.png)
 
 - 让 Claude Desktop / Claude Code / Cursor 等 AI 直接创建、查询、更新任务
 - 通过标签名称引用即可（不存在的标签自动创建）
