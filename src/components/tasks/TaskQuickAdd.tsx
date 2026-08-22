@@ -57,7 +57,7 @@ function ChipBtn({ active, activeClass, activeStyle, icon, label, onClear, onCli
 }
 
 export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务...', defaultDueDate, defaultMyDay, onCancel, onCreated }: TaskQuickAddProps) {
-  const { t: _t } = useTranslation();
+  useTranslation();
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState(defaultDueDate || (parentTaskId ? '' : todayISO()));
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(tagId ? [tagId] : []);
@@ -67,6 +67,9 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
+  const [tagPickerPos, setTagPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const [priorityPickerPos, setPriorityPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const [reminderPickerPos, setReminderPickerPos] = useState<{ top: number; left: number } | null>(null);
   const createTask = useCreateTask();
   const createReminder = useCreateTaskReminder();
   const tagBtnRef = useRef<HTMLDivElement>(null);
@@ -161,14 +164,19 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
             icon={<Bell size={12} />}
             label={getReminderLabel(reminderOffset)}
             onClear={() => setReminderOffset('')}
-            onClick={() => { closeAll(); setShowReminderPicker(true); }}
+            onClick={() => {
+              const rect = reminderBtnRef.current?.getBoundingClientRect();
+              setReminderPickerPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+              closeAll();
+              setShowReminderPicker(true);
+            }}
             title="提醒"
           />
           {showReminderPicker && (
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setShowReminderPicker(false)} aria-hidden="true" />
               <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[130px]"
-                style={{ top: (reminderBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: reminderBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+                style={reminderPickerPos ?? { top: 0, left: 0 }}>
                 {Object.entries(getReminderPresets()).map(([key, { label }]) => (
                   <button key={key} onClick={() => { setReminderOffset(key); setShowReminderPicker(false); }}
                     className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors ${reminderOffset === key ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
@@ -189,14 +197,19 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
             icon={<Flag size={12} />}
             label={priorityLabels[effectivePriority]}
             onClear={() => setPriority(0)}
-            onClick={() => { closeAll(); setShowPriorityPicker(true); }}
+            onClick={() => {
+              const rect = priorityBtnRef.current?.getBoundingClientRect();
+              setPriorityPickerPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+              closeAll();
+              setShowPriorityPicker(true);
+            }}
             title={priorityLabels[effectivePriority]}
           />
           {showPriorityPicker && (
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setShowPriorityPicker(false)} aria-hidden="true" />
               <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[120px]"
-                style={{ top: (priorityBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: priorityBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+                style={priorityPickerPos ?? { top: 0, left: 0 }}>
                 {Object.entries(priorityLabels).map(([k, v]) => (
                   <button key={k} onClick={() => { setPriority(Number(k)); setShowPriorityPicker(false); }}
                     className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${effectivePriority === Number(k) ? 'font-medium' : 'text-[#111827] dark:text-white/90'}`}>
@@ -213,7 +226,12 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
         {tags && tags.length > 0 && (
           <div className="relative flex items-center gap-1" ref={tagBtnRef}>
             {selectedTags.map((t) => (
-              <span key={t.id} onClick={() => { closeAll(); setShowTagPicker(true); }}
+              <span key={t.id} onClick={() => {
+                const rect = tagBtnRef.current?.getBoundingClientRect();
+                setTagPickerPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+                closeAll();
+                setShowTagPicker(true);
+              }}
                 className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
                 style={{ backgroundColor: (t.color || '#7C72F6') + '20', color: t.color }}>
                 <Tag size={12} />
@@ -224,7 +242,12 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
                 </button>
               </span>
             ))}
-            <button onClick={() => { closeAll(); setShowTagPicker(true); }}
+            <button onClick={() => {
+              const rect = tagBtnRef.current?.getBoundingClientRect();
+              setTagPickerPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+              closeAll();
+              setShowTagPicker(true);
+            }}
               className="flex items-center justify-center shrink-0 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1] transition-colors"
               style={{ width: 28, height: 28 }}
               title="标签">
@@ -234,7 +257,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
               <Portal>
                 <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} aria-hidden="true" />
                 <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[150px]"
-                  style={{ top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: tagBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+                  style={tagPickerPos ?? { top: 0, left: 0 }}>
                   {tags.map((t) => {
                     const active = selectedTagIds.includes(t.id);
                     return (

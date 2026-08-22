@@ -61,10 +61,8 @@ export function MobileQuickAddSheet({
 
   useEffect(() => {
     if (!open) return;
-    setDue(defaultDue);
-    setMyDay(defaultMyDay);
     requestAnimationFrame(() => inputRef.current?.focus());
-  }, [defaultDue, defaultMyDay, open]);
+  }, [open]);
 
   const selectedTags = useMemo(() => tags.filter((tag) => tagIds.includes(tag.id)), [tagIds, tags]);
   const dueDate = dueChoiceToDate(due);

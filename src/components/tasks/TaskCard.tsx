@@ -109,7 +109,7 @@ function SubtaskContent({ child, onDelete, onEditingChange }: { child: Task; onD
     if (x !== subMenu.x || y !== subMenu.y) {
       setSubMenu(prev => prev ? { ...prev, x, y } : null);
     }
-  }, [subMenu?.x, subMenu?.y]);
+  }, [subMenu]);
 
   return (
     <>
@@ -193,7 +193,7 @@ function SubtaskContent({ child, onDelete, onEditingChange }: { child: Task; onD
 }
 
 export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; depth?: number; onEditingChange?: (editing: boolean) => void }) {
-  const { t: _t } = useTranslation();
+  useTranslation();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
@@ -215,12 +215,13 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
   const hasNote = useMemo(() => (taskNotes || []).some((n) => n.task_id === task.id), [taskNotes, task.id]);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; rawX: number; rawY: number } | null>(null);
-  const [subtaskExpanded, setSubtaskExpanded] = useState(false);
-  const globalSubtasksExpanded = useUIStore((s) => s.globalSubtasksExpanded);
+  const [subtaskExpanded, setSubtaskExpanded] = useState(() => useUIStore.getState().globalSubtasksExpanded);
 
   useEffect(() => {
-    setSubtaskExpanded(globalSubtasksExpanded);
-  }, [globalSubtasksExpanded]);
+    return useUIStore.subscribe((state) => {
+      setSubtaskExpanded(state.globalSubtasksExpanded);
+    });
+  }, []);
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
@@ -234,7 +235,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
   }, [editingTitle]);
 
   useEffect(() => {
-    if (addingSubtask) { setSubtaskExpanded(true); setTimeout(() => subtaskInputRef.current?.focus(), 0); }
+    if (addingSubtask) setTimeout(() => subtaskInputRef.current?.focus(), 0);
   }, [addingSubtask]);
 
   useEffect(() => {
@@ -275,7 +276,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
     if (x !== contextMenu.x || y !== contextMenu.y) {
       setContextMenu(prev => prev ? { ...prev, x, y } : null);
     }
-  }, [contextMenu?.x, contextMenu?.y]);
+  }, [contextMenu]);
 
   const tagMap = useMemo(() => {
     if (!tags) return new Map();
@@ -519,7 +520,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
               {task.my_day_date === todayISO() ? <><SunDim size={15} className="text-[#6B7280]" /> 移出我的一天</> : <><Sun size={15} className="text-amber-500" /> 加入我的一天</>}
             </button>
             {depth === 0 && (
-              <button onClick={() => { setNewSubtaskTitle(''); setAddingSubtask(true); setContextMenu(null); }}
+              <button onClick={() => { setNewSubtaskTitle(''); setSubtaskExpanded(true); setAddingSubtask(true); setContextMenu(null); }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
                 <Plus size={15} className="text-[#6B7280]" /> 添加子任务
               </button>

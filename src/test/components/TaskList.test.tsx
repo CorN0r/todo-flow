@@ -16,18 +16,35 @@ vi.mock('../../hooks/useTags', () => ({
 }));
 
 vi.mock('../../stores/uiStore', () => ({
-  useUIStore: vi.fn((selector?: any) => {
-    const state = {
-      selectedTaskId: null,
-      setSelectedTaskId: vi.fn(),
-      selectionMode: false,
-      selectedTaskIds: new Set(),
-      enterSelectionMode: vi.fn(),
-      toggleTaskSelection: vi.fn(),
-    };
-    if (typeof selector === 'function') return selector(state);
-    return state;
-  }),
+  useUIStore: Object.assign(
+    vi.fn((selector?: any) => {
+      const state = {
+        selectedTaskId: null,
+        setSelectedTaskId: vi.fn(),
+        selectionMode: false,
+        selectedTaskIds: new Set(),
+        enterSelectionMode: vi.fn(),
+        toggleTaskSelection: vi.fn(),
+        theme: 'light',
+        globalSubtasksExpanded: false,
+      };
+      if (typeof selector === 'function') return selector(state);
+      return state;
+    }),
+    {
+      getState: () => ({
+        selectedTaskId: null,
+        setSelectedTaskId: vi.fn(),
+        selectionMode: false,
+        selectedTaskIds: new Set(),
+        enterSelectionMode: vi.fn(),
+        toggleTaskSelection: vi.fn(),
+        theme: 'light',
+        globalSubtasksExpanded: false,
+      }),
+      subscribe: () => () => {},
+    }
+  ),
 }));
 
 describe('TaskList', () => {

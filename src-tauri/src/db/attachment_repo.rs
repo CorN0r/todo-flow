@@ -100,6 +100,20 @@ pub fn delete(conn: &Connection, id: &str) -> Result<Attachment, AppError> {
     Ok(attachment)
 }
 
+pub fn get_file_path(
+    conn: &Connection,
+    attachment_id: &str,
+    data_dir: &std::path::Path,
+) -> Result<String, AppError> {
+    let attachment = get_by_id(conn, attachment_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Attachment {} not found", attachment_id)))?;
+    let file_path = data_dir
+        .join("attachments")
+        .join(&attachment.task_id)
+        .join(&attachment.storage_name);
+    Ok(file_path.to_string_lossy().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,18 +202,4 @@ mod tests {
         assert!(path.contains("stored.pdf"));
         assert!(path.contains("task-1"));
     }
-}
-
-pub fn get_file_path(
-    conn: &Connection,
-    attachment_id: &str,
-    data_dir: &std::path::Path,
-) -> Result<String, AppError> {
-    let attachment = get_by_id(conn, attachment_id)?
-        .ok_or_else(|| AppError::NotFound(format!("Attachment {} not found", attachment_id)))?;
-    let file_path = data_dir
-        .join("attachments")
-        .join(&attachment.task_id)
-        .join(&attachment.storage_name);
-    Ok(file_path.to_string_lossy().to_string())
 }

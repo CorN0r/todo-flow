@@ -138,7 +138,7 @@ pub fn get_all_with_counts(conn: &Connection) -> Result<Vec<TagWithCount>, AppEr
     }
 
     fn attach_children(
-        tags: &mut Vec<TagWithCount>,
+        tags: &mut [TagWithCount],
         child_map: &mut std::collections::HashMap<String, Vec<TagWithCount>>,
     ) {
         for tag in tags.iter_mut() {

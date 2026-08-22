@@ -46,7 +46,11 @@ fn write_bounds(db: &Arc<Mutex<Connection>>, task_id: &str, t: &BoundsTracker) {
 }
 
 /// 节流写库:距上次写入 <800ms 则跳过,并安排一次延迟补写(保证拖动结束后的最终位置落库)。
-fn on_bounds_changed(db: &Arc<Mutex<Connection>>, task_id: &str, tracker: &Arc<Mutex<BoundsTracker>>) {
+fn on_bounds_changed(
+    db: &Arc<Mutex<Connection>>,
+    task_id: &str,
+    tracker: &Arc<Mutex<BoundsTracker>>,
+) {
     let should_write = {
         match tracker.lock() {
             Ok(mut t) => {
@@ -197,12 +201,7 @@ pub(crate) fn build_note_window(
     // 不应落库(实测程序式 set_position 不触发 Moved,但建窗瞬间的 (0,0) 会)。
     let initial_pos = match (note.x, note.y) {
         (Some(x), Some(y)) => Some(tauri::PhysicalPosition::new(x, y)),
-        _ => Some(find_free_position(
-            app,
-            init_w as i32,
-            init_h as i32,
-            None,
-        )),
+        _ => Some(find_free_position(app, init_w as i32, init_h as i32, None)),
     };
     if let Some(pos) = initial_pos {
         let _ = win.set_position(pos);

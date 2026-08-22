@@ -6,7 +6,7 @@ function loadConfig(): PomodoroConfig {
   try {
     const raw = localStorage.getItem('pomodoroConfig');
     if (raw) return { ...DEFAULT_POMODORO_CONFIG, ...JSON.parse(raw) };
-  } catch {}
+  } catch { /* ignore */ }
   return DEFAULT_POMODORO_CONFIG;
 }
 
@@ -18,7 +18,7 @@ function loadHistory(): { daily: Record<string, number>; tasks: Record<string, {
   try {
     const raw = localStorage.getItem('pomodoroHistory');
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch { /* ignore */ }
   return { daily: {}, tasks: {} };
 }
 

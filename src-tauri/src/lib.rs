@@ -28,7 +28,9 @@ use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 pub fn default_data_dir() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
-        std::env::var_os("APPDATA").map(PathBuf::from).map(|p| p.join("com.todoflow.desktop"))
+        std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .map(|p| p.join("com.todoflow.desktop"))
     }
     #[cfg(target_os = "macos")]
     {
@@ -40,7 +42,8 @@ pub fn default_data_dir() -> Option<PathBuf> {
         std::env::var_os("XDG_DATA_HOME")
             .map(|d| PathBuf::from(d).join("com.todoflow.desktop"))
             .or_else(|| {
-                std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share/com.todoflow.desktop"))
+                std::env::var_os("HOME")
+                    .map(|h| PathBuf::from(h).join(".local/share/com.todoflow.desktop"))
             })
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -157,32 +160,29 @@ pub fn run() {
             None,
         ))
         .plugin(
-        tauri_plugin_global_shortcut::Builder::new()
-            .with_handler(|app, shortcut, event| {
-                if event.state == ShortcutState::Pressed {
-                    // 从 AppState 中查找当前快捷键对应的操作 ID
-                    if let Some(state) = app.try_state::<AppState>() {
-                        if let Ok(map) = state.global_shortcut_map.lock() {
-                            if let Some(id) = map.get(shortcut) {
-                                let id = id.clone();
-                                drop(map);
-                                crate::shortcuts::handle_global_shortcut_action(app, &id);
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        // 从 AppState 中查找当前快捷键对应的操作 ID
+                        if let Some(state) = app.try_state::<AppState>() {
+                            if let Ok(map) = state.global_shortcut_map.lock() {
+                                if let Some(id) = map.get(shortcut) {
+                                    let id = id.clone();
+                                    drop(map);
+                                    crate::shortcuts::handle_global_shortcut_action(app, &id);
+                                }
                             }
                         }
                     }
-                }
-            })
-            .build(),
-    );
+                })
+                .build(),
+        );
 
     let result = builder
         .setup(|app| {
             let app_dir = app.path().app_data_dir().map_err(|e| {
                 eprintln!("FATAL: Failed to resolve app data directory: {}", e);
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                ))
+                Box::new(std::io::Error::other(e.to_string()))
             })?;
 
             if let Err(e) = std::fs::create_dir_all(&app_dir) {
@@ -314,7 +314,7 @@ pub fn run() {
                         }
                         "quit" => {
                             let app = tray.app_handle();
-                            let _ = app.exit(0);
+                            app.exit(0);
                         }
                         _ => {}
                     })
@@ -490,12 +490,10 @@ pub fn run() {
                 // 使用动态注册，从 settings 表中读取用户自定义的快捷键配置
                 {
                     let app_state = app.state::<AppState>();
-                    let conn = app_state.db.lock().map_err(|e| {
-                        Box::new(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            e.to_string(),
-                        ))
-                    })?;
+                    let conn = app_state
+                        .db
+                        .lock()
+                        .map_err(|e| Box::new(std::io::Error::other(e.to_string())))?;
                     if let Err(e) = crate::shortcuts::register_global_shortcuts(app.handle(), &conn)
                     {
                         eprintln!("Warning: Failed to register global shortcuts: {}", e);

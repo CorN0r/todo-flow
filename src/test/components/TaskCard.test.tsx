@@ -10,13 +10,21 @@ const mockStoreState = {
   selectedTaskIds: new Set<string>(),
   enterSelectionMode: vi.fn(),
   toggleTaskSelection: vi.fn(),
+  theme: 'light' as const,
+  globalSubtasksExpanded: false,
 };
 
 vi.mock('../../stores/uiStore', () => ({
-  useUIStore: vi.fn((selector?: any) => {
-    if (typeof selector === 'function') return selector(mockStoreState);
-    return mockStoreState;
-  }),
+  useUIStore: Object.assign(
+    vi.fn((selector?: any) => {
+      if (typeof selector === 'function') return selector(mockStoreState);
+      return mockStoreState;
+    }),
+    {
+      getState: () => mockStoreState,
+      subscribe: () => () => {},
+    }
+  ),
 }));
 
 vi.mock('../../hooks/useTasks', () => ({

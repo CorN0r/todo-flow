@@ -74,12 +74,43 @@ pub fn get_all_with_stats(conn: &Connection, today: &str) -> Result<Vec<HabitWit
         .query_map([], row_to_habit)?
         .collect::<Result<Vec<_>, _>>()?;
 
+    if habits.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // 一次性读取所有习惯的有效日志，按 habit_id, log_date 升序。
+    // habit_id 是本地生成的 UUID，使用占位符拼接是安全的。
+    let habit_ids: Vec<String> = habits.iter().map(|h| h.id.clone()).collect();
+    let placeholders = (0..habit_ids.len())
+        .map(|_| "?")
+        .collect::<Vec<_>>()
+        .join(",");
+    let sql = format!(
+        "SELECT habit_id, log_date FROM habit_logs
+         WHERE habit_id IN ({}) AND deleted_at IS NULL
+         ORDER BY habit_id, log_date ASC",
+        placeholders
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query(rusqlite::params_from_iter(habit_ids.iter()))?;
+    let mut logs_by_habit: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    while let Some(row) = rows.next()? {
+        let habit_id: String = row.get(0)?;
+        let log_date: String = row.get(1)?;
+        logs_by_habit.entry(habit_id).or_default().push(log_date);
+    }
+
     let mut results = Vec::new();
     for h in habits {
-        let current_streak = compute_streak(conn, &h.id, today)?;
-        let best_streak = compute_best_streak(conn, &h.id)?;
-        let completion_rate = compute_completion_rate(conn, &h.id)?;
-        let is_done_today = is_done_on_date(conn, &h.id, today)?;
+        let dates = logs_by_habit
+            .get(&h.id)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
+        let current_streak = compute_streak_from_dates(dates, today);
+        let best_streak = compute_best_streak_from_dates(dates);
+        let completion_rate = compute_completion_rate_from_dates(dates, today);
+        let is_done_today = dates.binary_search_by(|d| d.as_str().cmp(today)).is_ok();
 
         results.push(HabitWithStats {
             id: h.id,
@@ -266,53 +297,31 @@ pub fn toggle_log(conn: &Connection, habit_id: &str, date: &str) -> Result<Habit
     }
 }
 
-fn is_done_on_date(conn: &Connection, habit_id: &str, date: &str) -> Result<bool, AppError> {
-    let count: i32 = conn.query_row(
-        "SELECT COUNT(*) FROM habit_logs WHERE habit_id = ?1 AND log_date = ?2 AND deleted_at IS NULL",
-        params![habit_id, date],
-        |row| row.get(0),
-    )?;
-    Ok(count > 0)
-}
-
-fn compute_streak(conn: &Connection, habit_id: &str, today: &str) -> Result<i32, AppError> {
-    let mut stmt = conn.prepare(
-        "SELECT log_date FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL ORDER BY log_date DESC",
-    )?;
-    let dates: Vec<String> = stmt
-        .query_map(params![habit_id], |row| row.get(0))?
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if dates.is_empty() || (dates[0].as_str() < today && dates[0] != today) {
-        return Ok(0);
+fn compute_streak_from_dates(dates: &[String], today: &str) -> i32 {
+    if dates.is_empty() {
+        return 0;
+    }
+    let latest = &dates[dates.len() - 1];
+    if latest.as_str() < today && latest != today {
+        return 0;
     }
 
     let mut streak = 0i32;
-    let mut expected = dates[0].clone();
-    for d in &dates {
+    let mut expected = latest.clone();
+    for d in dates.iter().rev() {
         if d == &expected {
-            streak += 1;
-            expected = prev_date(&expected);
-        } else if d == &expected {
             streak += 1;
             expected = prev_date(&expected);
         } else {
             break;
         }
     }
-    Ok(streak)
+    streak
 }
 
-fn compute_best_streak(conn: &Connection, habit_id: &str) -> Result<i32, AppError> {
-    let mut stmt = conn.prepare(
-        "SELECT log_date FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL ORDER BY log_date ASC",
-    )?;
-    let dates: Vec<String> = stmt
-        .query_map(params![habit_id], |row| row.get(0))?
-        .collect::<Result<Vec<_>, _>>()?;
-
+fn compute_best_streak_from_dates(dates: &[String]) -> i32 {
     if dates.is_empty() {
-        return Ok(0);
+        return 0;
     }
 
     let mut best = 1i32;
@@ -325,34 +334,21 @@ fn compute_best_streak(conn: &Connection, habit_id: &str) -> Result<i32, AppErro
             current = 1;
         }
     }
-    Ok(best)
+    best
 }
 
-fn compute_completion_rate(conn: &Connection, habit_id: &str) -> Result<f64, AppError> {
-    let total: i32 = conn.query_row(
-        "SELECT COUNT(DISTINCT log_date) FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL",
-        params![habit_id],
-        |row| row.get(0),
-    )?;
-
+fn compute_completion_rate_from_dates(dates: &[String], today: &str) -> f64 {
+    let total = dates.len() as i32;
     if total == 0 {
-        return Ok(0.0);
+        return 0.0;
     }
 
-    let first_date: String = conn.query_row(
-        "SELECT MIN(log_date) FROM habit_logs WHERE habit_id = ?1 AND deleted_at IS NULL",
-        params![habit_id],
-        |row| row.get(0),
-    )?;
-
-    let days = days_between(
-        &first_date,
-        &chrono::Local::now().format("%Y-%m-%d").to_string(),
-    );
+    let first_date = &dates[0];
+    let days = days_between(first_date, today);
     if days == 0 {
-        return Ok(100.0);
+        return 100.0;
     }
-    Ok((total as f64 / days as f64 * 100.0).min(100.0))
+    (total as f64 / days as f64 * 100.0).min(100.0)
 }
 
 fn days_between(from: &str, to: &str) -> i32 {
@@ -595,5 +591,172 @@ mod tests {
         let a = stats.iter().find(|s| s.id == h1.id).unwrap();
         let b = stats.iter().find(|s| s.id == h2.id).unwrap();
         assert!(a.sort_order < b.sort_order);
+    }
+
+    #[test]
+    fn test_stats_with_empty_logs() {
+        let conn = setup();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Empty".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let stats = get_all_with_stats(&conn, &today).unwrap();
+        let habit = stats.iter().find(|s| s.id == h.id).unwrap();
+        assert_eq!(habit.current_streak, 0);
+        assert_eq!(habit.best_streak, 0);
+        assert_eq!(habit.completion_rate, 0.0);
+        assert!(!habit.is_done_today);
+    }
+
+    #[test]
+    fn test_stats_ignores_deleted_logs() {
+        let conn = setup();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Deleted".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        toggle_log(&conn, &h.id, &today).unwrap();
+        conn.execute(
+            "UPDATE habit_logs SET deleted_at = ?1 WHERE habit_id = ?2",
+            params![now_local(), h.id],
+        )
+        .unwrap();
+        let stats = get_all_with_stats(&conn, &today).unwrap();
+        let habit = stats.iter().find(|s| s.id == h.id).unwrap();
+        assert!(!habit.is_done_today);
+        assert_eq!(habit.current_streak, 0);
+        assert_eq!(habit.completion_rate, 0.0);
+    }
+
+    #[test]
+    fn test_stats_dedupes_duplicate_log_dates() {
+        let conn = setup();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Dup".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        // toggle_log 同一天只维护一条记录
+        toggle_log(&conn, &h.id, &today).unwrap();
+        let stats = get_all_with_stats(&conn, &today).unwrap();
+        let habit = stats.iter().find(|s| s.id == h.id).unwrap();
+        assert!(habit.is_done_today);
+        assert_eq!(habit.current_streak, 1);
+
+        // 数据库层的 UNIQUE 约束阻止重复日期插入
+        let id = uuid::Uuid::new_v4().to_string();
+        let result = conn.execute(
+            "INSERT INTO habit_logs (id, habit_id, log_date, count) VALUES (?1, ?2, ?3, 1)",
+            params![id, h.id, today],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_stats_with_streak_gap() {
+        let conn = setup();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Gap".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let yesterday = prev_date(&today);
+        let two_days_ago = prev_date(&yesterday);
+        let three_days_ago = prev_date(&two_days_ago);
+
+        // 今天 + 前天 + 大前天，昨天断档
+        toggle_log(&conn, &h.id, &today).unwrap();
+        toggle_log(&conn, &h.id, &two_days_ago).unwrap();
+        toggle_log(&conn, &h.id, &three_days_ago).unwrap();
+
+        let stats = get_all_with_stats(&conn, &today).unwrap();
+        let habit = stats.iter().find(|s| s.id == h.id).unwrap();
+        assert_eq!(habit.current_streak, 1);
+        assert_eq!(habit.best_streak, 2);
+    }
+
+    #[test]
+    fn test_stats_all_logs_before_today() {
+        let conn = setup();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Before".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let yesterday = prev_date(&today);
+        let two_days_ago = prev_date(&yesterday);
+
+        toggle_log(&conn, &h.id, &two_days_ago).unwrap();
+        toggle_log(&conn, &h.id, &yesterday).unwrap();
+
+        let stats = get_all_with_stats(&conn, &today).unwrap();
+        let habit = stats.iter().find(|s| s.id == h.id).unwrap();
+        assert!(!habit.is_done_today);
+        assert_eq!(habit.current_streak, 0);
+        assert_eq!(habit.best_streak, 2);
+    }
+
+    #[test]
+    fn test_completion_rate_capped_at_100() {
+        let conn = setup();
+        let h = create(
+            &conn,
+            CreateHabitRequest {
+                name: "Over".into(),
+                color: None,
+                icon: None,
+                frequency: None,
+                target_count: None,
+            },
+        )
+        .unwrap();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        // 连续 5 天打卡，但 first_date 到 today 最多 4 天间隔
+        let mut d = today.clone();
+        for _ in 0..5 {
+            toggle_log(&conn, &h.id, &d).unwrap();
+            d = prev_date(&d);
+        }
+
+        let stats = get_all_with_stats(&conn, &today).unwrap();
+        let habit = stats.iter().find(|s| s.id == h.id).unwrap();
+        assert_eq!(habit.completion_rate, 100.0);
     }
 }

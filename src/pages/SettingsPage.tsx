@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useQueryClient } from '@tanstack/react-query';
 import { enable as enableAutoStart, disable as disableAutoStart, isEnabled as isAutoStartEnabled } from '@tauri-apps/plugin-autostart';
-import { getTasks, backupDatabase, exportCsv, importDatabase, getSetting, setSetting, openTaskNote } from '../lib/db';
 import { getRepositories } from '../domain/repositories/current';
+import { invalidateTaskNotes } from '../lib/queryKeys';
 import { usePomodoroStore } from '../stores/pomodoroStore';
 import { useShortcutStore } from '../stores/shortcutStore';
 import { useTaskNotes, useToggleTaskNote } from '../hooks/useTaskNotes';
@@ -61,21 +61,21 @@ export function SettingsPage() {
   // open_task_note 后端幂等:窗口已存在则 show+focus,即"定位"
   const handleLocateNote = async (taskId: string) => {
     try {
-      await openTaskNote(taskId);
-      queryClient.invalidateQueries({ queryKey: ['task-notes'] });
+      await getRepositories().taskNotes.open(taskId);
+      invalidateTaskNotes(queryClient);
     } catch (e) {
       toast.error(String(e));
     }
   };
 
   useEffect(() => {
-    getSetting('widget_enabled').then((v) => {
+    getRepositories().settings.get('widget_enabled').then((v) => {
       setWidgetEnabled(v !== '0');
     }).catch(() => {});
-    getSetting('widget_bubble_color').then((raw) => {
+    getRepositories().settings.get('widget_bubble_color').then((raw) => {
       setBubbleColors(parseBubbleColors(raw));
     }).catch(() => {});
-    getSetting('note_default_style').then((v) => {
+    getRepositories().settings.get('note_default_style').then((v) => {
       if (v === 'glass' || v === 'paper' || v === 'minimal') setNoteDefaultStyle(v);
     }).catch(() => {});
     isAutoStartEnabled().then(setAutoStart).catch(() => {});
@@ -87,7 +87,7 @@ export function SettingsPage() {
     let cancelled = false;
     (async () => {
       const fn = await listen<boolean>('widget-enabled-changed', () => {
-        getSetting('widget_enabled').then((v) => {
+        getRepositories().settings.get('widget_enabled').then((v) => {
           if (!cancelled) setWidgetEnabled(v !== '0');
         }).catch(() => {});
       });
@@ -102,7 +102,7 @@ export function SettingsPage() {
 
   const toggleWidget = (enabled: boolean) => {
     setWidgetEnabled(enabled);
-    setSetting('widget_enabled', enabled ? '1' : '0');
+    getRepositories().settings.set('widget_enabled', enabled ? '1' : '0');
     emit('widget-enabled-changed', enabled).catch(() => {});
   };
 
@@ -117,7 +117,7 @@ export function SettingsPage() {
 
   const saveBubbleColors = (colors: BubbleColors) => {
     setBubbleColors(colors);
-    setSetting('widget_bubble_color', JSON.stringify(colors));
+    getRepositories().settings.set('widget_bubble_color', JSON.stringify(colors));
     emit('bubble-color-changed', colors).catch(() => {});
   };
 
@@ -129,7 +129,7 @@ export function SettingsPage() {
     if (!path) return;
     setBackingUp(true);
     try {
-      await backupDatabase(path);
+      await getRepositories().settings.backupDatabase(path);
       toast.success('数据库备份成功');
     } catch (err) {
       toast.error('备份失败: ' + (err as string));
@@ -145,7 +145,7 @@ export function SettingsPage() {
     if (!path) return;
     setExporting(true);
     try {
-      const tasks = await getTasks({ include_children: true });
+      const tasks = await getRepositories().tasks.list({ include_children: true });
       const headers = ['id', 'title', 'description', 'is_completed', 'is_archived', 'is_suspended', 'is_abandoned', 'priority', 'due_date', 'reminder', 'recurrence', 'tag_id', 'parent_task_id', 'sort_order', 'my_day_date', 'created_at', 'updated_at'];
       const rows = tasks.map((t) =>
         headers.map((h) => {
@@ -155,7 +155,7 @@ export function SettingsPage() {
         }).join(',')
       );
       const csv = '﻿' + [headers.join(','), ...rows].join('\n');
-      await exportCsv(path, csv);
+      await getRepositories().settings.exportCsv(path, csv);
       toast.success('数据已导出为 CSV');
     } catch {
       toast.error('导出失败');
@@ -173,7 +173,7 @@ export function SettingsPage() {
     if (!selected) return;
     setImporting(true);
     try {
-      const result = await importDatabase(selected as string);
+      const result = await getRepositories().settings.importDatabase(selected as string);
       toast.success(result);
     } catch (err) {
       toast.error('导入失败: ' + (err as string));
@@ -338,7 +338,7 @@ export function SettingsPage() {
           <div className="flex items-center gap-1 p-0.5 rounded-[8px] bg-[#F3F4F6] dark:bg-white/[0.06]">
             {(Object.keys(NOTE_STYLE_LABELS) as NoteStyle[]).map((s) => (
               <button key={s}
-                onClick={() => { setNoteDefaultStyle(s); setSetting('note_default_style', s); }}
+                onClick={() => { setNoteDefaultStyle(s); getRepositories().settings.set('note_default_style', s); }}
                 className={`px-2.5 py-1 rounded-[6px] text-[12px] transition-colors ${
                   noteDefaultStyle === s
                     ? 'bg-white dark:bg-[#2a2a44] text-[#7C72F6] shadow-sm font-medium'

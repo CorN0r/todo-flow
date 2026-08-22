@@ -6,13 +6,16 @@
 use std::process::ExitCode;
 
 use clap::Parser;
-use todo_flow_lib::mcp::cli::{Cli, run};
+use todo_flow_lib::mcp::cli::{run, Cli};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match run(cli) {
         Ok(Some(value)) => {
-            println!("{}", serde_json::to_string_pretty(&value).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&value).unwrap_or_default()
+            );
             ExitCode::SUCCESS
         }
         Ok(None) => ExitCode::SUCCESS,

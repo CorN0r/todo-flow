@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useRef, useEffect } from 'react';
+﻿import { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -38,16 +38,36 @@ function getCalendarDays(year: number, month: number) {
 }
 
 export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, iconOnly, compact, triggerClassName }: DatePickerProps) {
-  const { t: _t } = useTranslation();
+  useTranslation();
   const [open, setOpen] = useState(startOpen ?? false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | HTMLSpanElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const today = new Date();
+
+  const computeMenuPos = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const left = Math.max(4, Math.min(rect.left, window.innerWidth - 268));
+    if (spaceBelow >= 380) {
+      return { top: rect.bottom + 4, left };
+    }
+    return { bottom: window.innerHeight - rect.top + 4, left };
+  };
+
+  useLayoutEffect(() => {
+    if (!open || menuPos !== null) return;
+    const pos = computeMenuPos();
+    if (pos) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMenuPos(pos);
+    }
+  }, [open, menuPos]);
   const datePart = value ? value.slice(0, 10) : value;
   const timePart = value.length > 10 ? value.slice(11, 16) : '09:00';
   // 本地时间状态：避免键盘逐位输入时每次 onChange 都触发父组件状态变更
   // 只有 onBlur 或 Enter 时才提交到父组件
   const [localTime, setLocalTime] = useState(timePart);
-  useEffect(() => { setLocalTime(timePart); }, [timePart]);
   const [viewYear, setViewYear] = useState(
     value ? parseInt(value.split('-')[0]) : today.getFullYear()
   );
@@ -112,8 +132,8 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
     <div className="relative inline-block">
       {iconOnly && value ? (
         <span
-          ref={triggerRef as any}
-          onClick={() => setOpen(!open)}
+          ref={triggerRef as React.RefObject<HTMLSpanElement>}
+          onClick={() => { const pos = computeMenuPos(); if (pos) setMenuPos(pos); setOpen(!open); }}
           className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium bg-[#7C72F6]/[0.10] text-[#7C72F6] cursor-pointer transition-colors hover:opacity-80"
         >
           <CalendarIcon size={12} />
@@ -127,16 +147,16 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
         </span>
       ) : iconOnly === 'label' ? (
         <button
-          ref={triggerRef}
-          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          ref={triggerRef as React.RefObject<HTMLButtonElement>}
+          onClick={(e) => { e.stopPropagation(); const pos = computeMenuPos(); if (pos) setMenuPos(pos); setOpen(!open); }}
           className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors"
         >
           <CalendarIcon size={12} />截止日期
         </button>
       ) : (
       <button
-        ref={triggerRef}
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        ref={triggerRef as React.RefObject<HTMLButtonElement>}
+        onClick={(e) => { e.stopPropagation(); const pos = computeMenuPos(); if (pos) setMenuPos(pos); setOpen(!open); }}
         className={cn(
           iconOnly
             ? 'flex items-center justify-center shrink-0 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] text-[#6B7280] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.1] transition-colors'
@@ -168,16 +188,7 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
           <div className="fixed inset-0 z-[260]" onClick={() => setOpen(false)} aria-hidden="true" />
           <div
             className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-3 min-w-[260px]"
-            style={(() => {
-              const rect = triggerRef.current?.getBoundingClientRect();
-              if (!rect) return {};
-              const spaceBelow = window.innerHeight - rect.bottom;
-              const left = Math.max(4, Math.min(rect.left, window.innerWidth - 268));
-              if (spaceBelow >= 380) {
-                return { top: rect.bottom + 4, left };
-              }
-              return { bottom: window.innerHeight - rect.top + 4, left };
-            })()}
+            style={menuPos ?? {}}
           >
             {/* Month nav */}
             <div className="flex items-center justify-between mb-3">
@@ -265,6 +276,7 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
                   ))}
                 </div>
                 <input
+                  key={timePart}
                   type="time"
                   value={localTime}
                   onChange={(e) => setLocalTime(e.target.value)}

@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
-use rmcp::{schemars, tool, tool_router, ErrorData as McpError, ServiceExt, transport::stdio};
+use rmcp::{schemars, tool, tool_router, transport::stdio, ErrorData as McpError, ServiceExt};
 use serde::Deserialize;
 
 use crate::db;
@@ -31,9 +31,7 @@ fn ok_json(value: &serde_json::Value) -> ToolResult {
 }
 
 fn err_tool(msg: impl Into<String>) -> ToolResult {
-    Ok(CallToolResult::error(vec![ContentBlock::text(
-        msg.into(),
-    )]))
+    Ok(CallToolResult::error(vec![ContentBlock::text(msg.into())]))
 }
 
 fn lock(
@@ -148,12 +146,11 @@ pub struct CreateTagParams {
 #[tool_router(server_handler)]
 impl TodoFlowServer {
     /// 创建一个新任务(创建任务的入口工具)
-    #[tool(description = "创建一个新任务。标签名不存在时自动创建;可设置截止时间、优先级、加入「我的今天」、相对截止时间的提醒。")]
+    #[tool(
+        description = "创建一个新任务。标签名不存在时自动创建;可设置截止时间、优先级、加入「我的今天」、相对截止时间的提醒。"
+    )]
     pub fn create_task(&self, Parameters(p): Parameters<CreateTaskParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::create_task(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("创建任务失败: {e}")),
@@ -163,10 +160,7 @@ impl TodoFlowServer {
     /// 列出任务(支持多种过滤)
     #[tool(description = "列出任务,可按完成状态、标签、关键词、截止日期范围过滤。")]
     pub fn list_tasks(&self, Parameters(p): Parameters<ListTasksParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::list_tasks(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("查询任务失败: {e}")),
@@ -176,10 +170,7 @@ impl TodoFlowServer {
     /// 获取单个任务详情(含子任务)
     #[tool(description = "按 ID 获取任务详情,包含其子任务列表。")]
     pub fn get_task(&self, Parameters(p): Parameters<GetTaskParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::get_task(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("获取任务失败: {e}")),
@@ -187,12 +178,11 @@ impl TodoFlowServer {
     }
 
     /// 更新任务字段
-    #[tool(description = "更新任务的标题、详情、优先级、截止时间、标签、父任务等字段。标签显式传入时整体替换。")]
+    #[tool(
+        description = "更新任务的标题、详情、优先级、截止时间、标签、父任务等字段。标签显式传入时整体替换。"
+    )]
     pub fn update_task(&self, Parameters(p): Parameters<UpdateTaskParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::update_task(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("更新任务失败: {e}")),
@@ -202,10 +192,7 @@ impl TodoFlowServer {
     /// 完成任务
     #[tool(description = "将任务标记为已完成。")]
     pub fn complete_task(&self, Parameters(p): Parameters<GetTaskParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::complete_task(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("完成任务失败: {e}")),
@@ -215,10 +202,7 @@ impl TodoFlowServer {
     /// 重新打开任务
     #[tool(description = "将已完成的任务重新打开为未完成。")]
     pub fn reopen_task(&self, Parameters(p): Parameters<GetTaskParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::reopen_task(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("重新打开任务失败: {e}")),
@@ -228,10 +212,7 @@ impl TodoFlowServer {
     /// 删除任务
     #[tool(description = "删除任务(级联删除子任务,不可恢复)。")]
     pub fn delete_task(&self, Parameters(p): Parameters<GetTaskParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::delete_task(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("删除任务失败: {e}")),
@@ -241,10 +222,7 @@ impl TodoFlowServer {
     /// 列出所有标签(含颜色与嵌套结构)
     #[tool(description = "列出全部标签,包含颜色、任务数、子标签树。")]
     pub fn list_tags(&self) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::list_tags(&conn) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("获取标签失败: {e}")),
@@ -254,10 +232,7 @@ impl TodoFlowServer {
     /// 创建标签
     #[tool(description = "创建新标签,可指定颜色与父标签。")]
     pub fn create_tag(&self, Parameters(p): Parameters<CreateTagParams>) -> ToolResult {
-        let conn = match lock(self) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let conn = lock(self)?;
         match handlers::create_tag(&conn, &p) {
             Ok(v) => ok_json(&v),
             Err(e) => err_tool(format!("创建标签失败: {e}")),

@@ -5,13 +5,8 @@ import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { toast } from 'sonner';
 import { Check } from 'lucide-react';
 import { useTask } from '../hooks/useTasks';
-import {
-  closeTaskNote,
-  getTaskNote,
-  setNoteAlwaysOnTop,
-  setNoteCollapsed,
-  setNoteStyle,
-} from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
+import { queryKeys, invalidateTaskNotes, invalidateTasks, invalidateTask } from '../lib/queryKeys';
 import type { NoteStyle } from '../types/note';
 import { NoteCard } from '../components/notes/NoteCard';
 import { Portal } from '../components/shared/Portal';
@@ -75,8 +70,8 @@ export function NotePage() {
 
   // ---- 数据 ----
   const { data: note, isPending: notePending } = useQuery({
-    queryKey: ['task-note', taskId],
-    queryFn: () => getTaskNote(taskId!),
+    queryKey: queryKeys.taskNotes.detail(taskId),
+    queryFn: () => getRepositories().taskNotes.get(taskId!),
     enabled: !!taskId,
     staleTime: 30_000,
   });
@@ -89,7 +84,7 @@ export function NotePage() {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     listen('note-style-changed', () => {
-      queryClient.invalidateQueries({ queryKey: ['task-note'] });
+      invalidateTaskNotes(queryClient);
     }).then((u) => {
       if (cancelled) { u(); return; }
       unlisten = u;
@@ -102,8 +97,8 @@ export function NotePage() {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     listen('task-changed', () => {
-      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
-      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'task' });
+      invalidateTasks(queryClient);
+      invalidateTask(queryClient);
     }).then((u) => {
       if (cancelled) { u(); return; }
       unlisten = u;
@@ -116,8 +111,7 @@ export function NotePage() {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     listen('task-notes-changed', () => {
-      queryClient.invalidateQueries({ queryKey: ['task-note', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['task-notes'] });
+      invalidateTaskNotes(queryClient, taskId);
     }).then((u) => {
       if (cancelled) { u(); return; }
       unlisten = u;
@@ -261,12 +255,12 @@ export function NotePage() {
     win.setSize(new LogicalSize(280, height)).catch(() => {});
   }, [menu, collapsed]);
 
-  const invalidateNote = () => queryClient.invalidateQueries({ queryKey: ['task-note', taskId] });
+  const invalidateNote = () => invalidateTaskNotes(queryClient, taskId);
 
   const handleToggleAlwaysOnTop = async () => {
     if (!taskId) return;
     try {
-      await setNoteAlwaysOnTop(taskId, !(note?.always_on_top ?? false));
+      await getRepositories().taskNotes.setAlwaysOnTop(taskId, !(note?.always_on_top ?? false));
       invalidateNote();
     } catch (e) {
       toast.error(String(e));
@@ -277,7 +271,7 @@ export function NotePage() {
   const handleStyleChange = async (style: NoteStyle) => {
     if (!taskId) return;
     try {
-      await setNoteStyle(taskId, style);
+      await getRepositories().taskNotes.setStyle(taskId, style);
       invalidateNote();
     } catch (e) {
       toast.error(String(e));
@@ -288,7 +282,7 @@ export function NotePage() {
   const handleToggleCollapsed = async () => {
     if (!taskId) return;
     try {
-      await setNoteCollapsed(taskId, !collapsed);
+      await getRepositories().taskNotes.setCollapsed(taskId, !collapsed);
       invalidateNote();
     } catch (e) {
       toast.error(String(e));
@@ -301,7 +295,7 @@ export function NotePage() {
   const handleClose = async () => {
     if (!taskId) return;
     try {
-      await closeTaskNote(taskId);
+      await getRepositories().taskNotes.close(taskId);
     } catch (e) {
       toast.error(String(e));
     }

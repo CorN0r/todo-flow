@@ -1,6 +1,7 @@
 export type * from './attachment';
 export type * from './habit';
 export type * from './habitLog';
+export type * from './note';
 export type * from './reminder';
 export type * from './settings';
 export type * from './sync';

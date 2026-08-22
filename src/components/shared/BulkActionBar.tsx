@@ -14,6 +14,7 @@ export function BulkActionBar() {
   const { data: tags } = useTags();
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [pendingTagIds, setPendingTagIds] = useState<string[]>([]);
+  const [menuPos, setMenuPos] = useState<{ bottom: number; left: number } | null>(null);
   const tagBtnRef = useRef<HTMLButtonElement>(null);
 
   const count = selectedTaskIds.size;
@@ -84,7 +85,11 @@ export function BulkActionBar() {
 
         <button
           ref={tagBtnRef}
-          onClick={() => setShowTagPicker(!showTagPicker)}
+          onClick={() => {
+            const rect = tagBtnRef.current?.getBoundingClientRect();
+            setMenuPos(rect ? { bottom: window.innerHeight - rect.top + 8, left: Math.max(4, Math.min(rect.left, window.innerWidth - 198)) } : null);
+            setShowTagPicker(!showTagPicker);
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors"
         >
           <FolderInput size={16} />
@@ -95,12 +100,7 @@ export function BulkActionBar() {
           <Portal>
             <div className="fixed inset-0 z-[260]" onClick={() => setShowTagPicker(false)} aria-hidden="true" />
             <div className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-xl shadow-xl p-1 min-w-[190px]"
-              style={(() => {
-                const rect = tagBtnRef.current?.getBoundingClientRect();
-                if (!rect) return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
-                const left = Math.max(4, Math.min(rect.left, window.innerWidth - 198));
-                return { bottom: window.innerHeight - rect.top + 8, left };
-              })()}>
+              style={menuPos ?? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
             {tags?.map((t) => {
               const active = pendingTagIds.includes(t.id);
               return (

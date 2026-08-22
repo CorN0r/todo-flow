@@ -225,22 +225,31 @@ mod tests {
             [],
         )
         .unwrap();
-        conn.execute("INSERT INTO tasks (id, title) VALUES ('t1', 'Work task')", [])
-            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (id, title) VALUES ('t1', 'Work task')",
+            [],
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO task_tags (task_id, tag_id) VALUES ('t1', 'l1')",
             [],
         )
         .unwrap();
-        conn.execute("INSERT INTO tasks (id, title) VALUES ('t2', 'Work task 2')", [])
-            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (id, title) VALUES ('t2', 'Work task 2')",
+            [],
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO task_tags (task_id, tag_id) VALUES ('t2', 'l1')",
             [],
         )
         .unwrap();
-        conn.execute("INSERT INTO tasks (id, title) VALUES ('t3', 'Home task')", [])
-            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (id, title) VALUES ('t3', 'Home task')",
+            [],
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO task_tags (task_id, tag_id) VALUES ('t3', 'l2')",
             [],

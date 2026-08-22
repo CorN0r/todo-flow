@@ -14,10 +14,16 @@ const storeState = {
 };
 
 vi.mock('../../stores/uiStore', () => ({
-  useUIStore: vi.fn((selector?: any) => {
-    if (typeof selector === 'function') return selector(storeState);
-    return storeState;
-  }),
+  useUIStore: Object.assign(
+    vi.fn((selector?: any) => {
+      if (typeof selector === 'function') return selector(storeState);
+      return storeState;
+    }),
+    {
+      getState: () => storeState,
+      subscribe: () => () => {},
+    }
+  ),
 }));
 
 vi.mock('../../hooks/useTasks', () => ({

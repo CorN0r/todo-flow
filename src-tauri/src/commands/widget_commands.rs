@@ -4,9 +4,9 @@ use crate::AppState;
 use rusqlite::params;
 #[cfg(not(mobile))]
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::{AppHandle, State};
 #[cfg(not(mobile))]
 use tauri::{Emitter, Manager};
-use tauri::{AppHandle, State};
 
 #[cfg(not(mobile))]
 #[tauri::command]

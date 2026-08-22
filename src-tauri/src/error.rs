@@ -56,10 +56,10 @@ mod tests {
     #[test]
     fn test_from_rusqlite_error() {
         let result: Result<(), AppError> =
-            Err(rusqlite::Error::InvalidParameterCount(0, 1)).map_err(AppError::from);
+            Err(AppError::from(rusqlite::Error::InvalidParameterCount(0, 1)));
         assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::Database(_) => {}
+        match result {
+            Err(AppError::Database(_)) => {}
             _ => panic!("expected Database variant"),
         }
     }

@@ -23,7 +23,9 @@ pub fn start_polling(app_handle: AppHandle, db_path: PathBuf, _db: Arc<Mutex<Con
         loop {
             thread::sleep(POLL_INTERVAL);
 
-            let Some(mtime) = max_mtime(&db_path) else { continue };
+            let Some(mtime) = max_mtime(&db_path) else {
+                continue;
+            };
             if last_mtime == Some(mtime) {
                 continue; // 无变化
             }

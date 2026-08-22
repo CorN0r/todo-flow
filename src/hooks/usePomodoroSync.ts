@@ -16,7 +16,7 @@ function playBeep() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.3);
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 /** Handles cross-window pomodoro sync: state emit, control receive, window show/hide, notifications */

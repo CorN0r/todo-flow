@@ -150,13 +150,14 @@ pub fn resolve_db_path(cli: &Cli) -> Result<PathBuf, AppError> {
         }
         return Ok(p.clone());
     }
-    let dir = crate::default_data_dir()
-        .ok_or_else(|| AppError::Generic("无法确定数据目录,请用 --db-path 指定数据库文件".to_string()))?;
+    let dir = crate::default_data_dir().ok_or_else(|| {
+        AppError::Generic("无法确定数据目录,请用 --db-path 指定数据库文件".to_string())
+    })?;
     std::fs::create_dir_all(&dir)?;
     Ok(dir.join("todo.db"))
 }
 
-fn open_conn(db_path: &PathBuf) -> Result<rusqlite::Connection, AppError> {
+fn open_conn(db_path: &std::path::Path) -> Result<rusqlite::Connection, AppError> {
     let conn = db::connection::open(db_path)?;
     db::migrations::run(&conn)?;
     Ok(conn)
@@ -320,18 +321,25 @@ mod tests {
         assert_eq!(list["tasks"][0]["id"].as_str().unwrap(), id);
 
         // done
-        let done = run(cli_with_db(db_path.clone(), Command::Done { id: id.clone() }))
-            .unwrap()
-            .unwrap();
+        let done = run(cli_with_db(
+            db_path.clone(),
+            Command::Done { id: id.clone() },
+        ))
+        .unwrap()
+        .unwrap();
         assert_eq!(done["is_completed"], true);
 
         // tags(自动创建的标签)
-        let tags = run(cli_with_db(db_path.clone(), Command::Tags)).unwrap().unwrap();
+        let tags = run(cli_with_db(db_path.clone(), Command::Tags))
+            .unwrap()
+            .unwrap();
         assert_eq!(tags.as_array().unwrap().len(), 1);
         assert_eq!(tags[0]["name"], "工作");
 
         // delete
-        let del = run(cli_with_db(db_path, Command::Delete { id })).unwrap().unwrap();
+        let del = run(cli_with_db(db_path, Command::Delete { id }))
+            .unwrap()
+            .unwrap();
         assert_eq!(del["deleted"], true);
     }
 

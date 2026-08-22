@@ -2,12 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getRepositories } from '../domain/repositories/current';
 import type { CreateTagInput, TagWithCount } from '../types/tag';
-
-const TAGS_KEY = ['tags'] as const;
+import { queryKeys, invalidateTags } from '../lib/queryKeys';
 
 export function useTags() {
   return useQuery({
-    queryKey: TAGS_KEY,
+    queryKey: queryKeys.tags.all,
     queryFn: () => getRepositories().tags.list(),
     staleTime: 30_000,
   });
@@ -18,7 +17,7 @@ export function useCreateTag() {
   return useMutation({
     mutationFn: (input: CreateTagInput) => getRepositories().tags.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TAGS_KEY });
+      invalidateTags(queryClient);
       toast.success('标签已创建');
     },
     onError: (err: string) => toast.error(err),
@@ -31,7 +30,7 @@ export function useUpdateTag() {
     mutationFn: ({ id, ...input }: { id: string; name?: string; color?: string }) =>
       getRepositories().tags.update(id, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TAGS_KEY });
+      invalidateTags(queryClient);
     },
     onError: (err: string) => toast.error(err),
   });
@@ -42,9 +41,9 @@ export function useDeleteTag() {
   return useMutation({
     mutationFn: (id: string) => getRepositories().tags.delete(id),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: TAGS_KEY });
-      const previous = queryClient.getQueryData(TAGS_KEY);
-      queryClient.setQueryData(TAGS_KEY, (old: TagWithCount[] | undefined) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tags.all });
+      const previous = queryClient.getQueryData(queryKeys.tags.all);
+      queryClient.setQueryData(queryKeys.tags.all, (old: TagWithCount[] | undefined) => {
         if (!old) return old;
         const removeFromTree = (tags: TagWithCount[]): TagWithCount[] =>
           tags.filter((t) => t.id !== id).map((t) => ({
@@ -56,14 +55,14 @@ export function useDeleteTag() {
       return { previous };
     },
     onError: (err, _id, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(TAGS_KEY, ctx.previous);
+      if (ctx?.previous) queryClient.setQueryData(queryKeys.tags.all, ctx.previous);
       toast.error(`删除标签失败: ${err instanceof Error ? err.message : String(err)}`);
     },
     onSuccess: () => {
       toast.success('已删除标签');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: TAGS_KEY });
+      invalidateTags(queryClient);
     },
   });
 }
@@ -73,9 +72,9 @@ export function useReorderTags() {
   return useMutation({
     mutationFn: (items: { id: string; sort_order: number }[]) => getRepositories().tags.reorder(items),
     onMutate: async (items) => {
-      await queryClient.cancelQueries({ queryKey: TAGS_KEY });
-      const previous = queryClient.getQueryData(TAGS_KEY);
-      queryClient.setQueryData(TAGS_KEY, (old: TagWithCount[] | undefined) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.tags.all });
+      const previous = queryClient.getQueryData(queryKeys.tags.all);
+      queryClient.setQueryData(queryKeys.tags.all, (old: TagWithCount[] | undefined) => {
         if (!old) return old;
         const sorted = [...old].sort((a, b) => {
           const ai = items.find((i) => i.id === a.id)?.sort_order ?? a.sort_order;
@@ -87,8 +86,8 @@ export function useReorderTags() {
       return { previous };
     },
     onError: (_err, _items, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(TAGS_KEY, ctx.previous);
+      if (ctx?.previous) queryClient.setQueryData(queryKeys.tags.all, ctx.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TAGS_KEY }),
+    onSettled: () => invalidateTags(queryClient),
   });
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { listen, emit } from '@tauri-apps/api/event';
 import { getCurrentWindow, PhysicalPosition, currentMonitor, availableMonitors } from '@tauri-apps/api/window';
-import { setSetting } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
+import { clampPosition, snapPosition } from '../lib/windowGeometry';
 import { Play, Pause, SkipForward, RotateCcw, X, Clock, Coffee, Maximize2, Minimize2 } from 'lucide-react';
 
 interface PomodoroState {
@@ -125,33 +126,20 @@ export function PomodoroWidgetPage() {
       const bounds = await getScreenBounds();
       if (!bounds) return;
       const win = getCurrentWindow();
-      const { scale: s, left, top, right, bottom } = bounds;
+      const { scale: s } = bounds;
       const pos = await win.outerPosition();
       const outerSize = await win.outerSize();
-      const w = (outerSize.width / s) | 0, h = (outerSize.height / s) | 0;
-      const threshold = 30, margin = 8;
-      let nx = pos.x / s, ny = pos.y / s;
-      const ox = nx, oy = ny;
-      const distL = Math.abs(nx - left), distR = Math.abs(right - (nx + w));
-      const distT = Math.abs(ny - top), distB = Math.abs(bottom - (ny + h));
-      const minD = Math.min(distL, distR, distT, distB);
-      if (minD < threshold) {
-        if (minD === distL) nx = left + margin;
-        else if (minD === distR) nx = right - w - margin;
-        else if (minD === distT) ny = top + margin;
-        else if (minD === distB) ny = bottom - h - margin;
-      }
-      if (nx < left) nx = left + margin;
-      if (nx + w > right) nx = right - w - margin;
-      if (ny < top) ny = top + margin;
-      if (ny + h > bottom) ny = bottom - h - margin;
-      if (nx !== ox || ny !== oy) {
-        const px = Math.round(nx * s), py = Math.round(ny * s);
+      const logicalPos = { x: pos.x / s, y: pos.y / s };
+      const w = (outerSize.width / s) | 0;
+      const h = (outerSize.height / s) | 0;
+      const next = snapPosition(logicalPos, w, h, bounds, 30, 8);
+      if (next.x !== logicalPos.x || next.y !== logicalPos.y) {
+        const px = Math.round(next.x * s), py = Math.round(next.y * s);
         await win.setPosition(new PhysicalPosition(px, py));
-        setSetting('pomodoro_x', String(px)).catch(() => {});
-        setSetting('pomodoro_y', String(py)).catch(() => {});
+        await getRepositories().settings.set('pomodoro_x', String(px));
+        await getRepositories().settings.set('pomodoro_y', String(py));
       }
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   const clampInScreen = async (winW: number, winH: number) => {
@@ -159,16 +147,14 @@ export function PomodoroWidgetPage() {
       const bounds = await getScreenBounds();
       if (!bounds) return;
       const win = getCurrentWindow();
-      const { scale: s, left, top, right, bottom } = bounds;
+      const { scale: s } = bounds;
       const pos = await win.outerPosition();
-      let lx = pos.x / s, ly = pos.y / s;
-      let moved = false;
-      if (lx + winW > right) { lx = right - winW - 8; moved = true; }
-      if (ly + winH > bottom) { ly = bottom - winH - 8; moved = true; }
-      if (lx < left) { lx = left + 8; moved = true; }
-      if (ly < top) { ly = top + 8; moved = true; }
-      if (moved) await win.setPosition(new PhysicalPosition(Math.round(lx * s), Math.round(ly * s)));
-    } catch {}
+      const logicalPos = { x: pos.x / s, y: pos.y / s };
+      const next = clampPosition(logicalPos, winW, winH, bounds, 8);
+      if (next.x !== logicalPos.x || next.y !== logicalPos.y) {
+        await win.setPosition(new PhysicalPosition(Math.round(next.x * s), Math.round(next.y * s)));
+      }
+    } catch { /* ignore */ }
   };
 
   // Persist position on move & trigger snap after drag
@@ -180,8 +166,8 @@ export function PomodoroWidgetPage() {
     win.onMoved((event) => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        setSetting('pomodoro_x', String(Math.round(event.payload.x))).catch(() => {});
-        setSetting('pomodoro_y', String(Math.round(event.payload.y))).catch(() => {});
+        getRepositories().settings.set('pomodoro_x', String(Math.round(event.payload.x))).catch(() => {});
+        getRepositories().settings.set('pomodoro_y', String(Math.round(event.payload.y))).catch(() => {});
         if (shouldSnapRef.current) { shouldSnapRef.current = false; snapToEdge(); }
       }, 400);
     }).then((u) => {

@@ -9,9 +9,9 @@ use serde_json::{json, Value};
 
 use crate::db::{reminder_repo, tag_repo, task_repo};
 use crate::error::AppError;
-use crate::models::task_reminder::CreateReminderRequest;
 use crate::models::tag::CreateTagRequest;
 use crate::models::task::{CreateTaskRequest, TaskFilter, UpdateTaskRequest};
+use crate::models::task_reminder::CreateReminderRequest;
 
 use super::{CreateTagParams, CreateTaskParams, GetTaskParams, ListTasksParams, UpdateTaskParams};
 
@@ -74,7 +74,11 @@ pub fn create_task(conn: &Connection, p: &CreateTaskParams) -> Result<Value, App
         CreateTaskRequest {
             title: p.title.clone(),
             description: p.description.clone(),
-            tag_ids: if tag_ids.is_empty() { None } else { Some(tag_ids) },
+            tag_ids: if tag_ids.is_empty() {
+                None
+            } else {
+                Some(tag_ids)
+            },
             parent_task_id: p.parent_task_id.clone(),
             due_date: p.due_date.clone(),
             priority: p.priority,
@@ -117,7 +121,11 @@ pub fn list_tasks(conn: &Connection, p: &ListTasksParams) -> Result<Value, AppEr
         }
     }
     let filter = TaskFilter {
-        tag_ids: if tag_ids.is_empty() { None } else { Some(tag_ids) },
+        tag_ids: if tag_ids.is_empty() {
+            None
+        } else {
+            Some(tag_ids)
+        },
         is_completed: p.completed,
         due_date_from: p.due_from.clone(),
         due_date_to: p.due_to.clone(),
@@ -387,7 +395,14 @@ mod tests {
         assert_eq!(v["tasks"][0]["title"], "B");
 
         // limit 截断且 count 为全量
-        let v = list_tasks(&conn, &ListTasksParams { limit: Some(1), ..list_default() }).unwrap();
+        let v = list_tasks(
+            &conn,
+            &ListTasksParams {
+                limit: Some(1),
+                ..list_default()
+            },
+        )
+        .unwrap();
         assert_eq!(v["count"], 2);
         assert_eq!(v["tasks"].as_array().unwrap().len(), 1);
     }

@@ -19,7 +19,7 @@ export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
   startOpen?: boolean;
   iconOnly?: boolean | 'label';
 }) {
-  const { t: _t } = useTranslation();
+  useTranslation();
   const config = parseRecurrence(value);
   const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -85,7 +85,7 @@ export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
     <div className="relative">
       {iconOnly && recLabel ? (
         <span
-          ref={triggerRef as any}
+          ref={triggerRef as React.RefObject<HTMLSpanElement>}
           onClick={() => setOpen(!open)}
           className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium bg-[#F59E0B]/[0.10] text-[#F59E0B] cursor-pointer transition-colors hover:opacity-80"
         >

@@ -26,12 +26,12 @@ export function SearchBar() {
   }, []);
 
   useEffect(() => {
-    if (query.length < 2) {
-      setResults([]);
-      setTotalCount(0);
-      return;
-    }
     const timer = setTimeout(async () => {
+      if (query.length < 2) {
+        setResults([]);
+        setTotalCount(0);
+        return;
+      }
       try {
         const tasks = await getTasks({ search_query: query, include_children: true });
         if (mountedRef.current) {

@@ -1,34 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster, toast } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
 import './i18n';
 import { useLanguage } from './i18n/useLanguage';
+import { invalidateTasks, invalidateTags, invalidateHabits, invalidateDashboardStats, invalidateTaskNotes } from './lib/queryKeys';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { TaskDetailPanel } from './components/layout/TaskDetailPanel';
 import { TodayPage } from './pages/TodayPage';
-import { CalendarPage } from './pages/CalendarPage';
-import { TagPage } from './pages/TagPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { DateFilterPage } from './pages/DateFilterPage';
-import { MyDayPage } from './pages/MyDayPage';
-
-import { MatrixPage } from './pages/MatrixPage';
-import { KanbanPage } from './pages/KanbanPage';
-import { HabitPage } from './pages/HabitPage';
-import { SearchPage } from './pages/SearchPage';
-import { DashboardPage } from './pages/DashboardPage';
 import { WidgetPage } from './pages/WidgetPage';
 import { PomodoroWidgetPage } from './pages/PomodoroWidgetPage';
 import { NotePage } from './pages/NotePage';
-import { FocusStatsPage } from './pages/FocusStatsPage';
 import { CommandPalette } from './components/shared/CommandPalette';
 import { BulkActionBar } from './components/shared/BulkActionBar';
 import { OnboardingOverlay } from './components/shared/OnboardingOverlay';
-import { PomodoroFullscreen } from './components/shared/PomodoroFullscreen';
 import { MobileApp } from './mobile/MobileApp';
+import { Loader2 } from 'lucide-react';
 import { usePomodoroSync } from './hooks/usePomodoroSync';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { useTheme } from './hooks/useTheme';
@@ -46,6 +35,20 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// 非首屏路由懒加载，减小入口 bundle
+const CalendarPage = lazy(() => import('./pages/CalendarPage').then((m) => ({ default: m.CalendarPage })));
+const TagPage = lazy(() => import('./pages/TagPage').then((m) => ({ default: m.TagPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const DateFilterPage = lazy(() => import('./pages/DateFilterPage').then((m) => ({ default: m.DateFilterPage })));
+const MyDayPage = lazy(() => import('./pages/MyDayPage').then((m) => ({ default: m.MyDayPage })));
+const MatrixPage = lazy(() => import('./pages/MatrixPage').then((m) => ({ default: m.MatrixPage })));
+const KanbanPage = lazy(() => import('./pages/KanbanPage').then((m) => ({ default: m.KanbanPage })));
+const HabitPage = lazy(() => import('./pages/HabitPage').then((m) => ({ default: m.HabitPage })));
+const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const FocusStatsPage = lazy(() => import('./pages/FocusStatsPage').then((m) => ({ default: m.FocusStatsPage })));
+const PomodoroFullscreen = lazy(() => import('./components/shared/PomodoroFullscreen').then((m) => ({ default: m.PomodoroFullscreen })));
 
 function PomodoroSync() {
   usePomodoroSync();
@@ -106,14 +109,14 @@ function MainLayout() {
         });
       });
       const u2 = await listen('task-changed', () => {
-        queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
-        queryClient.invalidateQueries({ queryKey: ['tags'] });
-        queryClient.invalidateQueries({ queryKey: ['habits'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        invalidateTasks(queryClient);
+        invalidateTags(queryClient);
+        invalidateHabits(queryClient);
+        invalidateDashboardStats(queryClient);
       });
       // 便签行增删/置顶/皮肤/折叠变更时即时刷新(如系统方式销毁便签、其它窗口改动)
       const u3 = await listen('task-notes-changed', () => {
-        queryClient.invalidateQueries({ queryKey: ['task-notes'] });
+        invalidateTaskNotes(queryClient);
       });
       if (cancelled) {
         u1();
@@ -185,22 +188,28 @@ function MainLayout() {
             style={{ padding: '16px 24px 0 24px' }}>
             <div className="h-full overflow-y-auto">
             <ErrorBoundary>
-            <Routes>
-              <Route path="/" element={<TodayPage />} />
-              <Route path="/calendar/*" element={<CalendarPage />} />
-              <Route path="/myday" element={<MyDayPage />} />
-              <Route path="/date/:filter" element={<DateFilterPage />} />
-              <Route path="/tag/:tagId" element={<TagPage />} />
+              <Suspense fallback={
+                <div className="h-full flex items-center justify-center text-[#7C72F6]">
+                  <Loader2 className="w-8 h-8 animate-spin" />
+                </div>
+              }>
+                <Routes>
+                  <Route path="/" element={<TodayPage />} />
+                  <Route path="/calendar/*" element={<CalendarPage />} />
+                  <Route path="/myday" element={<MyDayPage />} />
+                  <Route path="/date/:filter" element={<DateFilterPage />} />
+                  <Route path="/tag/:tagId" element={<TagPage />} />
 
-              <Route path="/matrix" element={<MatrixPage />} />
-              <Route path="/kanban" element={<KanbanPage />} />
-              <Route path="/habits" element={<HabitPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/pomodoro" element={<PomodoroFullscreen />} />
-              <Route path="/focus-stats" element={<FocusStatsPage />} />
-            </Routes>
+                  <Route path="/matrix" element={<MatrixPage />} />
+                  <Route path="/kanban" element={<KanbanPage />} />
+                  <Route path="/habits" element={<HabitPage />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/search" element={<SearchPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/pomodoro" element={<PomodoroFullscreen />} />
+                  <Route path="/focus-stats" element={<FocusStatsPage />} />
+                </Routes>
+              </Suspense>
             </ErrorBoundary>
             </div>
           </main>

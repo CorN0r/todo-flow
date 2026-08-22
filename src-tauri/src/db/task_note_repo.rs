@@ -105,9 +105,7 @@ pub fn update_collapsed(conn: &Connection, task_id: &str, collapsed: bool) -> Re
 }
 
 pub fn count(conn: &Connection) -> Result<i64, AppError> {
-    Ok(conn.query_row("SELECT COUNT(*) FROM task_notes", [], |row| {
-        row.get(0)
-    })?)
+    Ok(conn.query_row("SELECT COUNT(*) FROM task_notes", [], |row| row.get(0))?)
 }
 
 #[cfg(test)]
@@ -248,7 +246,8 @@ mod tests {
         let conn = setup();
         insert_task(&conn, "t1");
         upsert(&conn, "t1", "glass").unwrap();
-        conn.execute("DELETE FROM tasks WHERE id = 't1'", []).unwrap();
+        conn.execute("DELETE FROM tasks WHERE id = 't1'", [])
+            .unwrap();
         assert!(get(&conn, "t1").unwrap().is_none());
     }
 

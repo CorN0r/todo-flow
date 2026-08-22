@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, X, Filter, ChevronDown, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getTasks } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
+import type { TaskFilters } from '../domain/models/task';
 import { useTags } from '../hooks/useTags';
 import { TaskList } from '../components/tasks/TaskList';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -38,7 +39,7 @@ function flattenTags(tags: TagWithCount[]): TagWithCount[] {
   const result: TagWithCount[] = [];
   function walk(list: TagWithCount[], depth: number) {
     for (const t of list) {
-      result.push({ ...t, name: '  '.repeat(depth) + t.name });
+      result.push({ ...t, name: '  '.repeat(depth) + t.name });
       if (t.children) walk(t.children, depth + 1);
     }
   }
@@ -65,6 +66,8 @@ export function SearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
+  const [tagDropdownPos, setTagDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const [priorityDropdownPos, setPriorityDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const tagBtnRef = useRef<HTMLButtonElement>(null);
   const priorityBtnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +76,7 @@ export function SearchPage() {
   const { data: tags } = useTags();
   const flatTags = tags ? flattenTags(tags) : [];
   const selectedTagName = filters.tagId
-    ? flatTags.find((t) => t.id === filters.tagId)?.name?.replace(/ /g, '') || '未知标签'
+    ? flatTags.find((t) => t.id === filters.tagId)?.name?.replace(/ /g, '') || '未知标签'
     : null;
 
   useEffect(() => {
@@ -90,7 +93,7 @@ export function SearchPage() {
     setSearchParams(params);
 
     try {
-      const queryFilters: Parameters<typeof getTasks>[0] = {
+      const queryFilters: TaskFilters = {
         include_children: true,
       };
       if (f.query) queryFilters.search_query = f.query;
@@ -102,7 +105,7 @@ export function SearchPage() {
       if (f.dateTo) queryFilters.due_date_to = f.dateTo;
       if (f.myDay) queryFilters.my_day_date = new Date().toISOString().slice(0, 10);
 
-      const tasks = await getTasks(queryFilters);
+      const tasks = await getRepositories().tasks.list(queryFilters);
       if (id !== searchIdRef.current) return;
       setResults(tasks);
     } catch (err) {
@@ -183,7 +186,12 @@ export function SearchPage() {
             <div className="relative">
               <button
                 ref={tagBtnRef}
-                onClick={() => { setTagDropdownOpen(!tagDropdownOpen); setPriorityDropdownOpen(false); }}
+                onClick={() => {
+                  const rect = tagBtnRef.current?.getBoundingClientRect();
+                  setTagDropdownPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+                  setTagDropdownOpen(!tagDropdownOpen);
+                  setPriorityDropdownOpen(false);
+                }}
                 className={cn(
                   'h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md border text-[12px] font-medium transition-colors',
                   filters.tagId
@@ -200,10 +208,7 @@ export function SearchPage() {
                   <div className="fixed inset-0 z-40" onClick={() => setTagDropdownOpen(false)} />
                   <div
                     className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[180px] max-h-[260px] overflow-y-auto"
-                    style={{
-                      top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-                      left: tagBtnRef.current?.getBoundingClientRect().left ?? 0,
-                    }}
+                    style={tagDropdownPos ?? { top: 0, left: 0 }}
                   >
                     <button
                       onClick={() => { setFilter('tagId', null); setTagDropdownOpen(false); }}
@@ -225,7 +230,7 @@ export function SearchPage() {
                       >
                         <span className="inline-flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
-                          {t.name.replace(/ /g, '')}
+                          {t.name.replace(/ /g, '')}
                         </span>
                       </button>
                     ))}
@@ -260,7 +265,12 @@ export function SearchPage() {
             <div className="relative">
               <button
                 ref={priorityBtnRef}
-                onClick={() => { setPriorityDropdownOpen(!priorityDropdownOpen); setTagDropdownOpen(false); }}
+                onClick={() => {
+                  const rect = priorityBtnRef.current?.getBoundingClientRect();
+                  setPriorityDropdownPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+                  setPriorityDropdownOpen(!priorityDropdownOpen);
+                  setTagDropdownOpen(false);
+                }}
                 className={cn(
                   'h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md border text-[12px] font-medium transition-colors',
                   filters.priority !== null
@@ -277,10 +287,7 @@ export function SearchPage() {
                   <div className="fixed inset-0 z-40" onClick={() => setPriorityDropdownOpen(false)} />
                   <div
                     className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[140px]"
-                    style={{
-                      top: (priorityBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-                      left: priorityBtnRef.current?.getBoundingClientRect().left ?? 0,
-                    }}
+                    style={priorityDropdownPos ?? { top: 0, left: 0 }}
                   >
                     {PRIORITY_OPTIONS.map((opt) => (
                       <button

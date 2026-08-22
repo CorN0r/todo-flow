@@ -2,6 +2,7 @@ import type { Attachment } from '../../types/attachment';
 import type { Habit, HabitLog, HabitWithStats } from '../../types/habit';
 import type { Tag, TagWithCount } from '../../types/tag';
 import type { Task, TaskReminder } from '../../types/task';
+import type { TaskNote } from '../models/note';
 import type { AppRepositories } from '../repositories';
 import type {
   CreateSyncConflictInput,
@@ -19,6 +20,7 @@ export interface MemoryRepositoryState {
   habits: Habit[];
   habitLogs: HabitLog[];
   attachments: Attachment[];
+  taskNotes: TaskNote[];
   settings: Record<string, string>;
   syncMeta: Record<string, string>;
   syncOperations: SyncOperation[];
@@ -32,6 +34,7 @@ export type MemoryRepositorySeed = Partial<{
   habits: Habit[];
   habitLogs: HabitLog[];
   attachments: Attachment[];
+  taskNotes: TaskNote[];
   settings: Record<string, string>;
   syncMeta: Record<string, string>;
   syncOperations: SyncOperation[];
@@ -114,6 +117,7 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
     habits: clone(seed.habits ?? []),
     habitLogs: clone(seed.habitLogs ?? []),
     attachments: clone(seed.attachments ?? []),
+    taskNotes: clone(seed.taskNotes ?? []),
     settings: clone(seed.settings ?? {}),
     syncMeta: clone(seed.syncMeta ?? {}),
     syncOperations: clone(seed.syncOperations ?? []),
@@ -387,6 +391,49 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
         const attachment = state.attachments.find((item) => item.id === id);
         if (!attachment) throw new Error(`Attachment not found: ${id}`);
         return attachment.storage_name;
+      },
+    },
+    taskNotes: {
+      async open(taskId) {
+        const existing = state.taskNotes.find((n) => n.task_id === taskId);
+        if (existing) {
+          existing.updated_at = now();
+          return;
+        }
+        const note: TaskNote = {
+          task_id: taskId,
+          x: null,
+          y: null,
+          width: 280,
+          height: 0,
+          always_on_top: true,
+          style: 'paper',
+          collapsed: false,
+          created_at: now(),
+          updated_at: now(),
+        };
+        state.taskNotes.push(note);
+      },
+      async close(taskId) {
+        state.taskNotes = state.taskNotes.filter((n) => n.task_id !== taskId);
+      },
+      async get(taskId) {
+        return clone(state.taskNotes.find((n) => n.task_id === taskId) ?? null);
+      },
+      async list() {
+        return clone(state.taskNotes);
+      },
+      async setAlwaysOnTop(taskId, on) {
+        const note = state.taskNotes.find((n) => n.task_id === taskId);
+        if (note) note.always_on_top = on;
+      },
+      async setStyle(taskId, style) {
+        const note = state.taskNotes.find((n) => n.task_id === taskId);
+        if (note) note.style = style;
+      },
+      async setCollapsed(taskId, collapsed) {
+        const note = state.taskNotes.find((n) => n.task_id === taskId);
+        if (note) note.collapsed = collapsed;
       },
     },
     settings: {

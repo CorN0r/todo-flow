@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { motion } from 'motion/react';
 import { X, Flag, Trash2, Sun, SunDim, Pin, Repeat, Tag, Check } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -8,11 +8,12 @@ import { useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTask
 import { useTags } from '../../hooks/useTags';
 import { toast } from 'sonner';
 import { Portal } from '../shared/Portal';
-import { RichTextEditor } from '../shared/RichTextEditor';
 import type { Task, UpdateTaskInput } from '../../types/task';
 import type { Tag as TagType } from '../../types/tag';
 import { formatRecurrence, parseRecurrence, serializeRecurrence, type RecurrenceConfig } from '../../lib/recurrence';
 import { DatePicker } from '../shared/DatePicker';
+
+const RichTextEditor = lazy(() => import('../shared/RichTextEditor').then((m) => ({ default: m.RichTextEditor })));
 
 const tagsEqual = (a: string[], b: string[]) => a.length === b.length && a.every((t) => b.includes(t));
 
@@ -56,6 +57,7 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
   const [localTagIds, setLocalTagIds] = useState<string[]>(task.tag_ids || []);
   const [localRecurrence, setLocalRecurrence] = useState(task.recurrence || '');
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const tagBtnRef = useRef<HTMLButtonElement>(null);
   // 跟踪上次从服务器同步的值，用于判断本地是否有未保存的修改
   const lastSyncedRef = useRef({ tag_ids: task.tag_ids || [], due_date: task.due_date || '', recurrence: task.recurrence || '' });
@@ -208,7 +210,11 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
             </button>
             {/* Tag - multi-select */}
             {localTags.map((t) => (
-              <span key={t.id} onClick={() => setShowTagPicker(true)}
+              <span key={t.id} onClick={() => {
+                const rect = tagBtnRef.current?.getBoundingClientRect();
+                setMenuPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+                setShowTagPicker(true);
+              }}
                 className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
                 style={{ backgroundColor: hexToRgba(t.color, 0.15), color: t.color }}>
                 {t.name}
@@ -216,7 +222,11 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
                   className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer"><X size={10} /></span>
               </span>
             ))}
-            <button ref={tagBtnRef} onClick={() => setShowTagPicker(true)}
+            <button ref={tagBtnRef} onClick={() => {
+              const rect = tagBtnRef.current?.getBoundingClientRect();
+              setMenuPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+              setShowTagPicker(!showTagPicker);
+            }}
               className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
               style={{ backgroundColor: hexToRgba('#9CA3AF', 0.12), color: '#9CA3AF' }}>
               <Tag size={10} />{localTags.length > 0 ? '添加' : '标签'}
@@ -225,7 +235,7 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
               <Portal>
                 <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} />
                 <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
-                  style={{ top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: tagBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+                  style={menuPos ?? { top: 0, left: 0 }}>
                   {tags?.map((t) => {
                     const active = localTagIds.includes(t.id);
                     return (
@@ -255,13 +265,15 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
         {/* Description */}
         <div className="px-5 mb-4">
           <div className="text-[10px] font-semibold tracking-wide mb-2" style={{ color: isDark ? theme.darkAttr : theme.lightAttr }}>描述</div>
-          <RichTextEditor
-            key={task.id}
-            value={localDescription}
-            onChange={(html) => { setLocalDescription(html); handleUpdate({ description: html }); }}
-            placeholder="添加描述..."
-            variant="sticky"
-          />
+          <Suspense fallback={<div className="h-16 flex items-center justify-center text-[10px] opacity-60" style={{ color: isDark ? theme.darkDesc : theme.lightDesc }}>加载编辑器…</div>}>
+            <RichTextEditor
+              key={task.id}
+              value={localDescription}
+              onChange={(html) => { setLocalDescription(html); handleUpdate({ description: html }); }}
+              placeholder="添加描述..."
+              variant="sticky"
+            />
+          </Suspense>
         </div>
 
         {/* Footer */}

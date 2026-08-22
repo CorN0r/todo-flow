@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen, emit } from '@tauri-apps/api/event';
 import { getCurrentWindow, LogicalSize, PhysicalPosition, currentMonitor, availableMonitors } from '@tauri-apps/api/window';
 import { motion } from 'motion/react';
-import { getTasks, createTask, updateTask, getSetting, setSetting, showMainFromWidget, showWidgetContextMenu } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
+import { clampPosition, snapPosition } from '../lib/windowGeometry';
+import { queryKeys, invalidateTasks } from '../lib/queryKeys';
 import { todayISO, isOverdue, subDays } from '../lib/date';
 import { cn } from '../lib/cn';
 import { ListChecks, X, Check, Plus, AlertTriangle, ExternalLink } from 'lucide-react';
@@ -61,20 +63,20 @@ export function WidgetPage() {
   }, []);
 
   useEffect(() => {
-    getSetting('widget_bubble_color').then((raw) => {
+    getRepositories().settings.get('widget_bubble_color').then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
           if (parsed && parsed.from && parsed.via && parsed.to) {
             setBubbleColors(parsed);
           }
-        } catch {}
+        } catch { /* ignore */ }
       }
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    getSetting('theme').then((saved) => {
+    getRepositories().settings.get('theme').then((saved) => {
       if (saved && (VALID_THEMES as readonly string[]).includes(saved)) {
         const t = saved as Theme;
         setTheme(t);
@@ -153,13 +155,13 @@ export function WidgetPage() {
 
   const createTaskMutation = useMutation({
     mutationFn: (input: { title: string; due_date?: string; my_day_date?: string }) =>
-      createTask({ title: input.title, due_date: input.due_date, my_day_date: input.my_day_date }),
-    onSuccess: () => { queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' }); },
+      getRepositories().tasks.create({ title: input.title, due_date: input.due_date, my_day_date: input.my_day_date }),
+    onSuccess: () => { invalidateTasks(queryClient); },
   });
   const updateTaskMutation = useMutation({
     mutationFn: (input: { id: string; is_completed: boolean }) =>
-      updateTask({ id: input.id, is_completed: input.is_completed }),
-    onSuccess: () => { queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' }); },
+      getRepositories().tasks.update({ id: input.id, is_completed: input.is_completed }),
+    onSuccess: () => { invalidateTasks(queryClient); },
   });
 
   const [activeTab, setActiveTab] = useState<TabKey>('today');
@@ -180,7 +182,7 @@ export function WidgetPage() {
   }, [contextMenu]);
 
   useEffect(() => {
-    getSetting('widget_size').then((s) => {
+    getRepositories().settings.get('widget_size').then((s) => {
       if (s === 'compact' || s === 'normal') setSizeMode(s);
       setSizeLoaded(true);
     }).catch(() => { setSizeLoaded(true); });
@@ -191,6 +193,63 @@ export function WidgetPage() {
   const preExpandPos = useRef<{ x: number; y: number } | null>(null);
   const shouldSnapRef = useRef(false);
 
+  // ====== 屏幕适配 ======
+
+  const getScreenBounds = async () => {
+    let mon = await currentMonitor();
+    if (!mon) {
+      const win = getCurrentWindow();
+      const pos = await win.outerPosition();
+      const monitors = await availableMonitors();
+      mon = monitors.find(m =>
+        pos.x >= m.position.x && pos.x < m.position.x + m.size.width &&
+        pos.y >= m.position.y && pos.y < m.position.y + m.size.height
+      ) || monitors[0] || null;
+    }
+    if (!mon) return null;
+    const s = mon.scaleFactor;
+    return {
+      left: mon.position.x / s, top: mon.position.y / s,
+      right: (mon.position.x + mon.size.width) / s,
+      bottom: (mon.position.y + mon.size.height) / s,
+      scale: s,
+    };
+  };
+
+  const clampInScreen = async (winW: number, winH: number) => {
+    try {
+      const bounds = await getScreenBounds();
+      if (!bounds) return;
+      const win = getCurrentWindow();
+      const { scale: s } = bounds;
+      const pos = await win.outerPosition();
+      const logicalPos = { x: pos.x / s, y: pos.y / s };
+      const next = clampPosition(logicalPos, winW, winH, bounds, 8);
+      if (next.x !== logicalPos.x || next.y !== logicalPos.y) {
+        await win.setPosition(new PhysicalPosition(Math.round(next.x * s), Math.round(next.y * s)));
+      }
+    } catch { /* ignore */ }
+  };
+
+  const snapToEdge = async () => {
+    try {
+      const bounds = await getScreenBounds();
+      if (!bounds) return;
+      const win = getCurrentWindow();
+      const { scale: s } = bounds;
+      const pos = await win.outerPosition();
+      const logicalPos = { x: pos.x / s, y: pos.y / s };
+      const size = 60;
+      const next = snapPosition(logicalPos, size, size, bounds, 30, 8);
+      if (next.x !== logicalPos.x || next.y !== logicalPos.y) {
+        const px = Math.round(next.x * s), py = Math.round(next.y * s);
+        await win.setPosition(new PhysicalPosition(px, py));
+        getRepositories().settings.set('widget_x', String(px)).catch(() => {});
+        getRepositories().settings.set('widget_y', String(py)).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  };
+
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     const win = getCurrentWindow();
@@ -199,13 +258,13 @@ export function WidgetPage() {
       try {
         const pos = preExpandPos.current ?? await win.outerPosition();
         preExpandPos.current = null;
-        setSetting('widget_x', String(Math.round(pos.x))).catch(() => {});
-        setSetting('widget_y', String(Math.round(pos.y))).catch(() => {});
+        getRepositories().settings.set('widget_x', String(Math.round(pos.x))).catch(() => {});
+        getRepositories().settings.set('widget_y', String(Math.round(pos.y))).catch(() => {});
         setSizeMode('compact');
         await win.setSize(new LogicalSize(60, 60));
         await new Promise(r => setTimeout(r, 50));
         await win.setPosition(new PhysicalPosition(pos.x, pos.y));
-      } catch {}
+      } catch { /* ignore */ }
     }).then((u) => { unlisten = u; }).catch(() => {});
     return () => { unlisten?.(); };
   }, [sizeMode]);
@@ -241,8 +300,8 @@ export function WidgetPage() {
   }, [activeTab, today, yesterday]);
 
   const { data: tasks, isLoading, isError } = useQuery({
-    queryKey: ['tasks', filters],
-    queryFn: () => getTasks(filters),
+    queryKey: queryKeys.tasks.list(filters),
+    queryFn: () => getRepositories().tasks.list(filters),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -251,7 +310,7 @@ export function WidgetPage() {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     listen('task-changed', () => {
-      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks' });
+      invalidateTasks(queryClient);
     }).then((u) => {
       if (cancelled) { u(); return; }
       unlisten = u;
@@ -282,8 +341,8 @@ export function WidgetPage() {
     win.onMoved((event) => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        setSetting('widget_x', String(Math.round(event.payload.x))).catch(() => {});
-        setSetting('widget_y', String(Math.round(event.payload.y))).catch(() => {});
+        getRepositories().settings.set('widget_x', String(Math.round(event.payload.x))).catch(() => {});
+        getRepositories().settings.set('widget_y', String(Math.round(event.payload.y))).catch(() => {});
         if (shouldSnapRef.current) { shouldSnapRef.current = false; snapToEdge(); }
       }, 400);
     }).then((u) => {
@@ -336,89 +395,17 @@ export function WidgetPage() {
   const count = tasksList.length;
   const overdueCount = tasksList.filter((t) => isOverdue(t.due_date)).length;
 
-  // ====== 屏幕适配 ======
-
-  const getScreenBounds = async () => {
-    let mon = await currentMonitor();
-    if (!mon) {
-      const win = getCurrentWindow();
-      const pos = await win.outerPosition();
-      const monitors = await availableMonitors();
-      mon = monitors.find(m =>
-        pos.x >= m.position.x && pos.x < m.position.x + m.size.width &&
-        pos.y >= m.position.y && pos.y < m.position.y + m.size.height
-      ) || monitors[0] || null;
-    }
-    if (!mon) return null;
-    const s = mon.scaleFactor;
-    return {
-      left: mon.position.x / s, top: mon.position.y / s,
-      right: (mon.position.x + mon.size.width) / s,
-      bottom: (mon.position.y + mon.size.height) / s,
-      scale: s,
-    };
-  };
-
-  const clampInScreen = async (winW: number, winH: number) => {
-    try {
-      const bounds = await getScreenBounds();
-      if (!bounds) return;
-      const win = getCurrentWindow();
-      const { scale: s, left, top, right, bottom } = bounds;
-      const pos = await win.outerPosition();
-      let lx = pos.x / s, ly = pos.y / s;
-      let moved = false;
-      if (lx + winW > right) { lx = right - winW - 8; moved = true; }
-      if (ly + winH > bottom) { ly = bottom - winH - 8; moved = true; }
-      if (lx < left) { lx = left + 8; moved = true; }
-      if (ly < top) { ly = top + 8; moved = true; }
-      if (moved) await win.setPosition(new PhysicalPosition(Math.round(lx * s), Math.round(ly * s)));
-    } catch {}
-  };
-
-  const snapToEdge = async () => {
-    try {
-      const bounds = await getScreenBounds();
-      if (!bounds) return;
-      const win = getCurrentWindow();
-      const { scale: s, left, top, right, bottom } = bounds;
-      const pos = await win.outerPosition();
-      const size = 60, threshold = 30, margin = 8;
-      let nx = pos.x / s, ny = pos.y / s;
-      const ox = nx, oy = ny;
-      const distL = Math.abs(nx - left), distR = Math.abs(right - (nx + size));
-      const distT = Math.abs(ny - top), distB = Math.abs(bottom - (ny + size));
-      const minD = Math.min(distL, distR, distT, distB);
-      if (minD < threshold) {
-        if (minD === distL) nx = left + margin;
-        else if (minD === distR) nx = right - size - margin;
-        else if (minD === distT) ny = top + margin;
-        else if (minD === distB) ny = bottom - size - margin;
-      }
-      if (nx < left) nx = left + margin;
-      if (nx + size > right) nx = right - size - margin;
-      if (ny < top) ny = top + margin;
-      if (ny + size > bottom) ny = bottom - size - margin;
-      if (nx !== ox || ny !== oy) {
-        const px = Math.round(nx * s), py = Math.round(ny * s);
-        await win.setPosition(new PhysicalPosition(px, py));
-        setSetting('widget_x', String(px)).catch(() => {});
-        setSetting('widget_y', String(py)).catch(() => {});
-      }
-    } catch {}
-  };
-
   const expandToNormal = async () => {
     if (sizeMode !== 'compact') return;
     try {
       const pos = await getCurrentWindow().outerPosition();
       preExpandPos.current = { x: pos.x, y: pos.y };
-    } catch {}
-    try { await clampInScreen(300, 420); } catch {}
+    } catch { /* ignore */ }
+    try { await clampInScreen(300, 420); } catch { /* ignore */ }
     setSizeMode('normal');
-    try { await getCurrentWindow().setSize(new LogicalSize(300, 420)); } catch {}
-    try { await new Promise(r => setTimeout(r, 300)); await clampInScreen(300, 420); } catch {}
-    setSetting('widget_size', 'normal').catch(() => {});
+    try { await getCurrentWindow().setSize(new LogicalSize(300, 420)); } catch { /* ignore */ }
+    try { await new Promise(r => setTimeout(r, 300)); await clampInScreen(300, 420); } catch { /* ignore */ }
+    getRepositories().settings.set('widget_size', 'normal').catch(() => {});
   };
 
   const collapseToBubble = async () => {
@@ -428,15 +415,15 @@ export function WidgetPage() {
       const win = getCurrentWindow();
       const pos = preExpandPos.current ?? await win.outerPosition();
       preExpandPos.current = null;
-      setSetting('widget_x', String(Math.round(pos.x))).catch(() => {});
-      setSetting('widget_y', String(Math.round(pos.y))).catch(() => {});
+      getRepositories().settings.set('widget_x', String(Math.round(pos.x))).catch(() => {});
+      getRepositories().settings.set('widget_y', String(Math.round(pos.y))).catch(() => {});
       setSizeMode('compact');
       await win.setSize(new LogicalSize(60, 60));
       await new Promise(r => setTimeout(r, 50));
       await win.setPosition(new PhysicalPosition(pos.x, pos.y));
       setTimeout(() => snapToEdge(), 150);
-    } catch {}
-    setSetting('widget_size', 'compact').catch(() => {});
+    } catch { /* ignore */ }
+    getRepositories().settings.set('widget_size', 'compact').catch(() => {});
     setTimeout(() => { collapsingRef.current = false; }, 500);
   };
 
@@ -510,7 +497,7 @@ export function WidgetPage() {
             </div>
             <span className={cn('text-[11px] font-semibold', resolvedTheme === 'dark' ? 'text-white/90' : 'text-[#111827]')}>TodoFlow</span>
           </div>
-          <button onClick={() => showMainFromWidget()}
+          <button onClick={() => getRepositories().platform.showMainFromWidget()}
             className={cn('w-5 h-5 rounded-full flex items-center justify-center text-[#6B7280] transition-colors flex-shrink-0', resolvedTheme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-[#F3F4F6]')}
             title="打开主界面">
             <ExternalLink size={11} />
@@ -538,11 +525,11 @@ export function WidgetPage() {
                   getCurrentWindow().startDragging().catch(() => {});
                 }
               };
-              const onUp = (_ev: MouseEvent) => {
+              const onUp = () => {
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('mouseup', onUp);
                 if (!dragged) {
-                  setSetting('widget_enabled', '1').catch(() => {});
+                  getRepositories().settings.set('widget_enabled', '1').catch(() => {});
                   emit('widget-enabled-changed', true).catch(() => {});
                   expandToNormal();
                 }
@@ -553,7 +540,7 @@ export function WidgetPage() {
             onContextMenu={async (e) => {
               e.preventDefault();
               if (sizeMode === 'compact') {
-                showWidgetContextMenu(e.clientX, e.clientY);
+                getRepositories().platform.showWidgetContextMenu(e.clientX, e.clientY);
               } else {
                 setContextMenu({ x: e.clientX, y: e.clientY });
               }
@@ -689,13 +676,13 @@ export function WidgetPage() {
           <div ref={menuRef}
             className="absolute z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1"
             style={{ left: contextMenu.x, top: contextMenu.y, minWidth: 150 }}>
-            <button onClick={() => { showMainFromWidget(); setContextMenu(null); }}
+            <button onClick={() => { getRepositories().platform.showMainFromWidget(); setContextMenu(null); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-[#111827] dark:text-white/90">
               <ExternalLink size={12} className="text-[#6B7280]" /> 打开主界面
             </button>
             <div className="border-t border-[#F3F4F6] dark:border-white/[0.07] my-0.5" />
             <button onClick={() => {
-              setSetting('widget_enabled', '0').catch(() => {});
+              getRepositories().settings.set('widget_enabled', '0').catch(() => {});
               emit('widget-enabled-changed', false).catch(() => {});
               setContextMenu(null);
               getCurrentWindow().hide().catch(() => {});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy } from 'react';
 import { useTask, useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import { useTaskNotes, useToggleTaskNote } from '../../hooks/useTaskNotes';
 import { useUIStore } from '../../stores/uiStore';
 import { todayISO, isOverdue, formatLocalTime } from '../../lib/date';
 import { cn } from '../../lib/cn';
+import { queryKeys } from '../../lib/queryKeys';
 import type { UpdateTaskInput } from '../../types/task';
 import type { Tag as TagType } from '../../types/tag';
 import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, Check, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer, Sparkles } from 'lucide-react';
@@ -14,12 +15,13 @@ import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
 import { ReminderList } from '../shared/ReminderList';
-import { RichTextEditor } from '../shared/RichTextEditor';
 import { Portal } from '../shared/Portal';
 import { SubtaskReminderButton } from './SubtaskReminderButton';
 import { SubtaskDateChip } from './SubtaskDateChip';
 import { toast } from 'sonner';
 import { hexToRgba, PRIORITY_HEX, priorityLabels } from '../../lib/priority';
+
+const RichTextEditor = lazy(() => import('../shared/RichTextEditor').then((m) => ({ default: m.RichTextEditor })));
 
 
 const priorityConfig: Record<number, { label: string; color: string; bg: string }> = {
@@ -71,7 +73,7 @@ function SubtasksAddForm({ taskId, parentTaskId }: { taskId: string; parentTaskI
     if (!t) return;
     createTask.mutate({ title: t, parent_task_id: taskId }, {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['task', parentTaskId || taskId] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(parentTaskId || taskId) });
         setTitle('');
         inputRef.current?.focus();
       },
@@ -104,7 +106,7 @@ export function TaskDetail() {
   const { data: tags } = useTags();
   const { data: taskNotes } = useTaskNotes();
   const toggleTaskNote = useToggleTaskNote();
-  const { t: _t } = useTranslation();
+  useTranslation();
 
   const [local, setLocal] = useState<LocalState | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,14 +119,16 @@ export function TaskDetail() {
 
   const [openPriority, setOpenPriority] = useState(false);
   const [openTag, setOpenTag] = useState(false);
-  const priorityBtnRef = useRef<HTMLButtonElement>(null);
-  const tagBtnRef = useRef<HTMLButtonElement>(null);
+  const [priorityPos, setPriorityPos] = useState<{ top: number; left: number } | null>(null);
+  const [tagPos, setTagPos] = useState<{ top: number; left: number } | null>(null);
+  const priorityBtnRef = useRef<HTMLElement>(null);
+  const tagBtnRef = useRef<HTMLElement>(null);
 
   useEffect(() => { if (detail) taskRef.current = detail.task; });
 
   useEffect(() => {
     if (selectedTaskId) {
-      queryClient.refetchQueries({ queryKey: ['task', selectedTaskId] });
+      queryClient.refetchQueries({ queryKey: queryKeys.tasks.detail(selectedTaskId) });
     }
   }, [selectedTaskId, queryClient]);
   useEffect(() => {
@@ -138,17 +142,17 @@ export function TaskDetail() {
         if (!prev) return server;
         const orig = originalRef.current;
         if (!orig) return server;
-        const merged = { ...server };
+        const merged: Record<string, unknown> = { ...server };
         for (const key of Object.keys(merged) as (keyof LocalState)[]) {
           if (key === 'tag_ids') {
             if (!tagsEqual(prev[key] as string[], orig[key] as string[])) {
-              (merged as any)[key] = prev[key];
+              merged[key] = prev[key];
             }
           } else if (prev[key] !== orig[key]) {
-            (merged as any)[key] = prev[key];
+            merged[key] = prev[key];
           }
         }
-        return merged;
+        return merged as unknown as LocalState;
       });
       // 🔍 诊断：记录服务器返回的描述
       const hasImg = /<img[^>]+src="data:/.test(server.description);
@@ -326,7 +330,12 @@ export function TaskDetail() {
 
           {/* Priority */}
           {local.priority > 0 ? (
-            <span ref={priorityBtnRef as any} onClick={() => { setOpenPriority(true); setOpenTag(false); }}
+            <span ref={priorityBtnRef as React.RefObject<HTMLSpanElement>} onClick={() => {
+              const rect = priorityBtnRef.current?.getBoundingClientRect();
+              setPriorityPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+              setOpenPriority(true);
+              setOpenTag(false);
+            }}
               className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity"
               style={{ backgroundColor: hexToRgba(PRIORITY_HEX[local.priority], 0.12), color: PRIORITY_HEX[local.priority] }}>
               <Flag size={12} />{priorityLabels[local.priority]}
@@ -334,7 +343,12 @@ export function TaskDetail() {
                 className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer"><X size={12} /></span>
             </span>
           ) : (
-            <button ref={priorityBtnRef} onClick={() => { setOpenPriority(!openPriority); setOpenTag(false); }}
+            <button ref={priorityBtnRef as React.RefObject<HTMLButtonElement>} onClick={() => {
+              const rect = priorityBtnRef.current?.getBoundingClientRect();
+              setPriorityPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+              setOpenPriority(!openPriority);
+              setOpenTag(false);
+            }}
               className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors">
               <Flag size={12} />优先级
             </button>
@@ -343,7 +357,7 @@ export function TaskDetail() {
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setOpenPriority(false)} />
               <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[140px]"
-                style={{ top: (priorityBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: priorityBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+                style={priorityPos ?? { top: 0, left: 0 }}>
                 {Object.entries(priorityConfig).map(([k, v]) => (
                   <button key={k} onClick={() => { update({ priority: Number(k) }); setOpenPriority(false); }}
                     className={`w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 ${local.priority === Number(k) ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
@@ -363,7 +377,12 @@ export function TaskDetail() {
                 className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer"><X size={12} /></span>
             </span>
           ))}
-          <button ref={tagBtnRef} onClick={() => { setOpenTag(!openTag); setOpenPriority(false); }}
+          <button ref={tagBtnRef as React.RefObject<HTMLButtonElement>} onClick={() => {
+            const rect = tagBtnRef.current?.getBoundingClientRect();
+            setTagPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+            setOpenTag(!openTag);
+            setOpenPriority(false);
+          }}
             className="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08] transition-colors">
             <Tag size={12} />{localTags.length > 0 ? '添加' : '标签'}
           </button>
@@ -371,7 +390,7 @@ export function TaskDetail() {
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setOpenTag(false)} />
               <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
-                style={{ top: (tagBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: tagBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+                style={tagPos ?? { top: 0, left: 0 }}>
                 {tags?.map((t) => {
                   const active = local.tag_ids.includes(t.id);
                   return (
@@ -400,22 +419,30 @@ export function TaskDetail() {
           <AlignLeft size={13} className="text-[#6B7280]" />
           <label className="section-label">描述</label>
         </div>
-        <RichTextEditor
-          key={selectedTaskId}
-          value={local.description}
-          onChange={(html) => setLocal((prev) => prev ? { ...prev, description: html } : null)}
-          onBlur={() => {
-            // 编辑器失焦时立即保存，确保内容不丢失
-            if (saveTimerRef.current) {
-              clearTimeout(saveTimerRef.current);
-              saveTimerRef.current = null;
-            }
-            if (localRef.current) {
-              doSave(localRef.current);
-            }
-          }}
-          placeholder="添加描述..."
-        />
+        <Suspense
+          fallback={
+            <div className="h-32 flex items-center justify-center text-[#6B7280] text-sm">
+              加载编辑器…
+            </div>
+          }
+        >
+          <RichTextEditor
+            key={selectedTaskId}
+            value={local.description}
+            onChange={(html) => setLocal((prev) => prev ? { ...prev, description: html } : null)}
+            onBlur={() => {
+              // 编辑器失焦时立即保存，确保内容不丢失
+              if (saveTimerRef.current) {
+                clearTimeout(saveTimerRef.current);
+                saveTimerRef.current = null;
+              }
+              if (localRef.current) {
+                doSave(localRef.current);
+              }
+            }}
+            placeholder="添加描述..."
+          />
+        </Suspense>
       </div>
 
       {/* ── Subtasks ── */}
@@ -447,7 +474,7 @@ export function TaskDetail() {
                   <EditableSubtaskTitle child={child} />
                   <SubtaskDateChip child={child} />
                   <SubtaskReminderButton child={child} />
-                  <button onClick={() => { const deleted = child; deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutateAsync({ title: deleted.title, parent_task_id: deleted.parent_task_id || undefined }).then(() => { queryClient.invalidateQueries({ queryKey: ['task', task.id] }); }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); } }); }}
+                  <button onClick={() => { const deleted = child; deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(task.id) }); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutateAsync({ title: deleted.title, parent_task_id: deleted.parent_task_id || undefined }).then(() => { queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(task.id) }); }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); } }); }}
                     className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[#9CA3AF] hover:text-[#EF4444] transition-all ml-auto">
                     <X size={12} />
                   </button>

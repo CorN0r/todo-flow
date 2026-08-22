@@ -15,6 +15,7 @@ import type {
 } from '../models/sync';
 import type { CreateTagInput, ReorderTagItem, Tag, TagWithCount, UpdateTagInput } from '../models/tag';
 import type { CreateTaskInput, ReorderItem, Task, TaskDetail, TaskFilters, UpdateTaskInput } from '../models/task';
+import type { NoteStyle, TaskNote } from '../models/note';
 
 export interface TaskRepository {
   create(input: CreateTaskInput): Promise<Task>;
@@ -58,6 +59,16 @@ export interface AttachmentRepository {
   listForTask(taskId: string): Promise<Attachment[]>;
   delete(id: string): Promise<void>;
   getFilePath(id: string): Promise<string>;
+}
+
+export interface TaskNoteRepository {
+  open(taskId: string): Promise<void>;
+  close(taskId: string): Promise<void>;
+  get(taskId: string): Promise<TaskNote | null>;
+  list(): Promise<TaskNote[]>;
+  setAlwaysOnTop(taskId: string, on: boolean): Promise<void>;
+  setStyle(taskId: string, style: NoteStyle): Promise<void>;
+  setCollapsed(taskId: string, collapsed: boolean): Promise<void>;
 }
 
 export interface SettingsRepository {
@@ -150,6 +161,7 @@ export interface AppRepositories {
   tags: TagRepository;
   habits: HabitRepository;
   attachments: AttachmentRepository;
+  taskNotes: TaskNoteRepository;
   settings: SettingsRepository;
   sync: SyncOperationRepository;
   platform: PlatformRepository;

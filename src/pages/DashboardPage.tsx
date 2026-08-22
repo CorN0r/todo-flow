@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getDashboardStats, type DashboardStats } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
+import { queryKeys } from '../lib/queryKeys';
+import type { DashboardStats } from '../domain/models/settings';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { cn } from '../lib/cn';
@@ -321,8 +323,8 @@ export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>('tasks');
   const navigate = useNavigate();
   const { data: stats, isLoading, isError } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: getDashboardStats,
+    queryKey: queryKeys.dashboardStats.all,
+    queryFn: () => getRepositories().settings.getDashboardStats(),
     refetchInterval: 30_000,
   });
 

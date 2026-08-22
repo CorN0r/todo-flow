@@ -8,6 +8,7 @@ use crate::models::task::{
 use crate::AppState;
 
 #[tauri::command(rename_all = "snake_case")]
+#[allow(clippy::too_many_arguments)]
 pub fn create_task(
     app: AppHandle,
     state: State<AppState>,
@@ -49,6 +50,7 @@ pub fn get_task(state: State<AppState>, id: String) -> Result<TaskDetail, AppErr
 }
 
 #[tauri::command(rename_all = "snake_case")]
+#[allow(clippy::too_many_arguments)]
 pub fn update_task(
     app: AppHandle,
     state: State<AppState>,
@@ -106,6 +108,7 @@ pub fn reorder_tasks(state: State<AppState>, items: Vec<ReorderItem>) -> Result<
 }
 
 #[tauri::command(rename_all = "snake_case")]
+#[allow(clippy::too_many_arguments)]
 pub fn get_tasks(
     state: State<AppState>,
     tag_ids: Option<Vec<String>>,

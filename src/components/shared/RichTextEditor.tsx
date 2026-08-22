@@ -15,7 +15,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
 import Placeholder from '@tiptap/extension-placeholder';
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection, NodeSelection, type EditorState } from '@tiptap/pm/state';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Heading1, Heading2,
   Heading3, Quote, Code, List, ListOrdered, CheckSquare, Link as LinkIcon,
@@ -35,12 +35,14 @@ interface RichTextEditorProps {
 }
 
 import { Extension } from '@tiptap/core';
+import type { Editor } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 /** 模块级计数器：粘贴/拖放进行中时阻止 sync 清掉未完成的图片插入 */
 let pendingImageInserts = 0;
 /** 模块级 ref：让 ProseMirror 粘贴插件能访问 TipTap editor */
-let editorForPaste: any = null;
+let editorForPaste: Editor | null = null;
 
 /**
  * 图片粘贴/拖放处理 — 独立扩展，不干扰 Image 节点的解析和渲染。
@@ -132,13 +134,13 @@ const ImageSelectionHighlight = Extension.create({
   },
 });
 
-function computeImageDecos(state: any): DecorationSet {
+function computeImageDecos(state: EditorState): DecorationSet {
   const { from, to } = state.selection;
   // 只在有实际选区范围时处理（非光标、非 NodeSelection）
   if (from === to) return DecorationSet.empty;
   if (state.selection.constructor.name === 'NodeSelection') return DecorationSet.empty;
   const decos: Decoration[] = [];
-  state.doc.nodesBetween(from, to, (node: any, pos: number) => {
+  state.doc.nodesBetween(from, to, (node: PMNode, pos: number) => {
     if (node.type.name === 'image') {
       decos.push(Decoration.node(pos, pos + node.nodeSize, {
         class: 'img-in-selection',
@@ -294,8 +296,8 @@ export function RichTextEditor({
       console.log('[EDITOR onBlur] firing');
       // 失焦时清除图片选中（NodeSelection → TextSelection）
       const sel = ed.state.selection;
-      if (sel && 'node' in sel) {
-        const end = sel.from + (sel as any).node.nodeSize;
+      if (sel instanceof NodeSelection) {
+        const end = sel.from + sel.node.nodeSize;
         ed.view.dispatch(ed.state.tr.setSelection(
           TextSelection.create(ed.state.doc, Math.min(end, ed.state.doc.content.size))
         ));
@@ -328,13 +330,13 @@ export function RichTextEditor({
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
-  const linkNeedsTextRef = useRef(false);
+  const [linkNeedsText, setLinkNeedsText] = useState(false);
 
   const openLinkDialog = useCallback(() => {
     if (!editor) return;
     const prevUrl = editor.getAttributes('link').href || '';
     setLinkUrl(prevUrl);
-    linkNeedsTextRef.current = editor.state.selection.empty;
+    setLinkNeedsText(editor.state.selection.empty);
     setLinkText('');
     setShowLinkDialog(true);
   }, [editor]);
@@ -342,12 +344,12 @@ export function RichTextEditor({
   const confirmLink = useCallback(() => {
     if (!editor || !linkUrl.trim()) return;
     const url = linkUrl.trim();
-    if (linkNeedsTextRef.current && linkText.trim()) {
+    if (linkNeedsText && linkText.trim()) {
       editor.chain().focus().insertContent({ type: 'text', text: linkText.trim() }).run();
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
     setShowLinkDialog(false);
-  }, [editor, linkUrl, linkText]);
+  }, [editor, linkUrl, linkText, linkNeedsText]);
 
   const removeLink = useCallback(() => {
     editor?.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -371,7 +373,7 @@ export function RichTextEditor({
 
   // ── 全屏编辑状态 ──
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const fullscreenInitRef = useRef('');
+  const [fullscreenInitial, setFullscreenInitial] = useState('');
 
   const toggleHeading = useCallback(() => {
     if (!editor) return;
@@ -428,7 +430,7 @@ export function RichTextEditor({
         }).catch((err) => {
           pendingImageInserts--;
           console.error(`[DRAG] readFile error for "${p}":`, err);
-          toast.error(`读取文件失败: ${(err as any)?.message || err}`);
+          toast.error(`读取文件失败: ${(err as Error)?.message || err}`);
         });
       }
     });
@@ -513,7 +515,7 @@ export function RichTextEditor({
         <div className="flex-1" />
         <ToolbarDivider />
         <ToolbarButton
-          onClick={() => { fullscreenInitRef.current = editor.getHTML(); setIsFullscreen(true); }}
+          onClick={() => { setFullscreenInitial(editor.getHTML()); setIsFullscreen(true); }}
           title="全屏编辑"
         >
           <Maximize2 size={14} />
@@ -575,7 +577,7 @@ export function RichTextEditor({
                     placeholder="https://..."
                     className="w-full text-[13px] px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.03] text-[#111827] dark:text-white/90 outline-none focus:ring-2 focus:ring-[#7C72F6]/30 focus:border-[#7C72F6] placeholder:text-[#9CA3AF]" />
                 </div>
-                {linkNeedsTextRef.current && (
+                {linkNeedsText && (
                   <div>
                     <label className="text-[11px] font-medium text-[#6B7280] mb-1 block">显示文本</label>
                     <input value={linkText} onChange={(e) => setLinkText(e.target.value)}
@@ -633,7 +635,7 @@ export function RichTextEditor({
       {/* ── 全屏编辑 Overlay ── */}
       {isFullscreen && (
         <FullscreenEditor
-          initialContent={fullscreenInitRef.current}
+          initialContent={fullscreenInitial}
           placeholder={placeholder}
           onClose={(html) => {
             if (editor && html !== editor.getHTML()) {
@@ -681,7 +683,7 @@ function FullscreenEditor({
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
-  const linkNeedsRef = useRef(false);
+  const [linkNeedsText, setLinkNeedsText] = useState(false);
 
   const [showTableDialog, setShowTableDialog] = useState(false);
   const [tableRows, setTableRows] = useState('3');
@@ -691,7 +693,7 @@ function FullscreenEditor({
     if (!editor) return;
     const prevUrl = editor.getAttributes('link').href || '';
     setLinkUrl(prevUrl);
-    linkNeedsRef.current = editor.state.selection.empty;
+    setLinkNeedsText(editor.state.selection.empty);
     setLinkText('');
     setShowLinkDialog(true);
   }, [editor]);
@@ -699,12 +701,12 @@ function FullscreenEditor({
   const confirmLink = useCallback(() => {
     if (!editor || !linkUrl.trim()) return;
     const url = linkUrl.trim();
-    if (linkNeedsRef.current && linkText.trim()) {
+    if (linkNeedsText && linkText.trim()) {
       editor.chain().focus().insertContent({ type: 'text', text: linkText.trim() }).run();
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
     setShowLinkDialog(false);
-  }, [editor, linkUrl, linkText]);
+  }, [editor, linkUrl, linkText, linkNeedsText]);
 
   const confirmTable = useCallback(() => {
     if (!editor) return;
@@ -827,7 +829,7 @@ function FullscreenEditor({
                     placeholder="https://..."
                     className="w-full text-[13px] px-3 py-2 rounded-lg border border-[#E5E7EB] dark:border-white/[0.07] bg-[#F9FAFB] dark:bg-white/[0.03] text-[#111827] dark:text-white/90 outline-none focus:ring-2 focus:ring-[#7C72F6]/30 focus:border-[#7C72F6] placeholder:text-[#9CA3AF]" />
                 </div>
-                {linkNeedsRef.current && (
+                {linkNeedsText && (
                   <div>
                     <label className="text-[11px] font-medium text-[#6B7280] mb-1 block">显示文本</label>
                     <input value={linkText} onChange={(e) => setLinkText(e.target.value)}

@@ -12,7 +12,7 @@ interface ReminderListProps {
 }
 
 export function ReminderList({ taskId, dueDate }: ReminderListProps) {
-  const { t: _t } = useTranslation();
+  useTranslation();
   const { data: reminders } = useTaskReminders(taskId);
   const createReminder = useCreateTaskReminder();
   const deleteReminder = useDeleteTaskReminder();
@@ -22,6 +22,7 @@ export function ReminderList({ taskId, dueDate }: ReminderListProps) {
   const [customDate, setCustomDate] = useState('');
   const [customTime, setCustomTime] = useState('09:00');
   const addBtnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   const existing = reminders || [];
   const usedOffsets = new Set(existing.map((r) => r.offset));
@@ -52,7 +53,11 @@ export function ReminderList({ taskId, dueDate }: ReminderListProps) {
         </div>
       )}
       <div className="relative inline-block">
-        <button ref={addBtnRef} onClick={() => setShowMenu(!showMenu)}
+        <button ref={addBtnRef} onClick={() => {
+          const rect = addBtnRef.current?.getBoundingClientRect();
+          setMenuPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+          setShowMenu(!showMenu);
+        }}
           className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md font-medium text-[#6B7280] hover:text-[#111827] dark:hover:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] border border-dashed border-[#D1D5DB] dark:border-white/[0.15] transition-colors">
           <Plus size={10} />添加
         </button>
@@ -60,7 +65,7 @@ export function ReminderList({ taskId, dueDate }: ReminderListProps) {
           <Portal>
             <div className="fixed inset-0 z-[280]" onClick={() => { setShowMenu(false); setShowCustom(false); }} />
             <div className="fixed z-[290] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[180px]"
-              style={{ top: (addBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: addBtnRef.current?.getBoundingClientRect().left ?? 0 }}>
+              style={menuPos ?? { top: 0, left: 0 }}>
               {availablePresets.map(([key, { label }]) => (
                 <button key={key} onClick={() => {
                   createReminder.mutate({ taskId, offset: key, dueDate });

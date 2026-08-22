@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import { getSetting, setSetting } from '../lib/db';
+import { getRepositories } from '../domain/repositories/current';
 import type { ShortcutMap, Conflict } from '../types/shortcuts';
 import { getDefaultShortcutMap, detectConflicts, validateShortcutKeys, SHORTCUT_DEFS } from '../types/shortcuts';
 
@@ -21,7 +21,7 @@ interface ShortcutStore {
 
 async function persistShortcuts(map: ShortcutMap) {
   const json = JSON.stringify(map);
-  await setSetting('keyboard_shortcuts', json);
+  await getRepositories().settings.set('keyboard_shortcuts', json);
 
   // 若有全局快捷键变更，同步通知 Rust 后端
   const hasGlobal = SHORTCUT_DEFS.some((d) => d.scope === 'rust');
@@ -43,8 +43,8 @@ export const useShortcutStore = create<ShortcutStore>((set, get) => ({
   load: async () => {
     try {
       const [raw, enabledRaw] = await Promise.all([
-        getSetting('keyboard_shortcuts'),
-        getSetting('shortcuts_enabled'),
+        getRepositories().settings.get('keyboard_shortcuts'),
+        getRepositories().settings.get('shortcuts_enabled'),
       ]);
       // 总开关默认开启:仅显式存了 "0" 才视为禁用
       const shortcutsEnabled = enabledRaw !== '0';
@@ -100,7 +100,7 @@ export const useShortcutStore = create<ShortcutStore>((set, get) => ({
   },
 
   setShortcutsEnabled: async (enabled) => {
-    await setSetting('shortcuts_enabled', enabled ? '1' : '0');
+    await getRepositories().settings.set('shortcuts_enabled', enabled ? '1' : '0');
     // 触发 Rust 端 reload:禁用时注销全局热键(Ctrl+Shift+T),启用时重新注册
     if (SHORTCUT_DEFS.some((d) => d.scope === 'rust')) {
       try {

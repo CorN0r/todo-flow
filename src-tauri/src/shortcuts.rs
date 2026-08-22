@@ -193,7 +193,7 @@ mod desktop {
             if lookup.contains_key(&shortcut) {
                 continue;
             }
-            lookup.insert(shortcut.clone(), id.clone());
+            lookup.insert(shortcut, id.clone());
 
             match app.global_shortcut().register(shortcut) {
                 Ok(_) => {}
@@ -285,7 +285,8 @@ mod desktop {
                         // 窗口在前台 → 隐藏主窗口，显示悬浮窗
                         let _ = window.hide();
                         // 悬浮窗被禁用时（widget_enabled='0'）不显示
-                        let widget_enabled = if let Some(state) = app.try_state::<crate::AppState>() {
+                        let widget_enabled = if let Some(state) = app.try_state::<crate::AppState>()
+                        {
                             state
                                 .db()
                                 .ok()

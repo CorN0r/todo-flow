@@ -1,7 +1,7 @@
 // DEPRECATED: Reminder functionality has been merged into DatePicker (showReminder prop).
 // This component is no longer imported and may be removed in a future release.
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { Bell, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { Portal } from './Portal';
@@ -34,7 +34,24 @@ function getCalendarDays(year: number, month: number) {
 export function ReminderPicker({ value, onChange, startOpen }: ReminderPickerProps) {
   const [open, setOpen] = useState(startOpen ?? false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const today = new Date();
+
+  const computeMenuPos = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    const popupHeight = 380;
+    const popupTop = rect ? rect.bottom + 4 : 0;
+    const flipUp = popupTop + popupHeight > window.innerHeight;
+    const top = flipUp ? (rect?.top ?? 0) - popupHeight - 4 : popupTop;
+    const left = Math.min(rect?.left ?? 0, window.innerWidth - 316);
+    return { top, left };
+  };
+
+  useLayoutEffect(() => {
+    if (!open || menuPos !== null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMenuPos(computeMenuPos());
+  }, [open, menuPos]);
 
   const dateStr = value ? value.slice(0, 10) : format(today, 'yyyy-MM-dd');
   const timeStr = value && value.includes('T') ? value.slice(11, 16) : '09:00';
@@ -54,15 +71,9 @@ export function ReminderPicker({ value, onChange, startOpen }: ReminderPickerPro
     setSelectedTime(t);
     setViewYear(parseInt(d.split('-')[0]));
     setViewMonth(parseInt(d.split('-')[1]) - 1);
+    setMenuPos(computeMenuPos());
     setOpen(true);
   };
-
-  const rect = triggerRef.current?.getBoundingClientRect();
-  const popupHeight = 380;
-  const popupTop = rect ? rect.bottom + 4 : 0;
-  const flipUp = popupTop + popupHeight > window.innerHeight;
-  const top = flipUp ? (rect?.top ?? 0) - popupHeight - 4 : popupTop;
-  const left = Math.min(rect?.left ?? 0, window.innerWidth - 316);
 
   const confirm = () => {
     onChange(`${selectedDate}T${selectedTime}`);
@@ -104,7 +115,7 @@ export function ReminderPicker({ value, onChange, startOpen }: ReminderPickerPro
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
             className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-4 w-[300px]"
-            style={{ top, left }}
+            style={menuPos ?? { top: 0, left: 0 }}
           >
             {/* Month nav */}
             <div className="flex items-center justify-between mb-3">

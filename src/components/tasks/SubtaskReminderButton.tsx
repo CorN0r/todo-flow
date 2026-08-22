@@ -10,6 +10,7 @@ import type { Task } from '../../types/task';
 export function SubtaskReminderButton({ child }: { child: Task }) {
   const { data: reminders } = useTaskReminders(child.id);
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const hasReminder = (reminders?.length ?? 0) > 0;
 
@@ -19,7 +20,22 @@ export function SubtaskReminderButton({ child }: { child: Task }) {
     <>
       <button
         ref={btnRef}
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          const rect = btnRef.current?.getBoundingClientRect();
+          if (rect) {
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const left = Math.max(4, Math.min(rect.left, window.innerWidth - 248));
+            if (spaceBelow >= 300) {
+              setMenuPos({ top: rect.bottom + 4, left });
+            } else {
+              setMenuPos({ bottom: window.innerHeight - rect.top + 4, left });
+            }
+          } else {
+            setMenuPos(null);
+          }
+          setOpen(!open);
+        }}
         className={cn(
           'shrink-0 p-1 rounded transition-colors',
           hasReminder
@@ -35,14 +51,7 @@ export function SubtaskReminderButton({ child }: { child: Task }) {
           <div className="fixed inset-0 z-[260]" onClick={() => setOpen(false)} aria-hidden="true" />
           <div
             className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl p-3 min-w-[240px]"
-            style={(() => {
-              const rect = btnRef.current?.getBoundingClientRect();
-              if (!rect) return {};
-              const spaceBelow = window.innerHeight - rect.bottom;
-              const left = Math.max(4, Math.min(rect.left, window.innerWidth - 248));
-              if (spaceBelow >= 300) return { top: rect.bottom + 4, left };
-              return { bottom: window.innerHeight - rect.top + 4, left };
-            })()}
+            style={menuPos ?? {}}
           >
             <ReminderList taskId={child.id} dueDate={child.due_date} />
           </div>

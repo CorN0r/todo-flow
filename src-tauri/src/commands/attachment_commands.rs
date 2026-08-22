@@ -187,8 +187,8 @@ pub fn upload_link_attachment(
     attachment_repo::create(
         &conn,
         &task_id,
-        &url.trim().to_string(),
-        &url.trim().to_string(),
+        url.trim(),
+        url.trim(),
         "application/link",
         0,
         None,

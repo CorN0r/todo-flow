@@ -75,13 +75,6 @@ export function TaskDetailPanel() {
     };
   }, []);
 
-  // 面板打开时始终使用已保存的宽度（用户可能在关闭后调整过）
-  useEffect(() => {
-    if (isOpen) {
-      setWidth(getSavedWidth());
-    }
-  }, [isOpen]);
-
   return (
     <AnimatePresence>
       {isOpen && (

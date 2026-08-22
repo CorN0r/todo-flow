@@ -42,6 +42,15 @@ export const desktopRepositories: AppRepositories = {
     delete: (id) => db.deleteAttachment(id),
     getFilePath: (id) => db.getAttachmentFilePath(id),
   },
+  taskNotes: {
+    open: (taskId) => db.openTaskNote(taskId),
+    close: (taskId) => db.closeTaskNote(taskId),
+    get: (taskId) => db.getTaskNote(taskId),
+    list: () => db.getAllTaskNotes(),
+    setAlwaysOnTop: (taskId, on) => db.setNoteAlwaysOnTop(taskId, on),
+    setStyle: (taskId, style) => db.setNoteStyle(taskId, style),
+    setCollapsed: (taskId, collapsed) => db.setNoteCollapsed(taskId, collapsed),
+  },
   settings: {
     get: (key) => db.getSetting(key),
     set: (key, value) => db.setSetting(key, value),

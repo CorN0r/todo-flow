@@ -17,7 +17,7 @@ export function useLanguage() {
       if (saved && (saved === 'zh-CN' || saved === 'en-US')) {
         await i18n.changeLanguage(saved);
       }
-    } catch {}
+    } catch { /* ignore */ }
   }, [i18n]);
 
   return { language: i18n.language as Language, changeLanguage, loadSavedLanguage };

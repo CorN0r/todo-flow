@@ -6,13 +6,11 @@ import { sendNotification } from '@tauri-apps/plugin-notification';
 import { isAndroidUserAgent } from '../../platform/appSurface';
 import * as db from '../../lib/db';
 import type {
-  PlatformBackgroundWorkRequest,
   PlatformCapabilityResult,
   PlatformKind,
   PlatformOpenFileOptions,
   PlatformRepository,
   PlatformSaveFileOptions,
-  PlatformShareRequest,
 } from '../repositories';
 
 function unsupported(reason: string): PlatformCapabilityResult {
@@ -61,10 +59,10 @@ function createDesktopPlatformRepository(): PlatformRepository {
     chooseSavePath: chooseDesktopSavePath,
     readFileBytes: (path) => readFile(path),
     toFileAssetUrl: (path) => convertFileSrc(path),
-    async share(_request: PlatformShareRequest) {
+    async share() {
       return unsupported('Desktop share intents are not implemented yet.');
     },
-    async registerBackgroundWork(_request: PlatformBackgroundWorkRequest) {
+    async registerBackgroundWork() {
       return unsupported('Desktop background work uses foreground app timers in this phase.');
     },
     async onFileDrop(handler) {
@@ -87,21 +85,21 @@ function createAndroidPlatformRepository(): PlatformRepository {
     async showWidgetContextMenu() {},
     async showPomodoroWindow() {},
     async hidePomodoroWindow() {},
-    async sendNotification(_request) {
+    async sendNotification() {
       // Android notification scheduling is introduced behind this boundary in a later task.
     },
-    async chooseFiles(_options) {
+    async chooseFiles() {
       return [];
     },
-    async chooseSavePath(_options) {
+    async chooseSavePath() {
       return null;
     },
     readFileBytes: (path) => readFile(path),
     toFileAssetUrl: (path) => convertFileSrc(path),
-    async share(_request) {
+    async share() {
       return unsupported('Android share intents are reserved for the native adapter.');
     },
-    async registerBackgroundWork(_request) {
+    async registerBackgroundWork() {
       return unsupported('Android background work is reserved for the native adapter.');
     },
     async onFileDrop() {
