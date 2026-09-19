@@ -13,17 +13,37 @@ import type {
   SyncOperationStatus,
 } from '../domain/models/sync';
 
+// 外部程序直写 DB 时可能把空值写成字符串 "null";读取时统一清洗,避免日期解析抛 Invalid time value
+const NULL_LIKE = new Set(['null', 'undefined', 'nan', '']);
+
+function nullLikeToNull(value: string | null | undefined): string | null {
+  return typeof value === 'string' && NULL_LIKE.has(value.trim().toLowerCase()) ? null : (value ?? null);
+}
+
+function normalizeTask<T extends Task>(task: T): T {
+  return {
+    ...task,
+    due_date: nullLikeToNull(task.due_date),
+    reminder: nullLikeToNull(task.reminder),
+    recurrence: nullLikeToNull(task.recurrence),
+    my_day_date: nullLikeToNull(task.my_day_date),
+    source: nullLikeToNull(task.source),
+    children: task.children?.map(normalizeTask),
+  } as T;
+}
+
 // Task commands
 export async function createTask(input: CreateTaskInput): Promise<Task> {
-  return invoke('create_task', { ...input });
+  return normalizeTask(await invoke('create_task', { ...input }));
 }
 
 export async function getTask(id: string): Promise<TaskDetail> {
-  return invoke('get_task', { id });
+  const detail = await invoke<TaskDetail>('get_task', { id });
+  return { task: normalizeTask(detail.task), children: detail.children?.map(normalizeTask) ?? [] };
 }
 
 export async function updateTask(input: UpdateTaskInput): Promise<Task> {
-  return invoke('update_task', { ...input });
+  return normalizeTask(await invoke('update_task', { ...input }));
 }
 
 export async function deleteTask(id: string): Promise<void> {
@@ -48,19 +68,20 @@ export async function getTasks(filters?: {
   include_children?: boolean;
   include_archived?: boolean;
 }): Promise<Task[]> {
-  return invoke('get_tasks', { ...filters });
+  const tasks = await invoke<Task[]>('get_tasks', { ...filters });
+  return tasks.map(normalizeTask);
 }
 
 export async function duplicateTask(id: string): Promise<Task> {
-  return invoke('duplicate_task', { id });
+  return normalizeTask(await invoke('duplicate_task', { id }));
 }
 
 export async function addTaskToMyDay(id: string): Promise<Task> {
-  return invoke('add_task_to_my_day', { id });
+  return normalizeTask(await invoke('add_task_to_my_day', { id }));
 }
 
 export async function removeTaskFromMyDay(id: string): Promise<Task> {
-  return invoke('remove_task_from_my_day', { id });
+  return normalizeTask(await invoke('remove_task_from_my_day', { id }));
 }
 
 // Reminder commands
