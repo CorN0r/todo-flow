@@ -4,6 +4,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import { getCurrentWindow, LogicalSize, PhysicalPosition, currentMonitor, availableMonitors } from '@tauri-apps/api/window';
 import { motion } from 'motion/react';
 import { getRepositories } from '../domain/repositories/current';
+import type { Task } from '../domain/models/task';
 import { clampPosition, snapPosition } from '../lib/windowGeometry';
 import { queryKeys, invalidateTasks } from '../lib/queryKeys';
 import { todayISO, isOverdue, subDays } from '../lib/date';
@@ -286,14 +287,15 @@ export function WidgetPage() {
     };
   }, [sizeMode]);
 
+  // 我的一天/逾期/今天:显示范围内全部任务,已完成的划线置底;「未完成」tab 只显示未完成
   const filters = useMemo(() => {
     switch (activeTab) {
       case 'myday':
-        return { my_day_date: today, is_completed: false };
+        return { my_day_date: today };
       case 'overdue':
-        return { is_completed: false, due_date_to: yesterday };
+        return { due_date_to: yesterday };
       case 'today':
-        return { due_date_from: today, due_date_to: today, is_completed: false };
+        return { due_date_from: today, due_date_to: today };
       case 'all':
         return { is_completed: false };
     }
@@ -391,9 +393,20 @@ export function WidgetPage() {
     };
   }, []);
 
-  const tasksList = tasks || [];
-  const count = tasksList.length;
-  const overdueCount = tasksList.filter((t) => isOverdue(t.due_date)).length;
+  // 本会话内在悬浮窗勾选完成的任务,追加在列表底部划线展示;与刷新后的查询结果按 id 去重
+  const [locallyCompleted, setLocallyCompleted] = useState<Task[]>([]);
+  useEffect(() => { setLocallyCompleted([]); }, [activeTab]);
+
+  const tasksList = useMemo(() => {
+    const base = tasks || [];
+    const ids = new Set(base.map((t) => t.id));
+    const merged = locallyCompleted.length === 0 ? base : [...base, ...locallyCompleted.filter((t) => !ids.has(t.id))];
+    // 已完成任务划线置底,其余保持原排序
+    return [...merged].sort((a, b) => Number(a.is_completed) - Number(b.is_completed));
+  }, [tasks, locallyCompleted]);
+  // 气泡数字与逾期提示只统计未完成任务(列表含已完成的划线项)
+  const count = (tasks || []).filter((t) => !t.is_completed).length;
+  const overdueCount = (tasks || []).filter((t) => !t.is_completed && isOverdue(t.due_date)).length;
 
   const expandToNormal = async () => {
     if (sizeMode !== 'compact') return;
@@ -459,8 +472,14 @@ export function WidgetPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sizeMode]);
 
-  const handleCheck = (id: string, completed: boolean) => {
-    updateTaskMutation.mutate({ id, is_completed: !completed });
+  const handleCheck = (task: Task) => {
+    if (!task.is_completed) {
+      // 完成后列表查询(is_completed: false)会把它过滤掉,本地保留一份划线展示,切 tab 清空
+      setLocallyCompleted((prev) => [...prev, { ...task, is_completed: true }]);
+    } else {
+      setLocallyCompleted((prev) => prev.filter((t) => t.id !== task.id));
+    }
+    updateTaskMutation.mutate({ id: task.id, is_completed: !task.is_completed });
   };
 
   const handleQuickAdd = () => {
@@ -620,7 +639,7 @@ export function WidgetPage() {
                         updateTaskMutation.isPending && updateTaskMutation.variables?.id === task.id && 'opacity-50',
                       )}>
                       <button
-                        onClick={() => handleCheck(task.id, task.is_completed)}
+                        onClick={() => handleCheck(task)}
                         className={cn(
                           'w-[15px] h-[15px] rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors',
                           task.is_completed
