@@ -177,7 +177,6 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 
 ; 4. Custom page to ask user if he wants to reinstall/uninstall
 ;    only if a previous installation was detected
-Var ReinstallPageCheck
 Page custom PageReinstall PageLeaveReinstall
 Function PageReinstall
   ; Uninstall previous WiX installation if exists.
@@ -254,19 +253,21 @@ Function PageReinstall
 
   ; Always skip the reinstall dialog — proceed directly with in-place upgrade.
   ; Version comparison (for downgrade checks) and WiX migration are handled by PageLeaveReinstall.
+  ; This page's radio controls are never created, so select the outcome
+  ; explicitly instead of letting PageLeaveReinstall read an uninitialized
+  ; handle: migrate from WiX when detected, otherwise overwrite in place.
+  ${If} $R0 = 0
+    StrCpy $R1 1 ; same version => "add/reinstall" (no uninstall)
+  ${Else}
+    StrCpy $R1 0 ; upgrade/downgrade => "don't uninstall"
+  ${EndIf}
   Call PageLeaveReinstall
   Abort
 FunctionEnd
-Function PageReinstallUpdateSelection
-  ${NSD_GetState} $R2 $R1
-  ${If} $R1 == ${BST_CHECKED}
-    StrCpy $ReinstallPageCheck 1
-  ${Else}
-    StrCpy $ReinstallPageCheck 2
-  ${EndIf}
-FunctionEnd
 Function PageLeaveReinstall
-  ${NSD_GetState} $R2 $R1
+  ; $R1 is set explicitly by PageReinstall before calling this — the
+  ; reinstall page's radio controls are never created, so there is no
+  ; NSD_GetState to perform here.
 
   ; If migrating from Wix, always uninstall
   ${If} $WixMode = 1

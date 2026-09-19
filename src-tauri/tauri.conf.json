@@ -29,7 +29,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -46,10 +46,6 @@
         "installerIcon": "icons/icon.ico",
         "languages": ["English", "SimpChinese"],
         "displayLanguageSelector": true
-      },
-      "wix": {
-        "language": ["en-US", "zh-CN"],
-        "upgradeCode": "D5A8C3F2-9B6E-4A7D-8C1F-3E5A2B7D9F4C"
       }
     }
   },
