@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
+import { open as openUrl } from '@tauri-apps/plugin-shell';
 
 interface RichTextEditorProps {
   value: string;
@@ -43,6 +44,33 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 let pendingImageInserts = 0;
 /** 模块级 ref：让 ProseMirror 粘贴插件能访问 TipTap editor */
 let editorForPaste: Editor | null = null;
+
+/** 点击链接用系统浏览器打开（编辑器内 Link 已配置 openOnClick: false，点击由此插件接管） */
+const LinkClickHandler = Extension.create({
+  name: 'linkClickHandler',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('linkClickHandler'),
+        props: {
+          handleDOMEvents: {
+            click: (_view, event) => {
+              const target = event.target as HTMLElement | null;
+              const anchor = target?.closest?.('a[href]') as HTMLAnchorElement | null;
+              if (!anchor) return false;
+              event.preventDefault();
+              const href = anchor.getAttribute('href') || '';
+              // openUrl 只接受带协议的 URI，裸域名补 https://
+              const url = /^(https?|mailto|tel|ftp):/i.test(href) ? href : `https://${href}`;
+              openUrl(url).catch((e: unknown) => toast.error(`无法打开链接: ${String(e)}`));
+              return true;
+            },
+          },
+        },
+      }),
+    ];
+  },
+});
 
 /**
  * 图片粘贴/拖放处理 — 独立扩展，不干扰 Image 节点的解析和渲染。
@@ -240,6 +268,7 @@ const SHARED_EXTENSIONS = (placeholder: string) => [
   TextStyle,
   Highlight.configure({ multicolor: true }),
   Link.configure({ openOnClick: false, autolink: true }),
+  LinkClickHandler,
   Image,
   ImagePasteHandler,
   ImageSelectionHighlight,
