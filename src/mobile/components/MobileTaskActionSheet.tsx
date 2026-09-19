@@ -1,5 +1,5 @@
 import { Check, Flag, Pencil, Sun, Trash2 } from 'lucide-react';
-import { useDeleteTask, useUpdateTask } from '../../hooks/useTasks';
+import { useDeleteTask, useUpdateTask, useToggleMyDay } from '../../hooks/useTasks';
 import type { Task } from '../../domain/models/task';
 import { MobileBottomSheet } from './MobilePrimitives';
 
@@ -13,10 +13,6 @@ const T = {
   markHigh: '\u8bbe\u4e3a\u9ad8\u4f18\u5148\u7ea7',
   deleteTask: '\u5220\u9664\u4efb\u52a1',
 };
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function ActionButton({
   danger = false,
@@ -58,6 +54,7 @@ export function MobileTaskActionSheet({
 }) {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const toggleMyDay = useToggleMyDay();
 
   const runAndClose = (action: () => void) => {
     action();
@@ -80,7 +77,7 @@ export function MobileTaskActionSheet({
           <ActionButton
             icon={Sun}
             label={task.my_day_date ? T.removeMyDay : T.addMyDay}
-            onClick={() => runAndClose(() => updateTask.mutate({ id: task.id, my_day_date: task.my_day_date ? null : todayISO() }))}
+            onClick={() => runAndClose(() => toggleMyDay(task, !task.my_day_date))}
           />
           <ActionButton
             icon={Flag}

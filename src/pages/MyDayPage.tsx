@@ -1,6 +1,6 @@
 import { useMemo, useCallback, useState } from 'react';
 import { todayISO, subDays } from '../lib/date';
-import { useTasks, useUpdateTask } from '../hooks/useTasks';
+import { useTasks, useToggleMyDay } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
 import { TaskList } from '../components/tasks/TaskList';
 import { StickyWall } from '../components/tasks/StickyWall';
@@ -45,7 +45,7 @@ export function MyDayPage() {
   const { data: tasks, isLoading, isError } = useTasks({ my_day_date: today, include_children: true });
   const { data: yesterdayTasks } = useTasks({ my_day_date: yesterday, is_completed: false, include_children: true });
   const { data: suggestions } = useTasks({ is_completed: false, due_date_to: today, include_children: false });
-  const updateTask = useUpdateTask();
+  const toggleMyDay = useToggleMyDay();
 
   const sortMode = useUIStore((s) => s.sortMode);
   const setSortMode = useUIStore((s) => s.setSortMode);
@@ -87,8 +87,8 @@ export function MyDayPage() {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }
   }, [selectionMode, exitSelection]);
 
-  const addToMyDay = (id: string) => updateTask.mutate({ id, my_day_date: today });
-  const addAllToMyDay = (ids: string[]) => ids.forEach((id) => updateTask.mutate({ id, my_day_date: today }));
+  const addToMyDay = (task: { id: string; due_date?: string | null }) => toggleMyDay(task, true);
+  const addAllToMyDay = (list: { id: string; due_date?: string | null }[]) => list.forEach((t) => toggleMyDay(t, true));
 
   if (isLoading) return <LoadingSkeleton count={5} />;
   if (isError) return <EmptyState icon={<AlertTriangle size={40} />} title="加载失败" description="请检查数据库连接后重试" />;
@@ -137,7 +137,7 @@ export function MyDayPage() {
                 昨日未完成 &middot; {yesterdayList.length}
               </span>
               <div className="flex items-center gap-1">
-                <button onClick={() => addAllToMyDay(yesterdayList.map((t) => t.id))}
+                <button onClick={() => addAllToMyDay(yesterdayList)}
                   className="text-[10px] px-2 py-0.5 rounded-full bg-[#7C72F6]/10 text-[#7C72F6] hover:bg-[#7C72F6]/20 transition-colors font-medium">
                   全部加入我的今天
                 </button>
@@ -154,7 +154,7 @@ export function MyDayPage() {
                   )}>
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                   <span className={cn('flex-1 truncate', isDark ? 'text-white/70' : 'text-[#374151]')}>{task.title}</span>
-                  <button onClick={() => addToMyDay(task.id)}
+                  <button onClick={() => addToMyDay(task)}
                     className="shrink-0 flex items-center gap-0.5 text-[10px] text-[#7C72F6] hover:underline">
                     <Plus size={10} />加入
                   </button>
@@ -205,7 +205,7 @@ export function MyDayPage() {
                     <span className={cn('shrink-0 text-[10px]', reason.overdue ? 'text-[#EF4444]' : 'text-amber-500')}>
                       {reason.label}
                     </span>
-                    <button onClick={() => addToMyDay(task.id)}
+                    <button onClick={() => addToMyDay(task)}
                       className="shrink-0 flex items-center gap-0.5 text-[10px] text-[#7C72F6] hover:underline">
                       <Plus size={10} />加入
                     </button>

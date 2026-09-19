@@ -4,7 +4,7 @@ import { X, Flag, Trash2, Sun, SunDim, Pin, Repeat, Tag, Check } from 'lucide-re
 import { cn } from '../../lib/cn';
 import { todayISO, formatLocalTime } from '../../lib/date';
 import { PRIORITY_HEX, hexToRgba, priorityLabels } from '../../lib/priority';
-import { useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
+import { useUpdateTask, useDeleteTask, useCreateTask, useToggleMyDay } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { toast } from 'sonner';
 import { Portal } from '../shared/Portal';
@@ -48,6 +48,7 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
+  const toggleMyDay = useToggleMyDay();
   const { data: tags } = useTags();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [localTitle, setLocalTitle] = useState(task.title);
@@ -188,7 +189,7 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
 
         {/* Status chips */}
         <div className="flex items-center gap-2 px-5 mb-4">
-          <button onClick={() => { handleUpdate({ my_day_date: task.my_day_date === todayISO() ? '' : todayISO() }); }}
+          <button onClick={() => { toggleMyDay(task, task.my_day_date !== todayISO()); }}
             className={cn('inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity', task.my_day_date === todayISO() ? 'text-[#F59E0B] bg-[#FFFBEB]' : 'text-[#9CA3AF] bg-[#F3F4F6]')}>
             {task.my_day_date === todayISO() ? <SunDim size={11} /> : <Sun size={11} />}我的一天
           </button>

@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { formatDate, isOverdue, todayISO } from '../../lib/date';
 import { Flag, Calendar, Sun, Check, RotateCcw, Trash2, Copy, SunDim, PauseCircle, Play, XCircle, Pin } from 'lucide-react';
 import { priorityColors, priorityLabels } from '../../lib/priority';
-import { useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
+import { useUpdateTask, useDeleteTask, useCreateTask, useToggleMyDay } from '../../hooks/useTasks';
 import { useUIStore } from '../../stores/uiStore';
 import { Portal } from '../shared/Portal';
 import type { Task } from '../../types/task';
@@ -31,6 +31,7 @@ export function StickyNote({ task, colors, rotation, onExpand }: StickyNoteProps
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
+  const toggleMyDay = useToggleMyDay();
 
   const [isHovered, setIsHovered] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; rawX: number; rawY: number } | null>(null);
@@ -183,7 +184,7 @@ export function StickyNote({ task, colors, rotation, onExpand }: StickyNoteProps
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               {task.is_completed ? <><RotateCcw size={15} className="text-[#6B7280]" /> 标记未完成</> : <><Check size={15} className="text-[#7C72F6]" /> 标记完成</>}
             </button>
-            <button onClick={(e) => { e.stopPropagation(); const isMyDay = task.my_day_date === todayISO(); updateTask.mutate({ id: task.id, my_day_date: isMyDay ? '' : todayISO() }); toast.success(isMyDay ? '已移出我的一天' : '已加入我的一天'); setContextMenu(null); }}
+            <button onClick={(e) => { e.stopPropagation(); const isMyDay = task.my_day_date === todayISO(); toggleMyDay(task, !isMyDay); toast.success(isMyDay ? '已移出我的一天' : '已加入我的一天'); setContextMenu(null); }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               {task.my_day_date === todayISO() ? <><SunDim size={15} className="text-[#6B7280]" /> 移出我的一天</> : <><Sun size={15} className="text-amber-500" /> 加入我的一天</>}
             </button>

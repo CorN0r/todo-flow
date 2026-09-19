@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense, lazy } from 'react';
-import { useTask, useUpdateTask, useDeleteTask, useCreateTask } from '../../hooks/useTasks';
+import { useTask, useUpdateTask, useDeleteTask, useCreateTask, useToggleMyDay } from '../../hooks/useTasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useTags } from '../../hooks/useTags';
@@ -103,6 +103,7 @@ export function TaskDetail() {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
+  const toggleMyDay = useToggleMyDay();
   const { data: tags } = useTags();
   const { data: taskNotes } = useTaskNotes();
   const toggleTaskNote = useToggleTaskNote();
@@ -277,7 +278,7 @@ export function TaskDetail() {
           <label className="section-label">状态</label>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { const isMyDay = task.my_day_date === todayISO(); updateTask.mutate({ id: task.id, my_day_date: isMyDay ? '' : todayISO() }); }}
+          <button onClick={() => { const isMyDay = task.my_day_date === todayISO(); toggleMyDay(task, !isMyDay); }}
             className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
               task.my_day_date === todayISO() ? 'text-[#F59E0B] bg-[#FFFBEB] dark:bg-amber-950/30' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#F59E0B] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
             {task.my_day_date === todayISO() ? <SunDim size={13} /> : <Sun size={13} />}

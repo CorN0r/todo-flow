@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { getRepositories } from '../domain/repositories/current';
 import type { CreateTaskInput, ReorderItem, TaskFilters, UpdateTaskInput } from '../domain/models/task';
 import { queryKeys, invalidateTasks, invalidateTask, invalidateTags, invalidateReminders } from '../lib/queryKeys';
+import { todayISO } from '../lib/date';
 
 export function useTasks(filters?: TaskFilters) {
   return useQuery({
@@ -48,6 +49,24 @@ export function useUpdateTask() {
     },
     onError: (err: string) => toast.error(err),
   });
+}
+
+// 加入/移出「我的一天」。加入时若任务没有截止日期则自动补今天:
+// 「今天」页面按 due_date 过滤,不补的话任务只会进「我的一天」而不会出现在「今天」。
+// 已有截止日期不覆盖;移出只清 my_day_date,不回退 due_date。
+export function useToggleMyDay() {
+  const updateTask = useUpdateTask();
+  return (task: { id: string; due_date?: string | null }, add: boolean) => {
+    if (add) {
+      updateTask.mutate({
+        id: task.id,
+        my_day_date: todayISO(),
+        due_date: task.due_date ? undefined : todayISO(),
+      });
+    } else {
+      updateTask.mutate({ id: task.id, my_day_date: '' });
+    }
+  };
 }
 
 export function useDeleteTask() {
