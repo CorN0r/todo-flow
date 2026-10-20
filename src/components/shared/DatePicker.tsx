@@ -56,13 +56,20 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
   };
 
   useLayoutEffect(() => {
-    if (!open || menuPos !== null) return;
-    const pos = computeMenuPos();
-    if (pos) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setMenuPos(pos);
-    }
-  }, [open, menuPos]);
+    if (!open) return;
+    const calc = () => {
+      const pos = computeMenuPos();
+      if (pos) setMenuPos(pos);
+    };
+    calc();
+    // 窗口缩放或容器滚动时重算，避免已弹出的日历被界面截断
+    window.addEventListener('scroll', calc, true);
+    window.addEventListener('resize', calc);
+    return () => {
+      window.removeEventListener('scroll', calc, true);
+      window.removeEventListener('resize', calc);
+    };
+  }, [open]);
   const datePart = value ? value.slice(0, 10) : value;
   const timePart = value.length > 10 ? value.slice(11, 16) : '09:00';
   // 本地时间状态：避免键盘逐位输入时每次 onChange 都触发父组件状态变更
