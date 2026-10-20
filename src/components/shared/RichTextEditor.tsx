@@ -73,6 +73,21 @@ const LinkClickHandler = Extension.create({
 });
 
 /**
+ * Link 扩展剥掉 target="_blank"：
+ * WebView2 对 target=_blank 锚点即使 DOM preventDefault 也会在浏览器进程层
+ * 额外触发一次系统浏览器激活（实测一次点击开两个标签），去掉 target 后
+ * 打开行为完全由 LinkClickHandler 独家负责。
+ */
+const LinkNoTarget = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      target: { default: null, parseHTML: () => null, renderHTML: () => ({ target: null }) },
+    };
+  },
+});
+
+/**
  * 图片粘贴/拖放处理 — 独立扩展，不干扰 Image 节点的解析和渲染。
  */
 const ImagePasteHandler = Extension.create({
@@ -267,7 +282,7 @@ const SHARED_EXTENSIONS = (placeholder: string) => [
   Underline,
   TextStyle,
   Highlight.configure({ multicolor: true }),
-  Link.configure({ openOnClick: false, autolink: true }),
+  LinkNoTarget.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer nofollow' } }),
   LinkClickHandler,
   Image,
   ImagePasteHandler,
