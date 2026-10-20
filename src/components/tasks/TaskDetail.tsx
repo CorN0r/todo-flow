@@ -201,6 +201,7 @@ export function TaskDetail() {
     if (!tags) return new Map();
     return new Map(tags.map((t) => [t.id, t]));
   }, [tags]);
+  const pomodoroActive = usePomodoroStore((s) => s.isRunning && s.taskId === selectedTaskId);
 
   if (!selectedTaskId) return null;
   if (isLoading) return <p className="text-sm text-[#9CA3AF] py-8 text-center">加载中...</p>;
@@ -290,8 +291,12 @@ export function TaskDetail() {
             <Pin size={13} />
             置顶
           </button>
-          <button onClick={() => { usePomodoroStore.getState().startTimer(task.id, task.title); }}
-            className="inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12] hover:bg-[#7C72F6]/[0.12] dark:hover:bg-[#7C72F6]/[0.2]">
+          <button onClick={() => {
+            if (pomodoroActive) usePomodoroStore.getState().stopTimer();
+            else usePomodoroStore.getState().startTimer(task.id, task.title);
+          }}
+            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
+              pomodoroActive ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
             <Timer size={13} />
             番茄钟
           </button>
