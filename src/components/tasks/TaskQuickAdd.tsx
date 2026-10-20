@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Portal } from '../shared/Portal';
-import { Plus, Tag, Flag, X, Bell, Check } from 'lucide-react';
+import { Tag, Flag, X, Bell, Check } from 'lucide-react';
 import { useCreateTask, useCreateTaskReminder } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import type { TagWithCount } from '../../types/tag';
@@ -282,7 +282,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
         <button onClick={handleSubmit} disabled={!effectiveTitle.trim()}
           className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           aria-label="创建任务">
-          <Plus size={14} style={{ strokeWidth: 2.5 }} />
+          <Check size={14} style={{ strokeWidth: 2.5 }} />
         </button>
 
         {/* Cancel */}

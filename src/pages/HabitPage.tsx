@@ -79,7 +79,7 @@ export function HabitPage() {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleCreate} className="px-4 py-1.5 rounded-lg bg-[#7C72F6] text-white text-[13px] font-medium">创建</button>
+            <button onClick={handleCreate} className="px-4 py-1.5 rounded-lg bg-[#7C72F6] text-white text-[13px] font-medium">保存</button>
             <button onClick={() => setIsCreating(false)} className="px-4 py-1.5 rounded-lg text-[13px] text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]">取消</button>
           </div>
         </div>
