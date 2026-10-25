@@ -314,3 +314,133 @@ export async function resolveSyncConflict(id: string): Promise<SyncConflict> {
 export async function deriveSyncStatus(entityType: SyncEntityType, entityId: string): Promise<SyncEntityStatus> {
   return invoke('derive_sync_status', { entity_type: entityType, entity_id: entityId });
 }
+
+// AI 模型接入命令
+import type {
+  AiConnectionInfo,
+  AiInvocationSummary,
+  AiModelInfo,
+  AiVerification,
+  AiVerificationKind,
+  ApplyBreakdownResult,
+  BreakdownProposal,
+  CreateConnectionInput,
+  ProviderPreset,
+  UpdateConnectionInput,
+} from '../domain/models/ai';
+
+export async function aiGetPresets(): Promise<ProviderPreset[]> {
+  return invoke('ai_get_presets');
+}
+
+export async function aiListConnections(): Promise<AiConnectionInfo[]> {
+  return invoke('ai_list_connections');
+}
+
+export async function aiCreateConnection(input: CreateConnectionInput): Promise<AiConnectionInfo> {
+  return invoke('ai_create_connection', {
+    name: input.name,
+    protocol: input.protocol,
+    base_url: input.base_url,
+    preset_id: input.preset_id ?? null,
+    timeout_secs: input.timeout_secs ?? null,
+    api_key: input.api_key,
+  });
+}
+
+export async function aiUpdateConnection(input: UpdateConnectionInput): Promise<AiConnectionInfo> {
+  return invoke('ai_update_connection', {
+    id: input.id,
+    name: input.name ?? null,
+    base_url: input.base_url ?? null,
+    api_key: input.api_key ?? null,
+  });
+}
+
+export async function aiDeleteConnection(id: string): Promise<void> {
+  return invoke('ai_delete_connection', { id });
+}
+
+export async function aiSetConnectionEnabled(id: string, enabled: boolean): Promise<void> {
+  return invoke('ai_set_connection_enabled', { id, enabled });
+}
+
+export async function aiSetConnectionTimeout(id: string, timeoutSecs: number | null): Promise<void> {
+  return invoke('ai_set_connection_timeout', { id, timeout_secs: timeoutSecs });
+}
+
+export async function aiListModels(): Promise<AiModelInfo[]> {
+  return invoke('ai_list_models');
+}
+
+export async function aiCreateModel(
+  connectionId: string,
+  modelId: string,
+  displayName?: string,
+): Promise<AiModelInfo> {
+  return invoke('ai_create_model', {
+    connection_id: connectionId,
+    model_id: modelId,
+    display_name: displayName ?? null,
+  });
+}
+
+export async function aiUpdateModel(id: string, modelId?: string, displayName?: string): Promise<AiModelInfo> {
+  return invoke('ai_update_model', {
+    id,
+    model_id: modelId ?? null,
+    display_name: displayName ?? null,
+  });
+}
+
+export async function aiDeleteModel(id: string): Promise<void> {
+  return invoke('ai_delete_model', { id });
+}
+
+export async function aiGetDefaultModel(): Promise<string | null> {
+  return invoke('ai_get_default_model');
+}
+
+export async function aiSetDefaultModel(modelEntryId: string | null): Promise<void> {
+  return invoke('ai_set_default_model', { model_entry_id: modelEntryId });
+}
+
+export async function aiCredentialExists(connectionId: string): Promise<boolean> {
+  return invoke('ai_credential_exists', { connection_id: connectionId });
+}
+
+export async function aiFetchModels(connectionId: string): Promise<string[]> {
+  return invoke('ai_fetch_models', { connection_id: connectionId });
+}
+
+export async function aiVerifyModel(modelEntryId: string, kind: AiVerificationKind): Promise<AiVerification> {
+  return invoke('ai_verify_model', { model_entry_id: modelEntryId, kind });
+}
+
+export async function aiCancelRequest(requestId: string): Promise<void> {
+  return invoke('ai_cancel_request', { request_id: requestId });
+}
+
+export async function aiGenerateBreakdown(taskId: string, userNote?: string): Promise<BreakdownProposal> {
+  return invoke('ai_generate_breakdown', { task_id: taskId, user_note: userNote ?? null });
+}
+
+export async function aiApplyBreakdown(
+  proposalId: string,
+  operationId: string,
+  items: { title: string; instructions: string }[],
+): Promise<ApplyBreakdownResult> {
+  return invoke('ai_apply_breakdown', {
+    proposal_id: proposalId,
+    operation_id: operationId,
+    items,
+  });
+}
+
+export async function aiListInvocations(limit?: number): Promise<AiInvocationSummary[]> {
+  return invoke('ai_list_invocations', { limit: limit ?? null });
+}
+
+export async function aiClearInvocations(): Promise<void> {
+  return invoke('ai_clear_invocations');
+}

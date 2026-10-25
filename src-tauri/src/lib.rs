@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod commands;
 pub mod db;
 mod db_watcher;
@@ -127,6 +128,8 @@ pub struct AppState {
     pub data_dir: PathBuf,
     #[cfg(not(mobile))]
     pub global_shortcut_map: Arc<Mutex<HashMap<Shortcut, String>>>,
+    /// AI 模型请求运行时(HTTP 客户端、并发槽、取消注册表);网络执行不持数据库锁。
+    pub ai_runtime: Arc<crate::ai::gateway::AiRuntime>,
 }
 
 impl AppState {
@@ -230,6 +233,7 @@ pub fn run() {
                 data_dir: app_dir,
                 #[cfg(not(mobile))]
                 global_shortcut_map,
+                ai_runtime: Arc::new(crate::ai::gateway::AiRuntime::new()),
             };
 
             // Start reminder polling
@@ -571,6 +575,27 @@ pub fn run() {
             commands::sync_commands::list_sync_conflicts,
             commands::sync_commands::resolve_sync_conflict,
             commands::sync_commands::derive_sync_status,
+            commands::ai_commands::ai_create_connection,
+            commands::ai_commands::ai_update_connection,
+            commands::ai_commands::ai_delete_connection,
+            commands::ai_commands::ai_set_connection_enabled,
+            commands::ai_commands::ai_set_connection_timeout,
+            commands::ai_commands::ai_list_connections,
+            commands::ai_commands::ai_list_models,
+            commands::ai_commands::ai_create_model,
+            commands::ai_commands::ai_update_model,
+            commands::ai_commands::ai_delete_model,
+            commands::ai_commands::ai_get_default_model,
+            commands::ai_commands::ai_set_default_model,
+            commands::ai_commands::ai_credential_exists,
+            commands::ai_commands::ai_get_presets,
+            commands::ai_commands::ai_cancel_request,
+            commands::ai_commands::ai_list_invocations,
+            commands::ai_commands::ai_clear_invocations,
+            commands::ai_commands::ai_fetch_models,
+            commands::ai_commands::ai_verify_model,
+            commands::ai_commands::ai_generate_breakdown,
+            commands::ai_commands::ai_apply_breakdown,
         ])
         .run(tauri::generate_context!());
 

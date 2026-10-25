@@ -3,6 +3,7 @@ import type { Habit, HabitLog, HabitWithStats } from '../../types/habit';
 import type { Tag, TagWithCount } from '../../types/tag';
 import type { Task, TaskReminder } from '../../types/task';
 import type { TaskNote } from '../models/note';
+import type { AiModelRepository } from '../repositories';
 import type { AppRepositories } from '../repositories';
 import type {
   CreateSyncConflictInput,
@@ -25,6 +26,11 @@ export interface MemoryRepositoryState {
   syncMeta: Record<string, string>;
   syncOperations: SyncOperation[];
   syncConflicts: SyncConflict[];
+  aiConnections: import('../models/ai').AiConnectionInfo[];
+  aiModels: import('../models/ai').AiModelInfo[];
+  aiDefaultModel: string | null;
+  aiProposals: Map<string, import('../models/ai').BreakdownProposal>;
+  aiProposalTaskIds: Map<string, string>;
 }
 
 export type MemoryRepositorySeed = Partial<{
@@ -109,6 +115,193 @@ function deriveStatus(operations: SyncOperation[], conflicts: SyncConflict[]): S
   return 'clean';
 }
 
+function createMemoryAiRepository(state: MemoryRepositoryState): AiModelRepository {
+  // AI 模型接入替身:配置/验证状态在内存中流转;拆解返回固定样例(测试与 Web 预览用)
+  return {
+    async getPresets() {
+      return [
+        { id: 'zhipu', name: '智谱 GLM(Coding 套餐)', protocol: 'openai_chat', base_url: 'https://open.bigmodel.cn/api/coding/paas/v4', note: 'memory 替身' },
+        { id: 'openai', name: 'OpenAI', protocol: 'openai_chat', base_url: 'https://api.openai.com/v1', note: 'memory 替身' },
+        { id: 'custom', name: '自定义兼容服务', protocol: 'openai_chat', base_url: '', note: 'memory 替身' },
+      ];
+    },
+    async listConnections() {
+      return clone(state.aiConnections);
+    },
+    async createConnection(input) {
+      const id = createId('ai-conn', state);
+      const created: import('../models/ai').AiConnectionInfo = {
+        id,
+        name: input.name,
+        protocol: input.protocol,
+        base_url: input.base_url.replace(/\/+$/, ''),
+        preset_id: input.preset_id ?? null,
+        credential_version: 1,
+        revision: 1,
+        enabled: true,
+        timeout_secs: input.timeout_secs ?? null,
+        created_at: now(),
+        updated_at: now(),
+        credential_present: true,
+      };
+      state.aiConnections.push(created);
+      return clone(created);
+    },
+    async updateConnection(input) {
+      const conn = state.aiConnections.find((c) => c.id === input.id);
+      if (!conn) throw { code: 'config_missing', message: '连接不存在' };
+      if (input.name !== undefined) conn.name = input.name;
+      if (input.base_url !== undefined) conn.base_url = input.base_url.replace(/\/+$/, '');
+      if (input.api_key !== undefined) {
+        conn.credential_version += 1;
+        conn.revision += 1;
+        state.aiModels
+          .filter((m) => m.connection_id === conn.id)
+          .forEach((m) => m.verifications.forEach((v) => (v.status = 'expired')));
+      }
+      conn.updated_at = now();
+      return clone(conn);
+    },
+    async deleteConnection(id) {
+      state.aiConnections = state.aiConnections.filter((c) => c.id !== id);
+      state.aiModels = state.aiModels.filter((m) => m.connection_id !== id);
+      if (state.aiConnections.length === 0) state.aiDefaultModel = null;
+    },
+    async setConnectionEnabled(id, enabled) {
+      const conn = state.aiConnections.find((c) => c.id === id);
+      if (conn) conn.enabled = enabled;
+    },
+    async setConnectionTimeout(id, timeoutSecs) {
+      const conn = state.aiConnections.find((c) => c.id === id);
+      if (conn) {
+        conn.timeout_secs = timeoutSecs;
+        conn.revision += 1;
+      }
+    },
+    async listModels() {
+      return clone(state.aiModels);
+    },
+    async createModel(connectionId, modelId, displayName) {
+      const created: import('../models/ai').AiModelInfo = {
+        id: createId('ai-model', state),
+        connection_id: connectionId,
+        model_id: modelId,
+        display_name: displayName || modelId,
+        created_at: now(),
+        updated_at: now(),
+        verifications: [],
+      };
+      state.aiModels.push(created);
+      return clone(created);
+    },
+    async updateModel(id, modelId, displayName) {
+      const model = state.aiModels.find((m) => m.id === id);
+      if (!model) throw { code: 'config_missing', message: '模型不存在' };
+      if (modelId && modelId !== model.model_id) {
+        model.model_id = modelId;
+        model.verifications.forEach((v) => (v.status = 'expired'));
+      }
+      if (displayName) model.display_name = displayName;
+      model.updated_at = now();
+      return clone(model);
+    },
+    async deleteModel(id) {
+      state.aiModels = state.aiModels.filter((m) => m.id !== id);
+      if (state.aiDefaultModel === id) state.aiDefaultModel = null;
+    },
+    async getDefaultModel() {
+      return state.aiDefaultModel;
+    },
+    async setDefaultModel(modelEntryId) {
+      state.aiDefaultModel = modelEntryId;
+    },
+    async credentialExists(connectionId) {
+      return state.aiConnections.some((c) => c.id === connectionId && c.credential_present);
+    },
+    async fetchModels(connectionId) {
+      const conn = state.aiConnections.find((c) => c.id === connectionId);
+      if (!conn) throw { code: 'config_missing', message: '连接不存在' };
+      return ['memory-model-a', 'memory-model-b'];
+    },
+    async verifyModel(modelEntryId, kind) {
+      const model = state.aiModels.find((m) => m.id === modelEntryId);
+      if (!model) throw { code: 'config_missing', message: '模型不存在' };
+      const verification: import('../models/ai').AiVerification = {
+        id: createId('ai-verify', state),
+        model_entry_id: modelEntryId,
+        kind,
+        status: 'passed',
+        fingerprint: 'memory',
+        detail: null,
+        verified_at: now(),
+      };
+      model.verifications = model.verifications.filter((v) => v.kind !== kind);
+      model.verifications.push(verification);
+      return clone(verification);
+    },
+    async cancelRequest() {},
+    async generateBreakdown(taskId, userNote) {
+      const proposal: import('../models/ai').BreakdownProposal = {
+        proposal_id: createId('ai-proposal', state),
+        request_id: createId('ai-req', state),
+        model_snapshot: 'memory 替身 (memory-model-a)',
+        assumptions: userNote ? [] : ['默认按三个工作日安排'],
+        items: [
+          { title: '梳理任务目标', instructions: '写下完成标准和关键产出。' },
+          { title: '拆分第一步', instructions: `确定可以立即开始的第一个动作。${userNote ? `(${userNote})` : ''}` },
+          { title: '安排检查点', instructions: '为每一步设定完成后的检查方式。' },
+        ],
+        used_stream: false,
+        json_fallback: false,
+        context_fingerprint: `memory-${taskId}`,
+      };
+      state.aiProposals.set(proposal.proposal_id, proposal);
+      state.aiProposalTaskIds.set(proposal.proposal_id, taskId);
+      return clone(proposal);
+    },
+    async applyBreakdown(proposalId, _operationId, items) {
+      const proposal = state.aiProposals.get(proposalId);
+      if (!proposal) throw { code: 'apply_conflict', message: '预览已过期,请重新生成' };
+      const parentId = state.aiProposalTaskIds.get(proposalId);
+      const created: string[] = [];
+      for (const item of items) {
+        const timestamp = now();
+        const id = createId('task', state);
+        state.tasks.push({
+          id,
+          title: item.title,
+          description: item.instructions,
+          is_completed: false,
+          is_archived: false,
+          is_suspended: false,
+          is_abandoned: false,
+          is_pinned: false,
+          priority: 0,
+          due_date: null,
+          reminder: null,
+          tag_ids: [],
+          parent_task_id: parentId ?? null,
+          sort_order: 0,
+          recurrence: null,
+          my_day_date: null,
+          children_count: undefined,
+          source: 'agent',
+          created_at: timestamp,
+          updated_at: timestamp,
+        } as Task);
+        created.push(id);
+      }
+      state.aiProposals.delete(proposalId);
+      state.aiProposalTaskIds.delete(proposalId);
+      return { created_task_ids: created, already_applied: false };
+    },
+    async listInvocations() {
+      return [];
+    },
+    async clearInvocations() {},
+  };
+}
+
 export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
   const state: MemoryRepositoryState = {
     tasks: clone(seed.tasks ?? []),
@@ -122,6 +315,11 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
     syncMeta: clone(seed.syncMeta ?? {}),
     syncOperations: clone(seed.syncOperations ?? []),
     syncConflicts: clone(seed.syncConflicts ?? []),
+    aiConnections: [],
+    aiModels: [],
+    aiDefaultModel: null,
+    aiProposals: new Map(),
+    aiProposalTaskIds: new Map(),
   };
 
   const repositories: AppRepositories = {
@@ -548,6 +746,7 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
         return deriveStatus(operations, conflicts);
       },
     },
+    ai: createMemoryAiRepository(state),
     platform: {
       kind: 'test',
       async hideToTray() {},

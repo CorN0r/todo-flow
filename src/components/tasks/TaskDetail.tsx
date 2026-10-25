@@ -18,6 +18,7 @@ import { ReminderList } from '../shared/ReminderList';
 import { Portal } from '../shared/Portal';
 import { SubtaskReminderButton } from './SubtaskReminderButton';
 import { SubtaskDateChip } from './SubtaskDateChip';
+import { BreakdownPanel } from '../ai/BreakdownPanel';
 import { toast } from 'sonner';
 import { hexToRgba, PRIORITY_HEX, priorityLabels } from '../../lib/priority';
 
@@ -162,9 +163,9 @@ export function TaskDetail() {
     }
   }, [detail?.task.id, detail?.task.updated_at, selectedTaskId]);
 
-  const doSave = useCallback((currentLocal: LocalState) => {
+  const buildSaveInput = useCallback((currentLocal: LocalState): UpdateTaskInput | null => {
     const task = taskRef.current;
-    if (!task) return;
+    if (!task) return null;
     const input: UpdateTaskInput = { id: task.id };
     if (currentLocal.title !== task.title) input.title = currentLocal.title;
     if (currentLocal.description !== task.description) input.description = currentLocal.description;
@@ -172,14 +173,33 @@ export function TaskDetail() {
     if (currentLocal.due_date !== (task.due_date || '')) input.due_date = currentLocal.due_date || '';
     if (!tagsEqual(currentLocal.tag_ids, task.tag_ids || [])) input.tag_ids = currentLocal.tag_ids;
     if (currentLocal.recurrence !== (task.recurrence || '')) input.recurrence = currentLocal.recurrence || '';
-    if (Object.keys(input).length === 1) return;
-    // 🔍 诊断：记录描述长度
-    if (input.description !== undefined) {
-      const hasImg = /<img[^>]+src="data:/.test(input.description);
-      console.log(`[SAVE] desc len=${input.description.length} hasImg=${hasImg} changed=${currentLocal.description !== task.description}`);
-    }
-    mutateRef.current(input, { onSuccess: () => { originalRef.current = currentLocal; }, onError: () => { toast.error('保存失败'); } });
+    if (Object.keys(input).length === 1) return null;
+    return input;
   }, []);
+
+  const doSave = useCallback((currentLocal: LocalState) => {
+    const input = buildSaveInput(currentLocal);
+    if (!input) return;
+    mutateRef.current(input, { onSuccess: () => { originalRef.current = currentLocal; }, onError: () => { toast.error('保存失败'); } });
+  }, [buildSaveInput]);
+
+  // 可等待的立即保存:AI 拆解等外部能力在生成前必须确认当前编辑已落库
+  const flushSave = useCallback(async (): Promise<void> => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const currentLocal = localRef.current;
+    if (!currentLocal) return;
+    const input = buildSaveInput(currentLocal);
+    if (!input) return;
+    await new Promise<void>((resolve, reject) => {
+      mutateRef.current(input, {
+        onSuccess: () => { originalRef.current = currentLocal; resolve(); },
+        onError: (err) => reject(err),
+      });
+    });
+  }, [buildSaveInput]);
 
   useEffect(() => {
     if (!local || !originalRef.current) return;
@@ -193,6 +213,7 @@ export function TaskDetail() {
   }, [local, doSave]);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const update = (patch: Partial<LocalState>) => { setLocal((prev) => (prev ? { ...prev, ...patch } : null)); };
 
@@ -458,8 +479,30 @@ export function TaskDetail() {
             <ListChecks size={13} className="text-[#6B7280]" />
             <label className="section-label">子任务</label>
           </div>
-          {children.length > 0 && <span className="text-[11px] font-medium text-[#6B7280]">{completedCount}/{children.length}</span>}
+          <div className="flex items-center gap-2">
+            {children.length > 0 && <span className="text-[11px] font-medium text-[#6B7280]">{completedCount}/{children.length}</span>}
+            {/* 仅顶层任务提供 AI 拆解;子任务受层级规则限制不能再拆 */}
+            {!task.parent_task_id && (
+              <button
+                onClick={() => setShowBreakdown((s) => !s)}
+                className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full transition-colors',
+                  showBreakdown ? 'text-[#7C72F6] bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/[0.06]')}
+                title="使用默认模型生成子任务建议">
+                <Sparkles size={12} />AI 拆解
+              </button>
+            )}
+          </div>
         </div>
+        {showBreakdown && !task.parent_task_id && (
+          <div className="mb-3">
+            <BreakdownPanel
+              taskId={task.id}
+              existingChildTitles={children.map((c) => c.title)}
+              onBeforeGenerate={flushSave}
+              onClose={() => setShowBreakdown(false)}
+            />
+          </div>
+        )}
         {children.length > 0 && (
           <>
             <div className="w-full h-1.5 rounded-full bg-[#F3F4F6] dark:bg-white/[0.06] mb-3 overflow-hidden">

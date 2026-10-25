@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, Download, Database, PanelBottom, ChevronRight, ChevronDown, Rocket, Keyboard } from 'lucide-react';
+import { Upload, Download, Database, PanelBottom, ChevronRight, ChevronDown, Rocket, Keyboard, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { useShortcutStore } from '../stores/shortcutStore';
 import { useTaskNotes, useToggleTaskNote } from '../hooks/useTaskNotes';
 import { useTasks } from '../hooks/useTasks';
 import { ShortcutEditor } from '../components/shared/ShortcutEditor';
+import { AiModelSettings } from '../components/ai/AiModelSettings';
 import type { NoteStyle } from '../types/note';
 
 type BubbleColors = { from: string; via: string; to: string };
@@ -48,6 +49,7 @@ export function SettingsPage() {
   const [noteDefaultStyle, setNoteDefaultStyle] = useState<NoteStyle>('paper');
   const [showCustom, setShowCustom] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+  const [systemNotify, setSystemNotify] = useState(true);
   const pomodoroConfig = usePomodoroStore((s) => s.config);
   const updatePomodoroConfig = usePomodoroStore((s) => s.updateConfig);
   const shortcutsEnabled = useShortcutStore((s) => s.shortcutsEnabled);
@@ -77,6 +79,9 @@ export function SettingsPage() {
     }).catch(() => {});
     getRepositories().settings.get('note_default_style').then((v) => {
       if (v === 'glass' || v === 'paper' || v === 'minimal') setNoteDefaultStyle(v);
+    }).catch(() => {});
+    getRepositories().settings.get('reminder_system_notify').then((v) => {
+      setSystemNotify(v !== '0');
     }).catch(() => {});
     isAutoStartEnabled().then(setAutoStart).catch(() => {});
   }, []);
@@ -113,6 +118,12 @@ export function SettingsPage() {
     } else {
       disableAutoStart().catch(() => setAutoStart(true));
     }
+  };
+
+  // 提醒弹窗常驻显示;系统通知是额外留档,可单独关闭(Rust 轮询每轮读取该设置)
+  const toggleSystemNotify = (enabled: boolean) => {
+    setSystemNotify(enabled);
+    getRepositories().settings.set('reminder_system_notify', enabled ? '1' : '0');
   };
 
   const saveBubbleColors = (colors: BubbleColors) => {
@@ -185,6 +196,11 @@ export function SettingsPage() {
     <div className="max-w-lg">
       <h3 className="text-[20px] font-bold text-[#111827] dark:text-white mb-6">设置</h3>
 
+      {/* AI Models */}
+      <div className="mb-6">
+        <AiModelSettings />
+      </div>
+
       {/* Data */}
       <div className="mb-6">
         <h4 className="section-label mb-3">数据</h4>
@@ -229,6 +245,28 @@ export function SettingsPage() {
               className={`relative w-9 h-5 rounded-full transition-colors ${autoStart ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]'}`}>
               <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${autoStart ? 'left-[18px]' : 'left-0.5'}`} />
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Reminder */}
+      <div className="mb-6">
+        <h4 className="section-label mb-3">提醒</h4>
+        <div className="space-y-2">
+          <div className="px-4 py-3 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bell size={16} className="text-[#6B7280]" />
+                <span className="text-[13px] text-[#111827] dark:text-white/90 font-medium">系统通知</span>
+              </div>
+              <button onClick={() => toggleSystemNotify(!systemNotify)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${systemNotify ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${systemNotify ? 'left-[18px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+            <p className="text-[12px] text-[#6B7280] dark:text-white/40 mt-1.5">
+              提醒到期时会弹出常驻提醒窗口;开启后同时发送一条 Windows 系统通知作为记录
+            </p>
           </div>
         </div>
       </div>

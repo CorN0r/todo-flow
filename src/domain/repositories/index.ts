@@ -16,6 +16,19 @@ import type {
 import type { CreateTagInput, ReorderTagItem, Tag, TagWithCount, UpdateTagInput } from '../models/tag';
 import type { CreateTaskInput, ReorderItem, Task, TaskDetail, TaskFilters, UpdateTaskInput } from '../models/task';
 import type { NoteStyle, TaskNote } from '../models/note';
+import type {
+  AiConnectionInfo,
+  AiInvocationSummary,
+  AiModelInfo,
+  AiVerification,
+  AiVerificationKind,
+  ApplyBreakdownResult,
+  BreakdownItem,
+  BreakdownProposal,
+  CreateConnectionInput,
+  ProviderPreset,
+  UpdateConnectionInput,
+} from '../models/ai';
 
 export interface TaskRepository {
   create(input: CreateTaskInput): Promise<Task>;
@@ -95,6 +108,35 @@ export interface SyncOperationRepository {
   deriveEntityStatus(entityType: SyncEntityType, entityId: string): Promise<SyncEntityStatus>;
 }
 
+export interface AiModelRepository {
+  // 配置
+  getPresets(): Promise<ProviderPreset[]>;
+  listConnections(): Promise<AiConnectionInfo[]>;
+  createConnection(input: CreateConnectionInput): Promise<AiConnectionInfo>;
+  updateConnection(input: UpdateConnectionInput): Promise<AiConnectionInfo>;
+  deleteConnection(id: string): Promise<void>;
+  setConnectionEnabled(id: string, enabled: boolean): Promise<void>;
+  setConnectionTimeout(id: string, timeoutSecs: number | null): Promise<void>;
+  listModels(): Promise<AiModelInfo[]>;
+  createModel(connectionId: string, modelId: string, displayName?: string): Promise<AiModelInfo>;
+  updateModel(id: string, modelId?: string, displayName?: string): Promise<AiModelInfo>;
+  deleteModel(id: string): Promise<void>;
+  getDefaultModel(): Promise<string | null>;
+  setDefaultModel(modelEntryId: string | null): Promise<void>;
+  // 凭证
+  credentialExists(connectionId: string): Promise<boolean>;
+  // 验证与调用
+  fetchModels(connectionId: string): Promise<string[]>;
+  verifyModel(modelEntryId: string, kind: AiVerificationKind): Promise<AiVerification>;
+  cancelRequest(requestId: string): Promise<void>;
+  // 拆解业务
+  generateBreakdown(taskId: string, userNote?: string): Promise<BreakdownProposal>;
+  applyBreakdown(proposalId: string, operationId: string, items: BreakdownItem[]): Promise<ApplyBreakdownResult>;
+  // 诊断
+  listInvocations(limit?: number): Promise<AiInvocationSummary[]>;
+  clearInvocations(): Promise<void>;
+}
+
 export type PlatformKind = 'desktop' | 'android' | 'web' | 'test';
 
 export interface PlatformFileDialogFilter {
@@ -164,5 +206,6 @@ export interface AppRepositories {
   taskNotes: TaskNoteRepository;
   settings: SettingsRepository;
   sync: SyncOperationRepository;
+  ai: AiModelRepository;
   platform: PlatformRepository;
 }

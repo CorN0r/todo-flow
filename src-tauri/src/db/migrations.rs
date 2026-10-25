@@ -368,6 +368,72 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 16)?;
     }
 
+    // v17: AI 模型接入(连接/模型/验证/调用摘要/采纳回执;全部本机数据,不进同步系统,
+    // 凭证本体存 Windows 凭据管理器,库内只留 credential_version 参与验证指纹)
+    if current_version < 17 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS ai_connections (
+                id                  TEXT PRIMARY KEY,
+                name                TEXT NOT NULL,
+                protocol            TEXT NOT NULL DEFAULT 'openai_chat',
+                base_url            TEXT NOT NULL,
+                preset_id           TEXT,
+                credential_version  INTEGER NOT NULL DEFAULT 0,
+                revision            INTEGER NOT NULL DEFAULT 1,
+                enabled             INTEGER NOT NULL DEFAULT 1,
+                timeout_secs        INTEGER,
+                created_at          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                updated_at          TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS ai_models (
+                id           TEXT PRIMARY KEY,
+                connection_id TEXT NOT NULL REFERENCES ai_connections(id) ON DELETE CASCADE,
+                model_id     TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                updated_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                UNIQUE(connection_id, model_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS ai_model_verifications (
+                id            TEXT PRIMARY KEY,
+                model_entry_id TEXT NOT NULL REFERENCES ai_models(id) ON DELETE CASCADE,
+                kind          TEXT NOT NULL CHECK(kind IN ('basic','stream','breakdown')),
+                status        TEXT NOT NULL CHECK(status IN ('unknown','passed','unsupported','failed','expired')),
+                fingerprint   TEXT,
+                detail        TEXT,
+                verified_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_verifications_model ON ai_model_verifications(model_entry_id, kind);
+
+            CREATE TABLE IF NOT EXISTS ai_invocations (
+                id                  TEXT PRIMARY KEY,
+                purpose             TEXT NOT NULL,
+                model_entry_id      TEXT,
+                connection_snapshot TEXT NOT NULL,
+                status              TEXT NOT NULL CHECK(status IN ('success','failed','cancelled')),
+                error_code          TEXT,
+                duration_ms         INTEGER,
+                usage               TEXT,
+                created_at          TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_invocations_created ON ai_invocations(created_at);
+
+            CREATE TABLE IF NOT EXISTS ai_apply_receipts (
+                operation_id TEXT PRIMARY KEY,
+                proposal_id  TEXT NOT NULL,
+                task_id      TEXT NOT NULL,
+                item_count   INTEGER NOT NULL,
+                content_hash TEXT NOT NULL,
+                result       TEXT NOT NULL,
+                created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_apply_receipts_proposal ON ai_apply_receipts(proposal_id);",
+        )?;
+        conn.pragma_update(None, "user_version", 17)?;
+    }
+
     Ok(())
 }
 
@@ -504,7 +570,7 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 16);
+        assert_eq!(version, 17);
 
         assert_eq!(table_count(&conn, "task_tags"), 1);
         // 迁移:task-1 的 tag-1 已写入关联表
@@ -541,5 +607,16 @@ mod tests {
         assert_eq!(table_count(&conn, "task_notes"), 0);
 
         assert!(column_exists(&conn, "tasks", "source"));
+
+        // v17: AI 表存在且为空,不影响既有数据
+        for table in [
+            "ai_connections",
+            "ai_models",
+            "ai_model_verifications",
+            "ai_invocations",
+            "ai_apply_receipts",
+        ] {
+            assert_eq!(table_count(&conn, table), 0, "{} should be empty", table);
+        }
     }
 }
