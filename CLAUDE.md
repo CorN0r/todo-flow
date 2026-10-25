@@ -37,6 +37,7 @@ npm run tauri build      # Full Tauri production build
 npm test                 # Run vitest suite
 npm run test:smoke       # Fast subset of tests
 npm run test:rust        # Rust tests (cd src-tauri && cargo test，含 lib + 集成 + MCP 端到端)
+cd src-tauri && cargo test --test ai_acceptance -- --ignored --nocapture   # AI 真实端到端验收(真实库+凭证+网络,手动)
 npm run lint             # ESLint (flat config)
 ```
 
@@ -75,6 +76,7 @@ The widget window loads `/?widget=1`, pomodoro loads `/?pomodoro=1`, notes load 
 | `note-style-changed` | main → `note-<id>` | 便签皮肤热切换 |
 | `note-interact` | note ↔ note | 某便签内 mousedown 广播,其它便签关闭右键菜单 |
 | `widget-shown` | main → widget | 悬浮窗被显示(关主窗/隐藏到托盘),前端收成气泡并收拢位置 |
+| `ai-request-progress` | Rust → main | AI 生成流式增量,payload 带 `request_id`,前端按 id 过滤;只 emit_to main 不广播 |
 
 Windows that are separate WebViews have their own React instances, Zustand stores, and DOM. They do NOT share state — all state sync is via Tauri events.
 
@@ -111,6 +113,7 @@ src/
 ├── components/
 │   ├── layout/       Sidebar, Header, TaskDetailPanel
 │   ├── tasks/        TaskCard, TaskList, TaskDetail, TaskQuickAdd, UnifiedLayout
+│   ├── ai/           AiModelSettings(设置页区块), BreakdownPanel(任务详情 AI 拆解)
 │   ├── notes/        NoteCard（桌面便签卡片,三皮肤 SKINS 令牌）
 │   ├── calendar/     MonthView, WeekView, DayView
 │   ├── shared/       CommandPalette, SearchBar, DatePicker, KeyCapture, ShortcutEditor,
@@ -120,7 +123,9 @@ src/
 │                     SettingsPage, WidgetPage, PomodoroWidgetPage, NotePage(桌面便签窗口),
 │                     FocusStatsPage, ...
 ├── hooks/            useTasks, useTags, useTheme, useKeyboardShortcuts, usePomodoroSync,
-│                     useTaskNotes(便签固定/取消固定)
+│                     useTaskNotes(便签固定/取消固定), useAiModels(AI 配置/验证/摘要)
+├── domain/           跨平台契约层:models/(含 ai.ts), repositories/(含 AiModelRepository),
+│                     adapters/(desktop 接 invoke,memory 为测试替身)——业务组件不直接碰 Tauri
 ├── stores/           uiStore.ts, shortcutStore.ts, pomodoroStore.ts, calendarStore.ts
 ├── lib/              db.ts (Tauri invoke wrappers), date.ts, cn.ts, priority.ts,
 │                     noteCountdown.ts(便签倒计时), ...
@@ -130,9 +135,12 @@ src/
 src-tauri/
 ├── src/
 │   ├── bin/mcp.rs       todoflow-mcp 二进制入口(clap parse → serve 或 CLI 子命令)
+│   ├── ai/             AI 模型接入(见下文专节):config_repo, credentials, adapter/,
+│   │                    gateway, probe, presets, breakdown, apply, diagnostics, error
 │   ├── commands/        task_commands, reminder_commands, tag_commands, settings_commands,
 │   │                    shortcut_commands, widget_commands, stats_commands, habit_commands,
-│   │                    attachment_commands, sync_commands, note_commands(桌面便签)
+│   │                    attachment_commands, sync_commands, note_commands(桌面便签),
+│   │                    ai_commands(AI 全部命令,均 rename_all=snake_case)
 │   ├── db/              task_repo, reminder_repo, tag_repo, attachment_repo, habit_repo,
 │   │                    sync_repo, task_note_repo, migrations, connection
 │   ├── mcp/             mod.rs(MCP server + #[tool] 注册), handlers.rs(纯函数), cli.rs(clap)
@@ -227,7 +235,7 @@ pomodoroStore (Zustand + localStorage persistence)
 
 ---
 
-## Database Schema (migration v16)
+## Database Schema (migration v17)
 
 - **tasks**: id, title, description, is_completed, is_archived, is_suspended, is_abandoned, is_pinned, priority (0-4), due_date, reminder, parent_task_id (self-ref, CASCADE), sort_order, recurrence (JSON), my_day_date, source (TEXT, `'agent'` = Agent 创建), reminded, created_at, updated_at + sync 字段 (deleted_at, server_revision, local_revision, last_modified_device_id, sync_status)
 - **task_tags**: task_id + tag_id 多对多关联表 (PRIMARY KEY(task_id, tag_id))，任务多标签的唯一真相。`Task.tag_ids: Vec<String>` 经 `json_group_array` 聚合读取；旧 `tasks.tag_id` 列保留但弃用
@@ -238,6 +246,7 @@ pomodoroStore (Zustand + localStorage persistence)
 - **habits**: id, name, color, icon, frequency, target_count, sort_order
 - **habit_logs**: id, habit_id (FK CASCADE), log_date, count, note. UNIQUE(habit_id, log_date)
 - **settings**: key TEXT PRIMARY KEY, value TEXT — stores serialized preferences
+- **ai_connections / ai_models / ai_model_verifications / ai_invocations / ai_apply_receipts** (v17): AI 模型接入五表,全部本机数据不进 sync;凭证本体在 Windows 凭据管理器,库内只有 credential_version(参与验证指纹)。`ai_invocations` 只存调用摘要(用途/状态/耗时/错误码/usage),滚动保留 30 天/1000 条;`ai_apply_receipts` 是采纳幂等回执(operation_id 主键)
 
 ### Agent Integration (MCP / CLI)
 
@@ -254,6 +263,19 @@ pomodoroStore (Zustand + localStorage persistence)
 - **数据目录**：`src-tauri/src/lib.rs` 的 `default_data_dir()`（Windows `%APPDATA%\com.todoflow.desktop`），CLI 用 `--db-path` 覆盖
 - **端到端测试**：`cargo test --test mcp_stdio`（子进程跑真实二进制做 initialize → tools/list → tools/call，`env!("CARGO_BIN_EXE_todoflow-mcp")`）
 
+## AI 模型接入（AI Model Access）
+
+用户自带 API Key 的 OpenAI 兼容模型接入 + 任务拆解。规格见 `openspec/specs/ai-model-access` 与 `openspec/specs/task-breakdown`；设计全文 `docs/AI_MODEL_ACCESS_DESIGN.md`；实施记录 `openspec/changes/archive/2026-10-25-add-ai-model-access/`。
+
+- **模块**（`src-tauri/src/ai/`）：`error`(AiError) / `credentials`(keyring) / `config_repo`(连接/模型/验证) / `presets`(智谱/OpenAI/DeepSeek/Gemini/自定义) / `adapter/openai_chat`(纯函数:URL 拼接/请求体/SSE 解析/错误分类) / `gateway`(运行时) / `probe`(三类验证) / `breakdown`(上下文+校验) / `apply`(采纳事务) / `diagnostics`(调用摘要)。命令层 `commands/ai_commands.rs` 共 21 个,全部 `rename_all = "snake_case"`（见上文 CRITICAL 节,漏写会报 missing camelCase 键）
+- **凭证**：Windows 凭据管理器,keyring 条目 `com.todoflow.desktop/ai/<connection_id>`;库内只存 credential_version。保存次序=先写凭证再提交配置,失败补偿不留悬挂引用；前端永远拿不到原始 Key
+- **错误契约**：AI 命令返回 `AiError { code, message, detail? }` 对象（15 类 snake_case code）,与 `AppError`（纯字符串）并存,勿混用；前端 `isAiError()` 判别
+- **网关铁律**：任何 `await` 前必须 drop `MutexGuard<Connection>`（网关不持库锁）；并发槽 `Semaphore(2)`；默认总超时 120s（连接级 timeout_secs 覆盖）；取消走 in_flight 注册表（oneshot）,取消后晚响应直接丢弃;响应体上限 2MiB
+- **拆解生命周期**：候选 proposal 只存 `AiRuntime` 内存（重启即弃=预览过期,回执在库所以重试仍幂等）；上下文指纹=标题+描述文本+子任务(标题,完成态),采纳前重算比对,变化即拦截;采纳幂等键 `operation_id`（同一 proposal 生命周期内前端复用,重复提交相同内容返回原结果）,事务内任一失败整批回滚,子任务经 `task_repo::create` 创建（source='agent',同步记录随之生成）——**不走 MCP**
+- **地址规则**：基础地址 + `/chat/completions` 拼接,不强加 `/v1`,误填完整端点在保存时被 `normalize_base_url` 拦截;`response_format` JSON 被拒(400)自动降级纯文本重试一次
+- **测试**：单测/集成测试全 mock(含 TcpListener 手写 SSE 服务器,不碰真网);真实验收 `cargo test --test ai_acceptance -- --ignored --nocapture`（真实库+真实凭证+真实服务调用,会往任务列表写带【AI验收】前缀的虚构任务）;keyring spike 同为 `--ignored`
+- **前端**：契约在 `src/domain/repositories` 的 `AiModelRepository`(desktop 接 `lib/db.ts` 包装,memory 替身供测试);UI 为 `src/components/ai/`;流式进度监听 `ai-request-progress` 事件并按 `request_id` 过滤
+
 ## Settings Keys
 
 | Key | Value | Used By |
@@ -267,6 +289,7 @@ pomodoroStore (Zustand + localStorage persistence)
 | `keyboard_shortcuts` | JSON `ShortcutMap` | shortcutStore |
 | `shortcuts_enabled` | `"0"`/`"1"` | shortcuts.rs（总开关关闭时不注册任何全局热键） |
 | `note_default_style` | `glass`/`paper`/`minimal`（默认 `paper`） | SettingsPage, note_commands.open_task_note |
+| `ai_default_model` | ai_models.id（全局默认模型,可空） | config_repo;**不在 sync 白名单**,按设备管理 |
 | `pomodoroConfig` | localStorage, not DB | pomodoroStore |
 
 ---

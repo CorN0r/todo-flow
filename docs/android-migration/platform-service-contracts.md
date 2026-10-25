@@ -98,3 +98,25 @@ Failure:
 
 - Unsupported background work should not block domain writes.
 - Sync status UI should surface recoverable failures without discarding queued operations.
+
+## AI Model Service
+
+Purpose: manage local AI model connections, credentials, verification, and the task breakdown workflow through the shared `AiModelRepository` domain contract (added by the `add-ai-model-access` change, 2026-10-25).
+
+Contract rules:
+
+- Frontend components call `getRepositories().ai`; they never invoke model HTTP endpoints or read credentials directly.
+- Desktop implements the contract over Tauri commands (`ai_*`, all `rename_all = "snake_case"`); the memory adapter provides a deterministic test double.
+- Errors are structured `{ code, message, detail? }` objects (`AiErrorShape`), classified by machine-readable code, never string matching.
+
+Behavior:
+
+- Connections, model entries, verification state, and invocation summaries are device-local and never enter the task sync whitelist.
+- Credentials live in the OS credential store (Windows Credential Manager via keyring, entry `com.todoflow.desktop/ai/<connection_id>`); the raw key never crosses the repository boundary to UI code.
+- Android must adapt credential storage and platform networking behind the same contract; business rules (breakdown validation, apply idempotency via `operation_id` receipts, context fingerprints) stay in shared Rust/domain logic rather than being reimplemented per platform.
+- Breakdown proposals are session-scoped in runtime memory; adoption receipts (`ai_apply_receipts`) are durable so retries after restarts fail safely with an explicit conflict instead of duplicating tasks.
+
+Failure:
+
+- Model unavailability or call failures must not affect any non-AI feature.
+- Devices without this module must not render actionable AI entry points.

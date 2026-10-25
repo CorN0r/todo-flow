@@ -46,6 +46,7 @@
 | 多主题 | 浅色 / 深色 / 跟随系统 / 玻璃 / 温暖石炭 / 浮光，六种主题随意切换 |
 | **番茄钟** | 独立桌面悬浮窗，专注/短休/长休循环，全屏沉浸模式，Windows 原生通知，统计面板 |
 | **Agent 集成** | 内置 MCP server + CLI，让 Claude Desktop / Claude Code / Cursor 等 AI 直接创建、查询、管理任务 |
+| **AI 任务拆解** | 自带 API Key 接入 OpenAI 兼容模型（智谱 / OpenAI / DeepSeek / Gemini / 自定义），任务详情一键生成子任务建议，预览编辑勾选后采纳 |
 | **桌面便签** | 把任务固定为桌面无边框透明小窗，三款皮肤，Alt+D 一键显示/隐藏 |
 
 ## 界面预览
@@ -217,6 +218,18 @@ todoflow-mcp --db-path D:\backup\todo.db list
 - 默认数据库：`%APPDATA%\com.todoflow.desktop\todo.db`（可用 `--db-path` 覆盖）
 - GUI 运行期间，Agent 写入的任务约 2 秒内自动出现在界面中
 - 本地直连 SQLite，无网络请求、无鉴权；Agent 拥有与你相同的读写权限，注意提示词安全
+
+---
+
+## AI 模型（自带 Key）
+
+设置 → AI 模型中配置你自己的 OpenAI 兼容服务（内置智谱 GLM Coding 套餐、OpenAI、DeepSeek、Gemini 预设，也可填任意兼容地址）：
+
+- **API Key 只保存在 Windows 凭据管理器**，不进数据库、不进备份、不同步；界面上只能看到"已配置"状态
+- 地址填到基础路径即可（如 `https://open.bigmodel.cn/api/coding/paas/v4`），是否带 `/v1` 由你的服务商决定
+- 每个模型可分别验证基础调用 / 流式接收 / 任务拆解样例，验证结论绑定配置指纹，改动地址或 Key 后自动标记过期
+- 配好默认模型后，在任意顶层任务详情点 **AI 拆解**：模型基于标题、描述文本与现有子任务生成假设和候选子任务，你编辑勾选后一键采纳，来源标记为"由 Agent 创建"
+- 仅记录简要调用摘要（用途、状态、耗时、用量），不保存请求正文与完整回复
 
 ---
 
