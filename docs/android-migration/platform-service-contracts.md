@@ -101,7 +101,7 @@ Failure:
 
 ## AI Model Service
 
-Purpose: manage local AI model connections, credentials, verification, and the task breakdown workflow through the shared `AiModelRepository` domain contract (added by the `add-ai-model-access` change, 2026-10-25).
+Purpose: manage local AI model connections, credentials, verification, the task breakdown workflow, and the description polish workflow through the shared `AiModelRepository` domain contract (added by the `add-ai-model-access` change 2026-10-25; extended by `add-ai-description-polish`, 2026-10-29).
 
 Contract rules:
 
@@ -115,6 +115,7 @@ Behavior:
 - Credentials live in the OS credential store (Windows Credential Manager via keyring, entry `com.todoflow.desktop/ai/<connection_id>`); the raw key never crosses the repository boundary to UI code.
 - Android must adapt credential storage and platform networking behind the same contract; business rules (breakdown validation, apply idempotency via `operation_id` receipts, context fingerprints) stay in shared Rust/domain logic rather than being reimplemented per platform.
 - Breakdown proposals are session-scoped in runtime memory; adoption receipts (`ai_apply_receipts`) are durable so retries after restarts fail safely with an explicit conflict instead of duplicating tasks.
+- Polish proposals are preview-only (never persisted server-side); adoption goes through the regular task update path replacing just the description field. The optional polish direction note (≤200 chars) rides the same command boundary.
 
 Failure:
 

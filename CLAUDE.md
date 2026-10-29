@@ -48,6 +48,8 @@ taskkill /F /IM todo-flow.exe; Start-Sleep -Seconds 1; npx tauri dev
 
 **Important**: Vite HMR does NOT reliably update the widget, pomodoro, or note windows (separate WebViews). After changes to `WidgetPage.tsx`, `PomodoroWidgetPage.tsx`, `NotePage.tsx` or `NoteCard.tsx`, kill the process and restart — these windows load stale code otherwise.
 
+**CRITICAL — 前端验证必须走 `npx tauri dev`**: plain `cargo build` 产出的 exe 以嵌入模式运行,WebView 加载 `tauri.localhost`(编译时打包进二进制的 `dist/`,与 vite 无关)。用它验证前端改动会看到"旧版行为永远修不好"。判别方法:computer-use 看 WebView textarea 值是 `tauri.localhost`(嵌入旧版)还是 `localhost:1420`(实时)。应用内 Ctrl+R/F5 被禁用,刷新=重启调试程序。
+
 ---
 
 ## Multi-Window Architecture
@@ -113,7 +115,7 @@ src/
 ├── components/
 │   ├── layout/       Sidebar, Header, TaskDetailPanel
 │   ├── tasks/        TaskCard, TaskList, TaskDetail, TaskQuickAdd, UnifiedLayout
-│   ├── ai/           AiModelSettings(设置页区块), BreakdownPanel(任务详情 AI 拆解)
+│   ├── ai/           AiModelSettings(设置页区块), BreakdownPanel(拆解), PolishPanel(润色), useElapsedSeconds(生成计时)
 │   ├── notes/        NoteCard（桌面便签卡片,三皮肤 SKINS 令牌）
 │   ├── calendar/     MonthView, WeekView, DayView
 │   ├── shared/       CommandPalette, SearchBar, DatePicker, KeyCapture, ShortcutEditor,
@@ -126,7 +128,7 @@ src/
 │                     useTaskNotes(便签固定/取消固定), useAiModels(AI 配置/验证/摘要)
 ├── domain/           跨平台契约层:models/(含 ai.ts), repositories/(含 AiModelRepository),
 │                     adapters/(desktop 接 invoke,memory 为测试替身)——业务组件不直接碰 Tauri
-├── stores/           uiStore.ts, shortcutStore.ts, pomodoroStore.ts, calendarStore.ts
+├── stores/           uiStore, shortcutStore, pomodoroStore, calendarStore, polishStore/breakdownStore(AI 会话,跨详情页存活)
 ├── lib/              db.ts (Tauri invoke wrappers), date.ts, cn.ts, priority.ts,
 │                     noteCountdown.ts(便签倒计时), ...
 ├── sync-client/      conflicts.ts, engine.ts (本地优先跨端同步客户端,对接外部 sync-server)
@@ -265,16 +267,18 @@ pomodoroStore (Zustand + localStorage persistence)
 
 ## AI 模型接入（AI Model Access）
 
-用户自带 API Key 的 OpenAI 兼容模型接入 + 任务拆解。规格见 `openspec/specs/ai-model-access` 与 `openspec/specs/task-breakdown`；设计全文 `docs/AI_MODEL_ACCESS_DESIGN.md`；实施记录 `openspec/changes/archive/2026-10-25-add-ai-model-access/`。
+用户自带 API Key 的 OpenAI 兼容模型接入 + 任务拆解 + 描述润色。规格见 `openspec/specs/ai-model-access`、`openspec/specs/task-breakdown`、`openspec/specs/ai-description-polish`；设计全文 `docs/AI_MODEL_ACCESS_DESIGN.md`；实施记录 `openspec/changes/archive/`(2026-10-25-add-ai-model-access、2026-10-29-add-ai-description-polish)。
 
-- **模块**（`src-tauri/src/ai/`）：`error`(AiError) / `credentials`(keyring) / `config_repo`(连接/模型/验证) / `presets`(智谱/OpenAI/DeepSeek/Gemini/自定义) / `adapter/openai_chat`(纯函数:URL 拼接/请求体/SSE 解析/错误分类) / `gateway`(运行时) / `probe`(三类验证) / `breakdown`(上下文+校验) / `apply`(采纳事务) / `diagnostics`(调用摘要)。命令层 `commands/ai_commands.rs` 共 21 个,全部 `rename_all = "snake_case"`（见上文 CRITICAL 节,漏写会报 missing camelCase 键）
+- **模块**（`src-tauri/src/ai/`）：`error`(AiError) / `credentials`(keyring) / `config_repo`(连接/模型/验证) / `presets`(智谱/OpenAI/DeepSeek/Gemini/自定义) / `adapter/openai_chat`(纯函数:URL 拼接/请求体/SSE 解析/错误分类) / `gateway`(运行时) / `probe`(三类验证) / `breakdown`(上下文+校验) / `polish`(润色上下文+输出校验,MAX_POLISH_CHARS=4000,可选润色方向≤200 字) / `apply`(采纳事务) / `diagnostics`(调用摘要)。命令层 `commands/ai_commands.rs` 共 22 个,全部 `rename_all = "snake_case"`（见上文 CRITICAL 节,漏写会报 missing camelCase 键）
 - **凭证**：Windows 凭据管理器,keyring 条目 `com.todoflow.desktop/ai/<connection_id>`;库内只存 credential_version。保存次序=先写凭证再提交配置,失败补偿不留悬挂引用；前端永远拿不到原始 Key
 - **错误契约**：AI 命令返回 `AiError { code, message, detail? }` 对象（15 类 snake_case code）,与 `AppError`（纯字符串）并存,勿混用；前端 `isAiError()` 判别
 - **网关铁律**：任何 `await` 前必须 drop `MutexGuard<Connection>`（网关不持库锁）；并发槽 `Semaphore(2)`；默认总超时 120s（连接级 timeout_secs 覆盖）；取消走 in_flight 注册表（oneshot）,取消后晚响应直接丢弃;响应体上限 2MiB
 - **拆解生命周期**：候选 proposal 只存 `AiRuntime` 内存（重启即弃=预览过期,回执在库所以重试仍幂等）；上下文指纹=标题+描述文本+子任务(标题,完成态),采纳前重算比对,变化即拦截;采纳幂等键 `operation_id`（同一 proposal 生命周期内前端复用,重复提交相同内容返回原结果）,事务内任一失败整批回滚,子任务经 `task_repo::create` 创建（source='agent',同步记录随之生成）——**不走 MCP**
 - **地址规则**：基础地址 + `/chat/completions` 拼接,不强加 `/v1`,误填完整端点在保存时被 `normalize_base_url` 拦截;`response_format` JSON 被拒(400)自动降级纯文本重试一次
-- **测试**：单测/集成测试全 mock(含 TcpListener 手写 SSE 服务器,不碰真网);真实验收 `cargo test --test ai_acceptance -- --ignored --nocapture`（真实库+真实凭证+真实服务调用,会往任务列表写带【AI验收】前缀的虚构任务）;keyring spike 同为 `--ignored`
-- **前端**：契约在 `src/domain/repositories` 的 `AiModelRepository`(desktop 接 `lib/db.ts` 包装,memory 替身供测试);UI 为 `src/components/ai/`;流式进度监听 `ai-request-progress` 事件并按 `request_id` 过滤
+- **描述润色**：命令 `ai_polish_description(task_id, note?, request_id?)`,note=润色方向(≤200 字,提示词在不丢失原有信息前提下优先遵循);结果不落库(纯预览文本),采纳直接走 `update_task` 仅替换描述;输出校验 1..=4000 字、finish_reason 必须 stop
+- **前端会话模式**：`polishStore`/`breakdownStore`(zustand)持有生成会话(状态/结果/编辑/方向/发起时间戳),面板只是视图 → 退出详情再进能看到进行中请求与上次候选;`request_id` 由前端生成传入(进度过滤/取消/接续);进度框显示已等待秒数+已生成字数(useElapsedSeconds,计时跨进出连续);生成前 `TaskDetail.flushSave` 带 8 秒超时兜底(TanStack mutate 回调在组件卸载后不触发,不设兜底会话会永久"生成中");取消按钮乐观置为已取消(保存阶段卡死也可解除);同任务润色/拆解共用后端单飞,前端两侧按钮互斥禁用
+- **测试**：单测/集成测试全 mock(含 TcpListener 手写 SSE 服务器,不碰真网);真实验收 `cargo test --test ai_acceptance -- --ignored --nocapture`（真实库+真实凭证+真实服务调用,会往任务列表写带【AI验收】/【AI润色冒烟】前缀的虚构任务）;keyring spike 同为 `--ignored`
+- **前端**：契约在 `src/domain/repositories` 的 `AiModelRepository`(desktop 接 `lib/db.ts` 包装,memory 替身供测试);UI 为 `src/components/ai/`;流式进度监听 `ai-request-progress` 事件并按 `request_id` 过滤;错误文案统一走 `src/lib/aiErrors.ts`(timeout→"模型服务响应超时"等)
 
 ## Settings Keys
 
