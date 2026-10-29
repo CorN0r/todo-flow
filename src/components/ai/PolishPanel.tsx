@@ -1,20 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import {
   AlertTriangle, Info, Loader2, PenLine, X,
 } from 'lucide-react';
 import { getRepositories } from '../../domain/repositories/current';
-import { isAiError, type PolishProposal } from '../../domain/models/ai';
-import { errMessage } from '../../hooks/useAiModels';
+import { runPolish, usePolishStore } from '../../stores/polishStore';
 import { wrapPlainText } from '../../lib/html';
-import { cn } from '../../lib/cn';
 
 /**
- * 描述润色面板:生成 → 可编辑预览 → 采纳(仅替换描述字段)。
- * - 生成前等待任务编辑保存完成(flushSave),失败中止
- * - 流式进度按 request_id 过滤;取消后描述保持原样
- * - 采纳把纯文本按既有规则包装(wrapPlainText)后走 updateTask
+ * 描述润色面板 = polishStore 会话的视图。
+ * 会话(生成中/结果/编辑)存放在 store,退出详情再进来仍能看到进行中的请求
+ * 或上次结果;采纳立即关闭面板,描述更新在后台落库。
  */
 export function PolishPanel({
   taskId,
@@ -26,45 +22,34 @@ export function PolishPanel({
   taskId: string;
   currentDescriptionText: string;
   onBeforeGenerate: () => Promise<void>;
-  onAdopt: (newDescriptionHtml: string) => Promise<void>;
+  /** 立即返回;描述更新由调用方异步落库,失败自行提示。 */
+  onAdopt: (newDescriptionHtml: string) => void;
   onClose: () => void;
 }) {
   useTranslation();
-  const [generating, setGenerating] = useState(false);
+  const session = usePolishStore((s) => s.sessions[taskId]);
+  const setText = usePolishStore((s) => s.setText);
+  const clear = usePolishStore((s) => s.clear);
   const [progressText, setProgressText] = useState('');
-  const [proposal, setProposal] = useState<PolishProposal | null>(null);
-  const [draft, setDraft] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [adopting, setAdopting] = useState(false);
-  const requestIdRef = useRef<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  const generating = session?.status === 'generating';
+  const done = session?.status === 'done';
+  const failed = session?.status === 'error';
 
   const generate = useCallback(async () => {
-    setError(null);
-    setGenerating(true);
+    setStarting(true);
     setProgressText('');
     try {
-      await onBeforeGenerate();
-    } catch {
-      setGenerating(false);
-      setError('任务保存失败,请先处理未保存的修改后再润色');
-      return;
-    }
-    try {
-      const result = await getRepositories().ai.polishDescription(taskId);
-      requestIdRef.current = result.request_id;
-      setProposal(result);
-      setDraft(result.text);
-    } catch (e) {
-      const msg = isAiError(e) && e.code === 'cancelled' ? '已取消' : errMessage(e);
-      setError(msg);
+      await runPolish(taskId, currentDescriptionText, onBeforeGenerate);
     } finally {
-      setGenerating(false);
+      setStarting(false);
     }
-  }, [taskId, onBeforeGenerate]);
+  }, [taskId, currentDescriptionText, onBeforeGenerate]);
 
-  // 流式进度:只累计自己请求的增量
+  // 流式进度:按会话 request_id 过滤(生成一开始就知道 id,重进面板同样生效)
   useEffect(() => {
-    if (!generating) return;
+    if (!generating || !session?.requestId) return;
     let unlisten: (() => void) | null = null;
     let cancelled = false;
     (async () => {
@@ -74,7 +59,7 @@ export function PolishPanel({
           'ai-request-progress',
           (event) => {
             if (cancelled) return;
-            if (event.payload.request_id !== requestIdRef.current) return;
+            if (event.payload.request_id !== session.requestId) return;
             if (event.payload.delta) {
               setProgressText((prev) => (prev + event.payload.delta!).slice(-300));
             }
@@ -90,36 +75,29 @@ export function PolishPanel({
       cancelled = true;
       unlisten?.();
     };
-  }, [generating]);
+  }, [generating, session?.requestId]);
 
   const cancel = useCallback(async () => {
-    const id = requestIdRef.current;
-    if (id) {
-      try {
-        await getRepositories().ai.cancelRequest(id);
-      } catch {
-        // 取消失败不阻塞,请求结束后自然清理
-      }
-    }
-  }, []);
-
-  const adopt = useCallback(async () => {
-    const text = draft.trim();
-    if (!text || adopting) return;
-    setAdopting(true);
-    setError(null);
+    if (!session?.requestId) return;
     try {
-      await onAdopt(wrapPlainText(text));
-      toast.success('描述已更新');
-      onClose();
-    } catch (e) {
-      setError(errMessage(e));
-    } finally {
-      setAdopting(false);
+      await getRepositories().ai.cancelRequest(session.requestId);
+    } catch {
+      // 取消失败不阻塞,请求结束后自然清理
     }
-  }, [draft, adopting, onAdopt, onClose]);
+  }, [session?.requestId]);
 
-  const dirty = proposal ? draft.trim() !== proposal.text.trim() : false;
+  const adopt = useCallback(() => {
+    const text = (session?.text ?? '').trim();
+    if (!text) return;
+    // 立即关闭并清除会话;描述更新后台落库,失败由调用方 toast
+    onAdopt(wrapPlainText(text));
+    clear(taskId);
+    onClose();
+  }, [session?.text, onAdopt, clear, taskId, onClose]);
+
+  // 生成后描述又被人改过:结果基于旧内容,采纳会覆盖改动 → 明确提示
+  const baseChanged =
+    done && session !== undefined && currentDescriptionText.trim() !== session.baseDescriptionText.trim();
 
   return (
     <div className="rounded-xl border border-[#7C72F6]/25 bg-[#FAFAFF] dark:bg-white/[0.03] p-3 space-y-2.5" data-testid="ai-polish-panel">
@@ -127,9 +105,11 @@ export function PolishPanel({
         <PenLine size={13} className="text-[#7C72F6] shrink-0" />
         <span className="text-[12px] font-medium text-[#111827] dark:text-white/90 flex-1 truncate">
           AI 润色描述
-          {proposal && !generating && <span className="ml-1.5 text-[11px] text-[#9CA3AF] font-normal">{proposal.model_snapshot}</span>}
+          {done && session?.modelSnapshot && (
+            <span className="ml-1.5 text-[11px] text-[#9CA3AF] font-normal">{session.modelSnapshot}</span>
+          )}
         </span>
-        {generating && (
+        {(generating || starting) && (
           <>
             <Loader2 size={13} className="animate-spin text-[#7C72F6]" />
             <button
@@ -152,48 +132,60 @@ export function PolishPanel({
       </p>
 
       {generating && (
-        <div className="rounded-lg bg-[#F3F4F6] dark:bg-white/[0.04] px-3 py-2 text-[11px] text-[#6B7280] font-mono break-all max-h-16 overflow-hidden">
-          {progressText || '正在生成…'}
+        <div className="rounded-lg bg-[#F3F4F6] dark:bg-white/[0.04] px-3 py-2 text-[11px] text-[#6B7280] font-mono break-all max-h-16 overflow-hidden" data-testid="ai-polish-progress">
+          {progressText || '正在生成…(可离开本页,生成会继续)'}
         </div>
       )}
 
-      {error && (
+      {(failed || starting) && !generating && (
         <div className="flex items-start gap-1.5 rounded-lg bg-[#FEF2F2] dark:bg-red-950/20 px-3 py-2 text-[12px] text-[#EF4444]" data-testid="ai-polish-error">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
+          <span>{failed ? session?.error : ''}</span>
         </div>
       )}
 
-      {proposal && !generating && (
+      {failed && !generating && (
+        <div className="flex justify-end">
+          <button
+            onClick={generate}
+            className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] inline-flex items-center gap-1"
+          >
+            <PenLine size={12} />重试
+          </button>
+        </div>
+      )}
+
+      {done && (
         <>
+          {baseChanged && (
+            <p className="text-[11px] text-[#F59E0B]" data-testid="ai-polish-stale">
+              生成后任务描述有改动,以下结果基于旧内容;采纳将覆盖当前描述。
+            </p>
+          )}
           <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={Math.min(10, Math.max(3, draft.split('\n').length + 1))}
+            value={session?.text ?? ''}
+            onChange={(e) => setText(taskId, e.target.value)}
+            rows={Math.min(10, Math.max(3, (session?.text ?? '').split('\n').length + 1))}
             className="w-full text-[13px] px-3 py-2 rounded-lg border border-[#D1D5DB] dark:border-white/[0.10] bg-transparent outline-none focus:border-[#7C72F6] text-[#111827] dark:text-white/90 resize-y"
             data-testid="ai-polish-draft"
           />
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-[#9CA3AF]">
-              {draft.trim().length} 字{dirty ? ' · 已编辑' : ''}
+              {(session?.text ?? '').trim().length} 字
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={generate}
-                className="text-[12px] px-2.5 py-1.5 rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]"
+                className="text-[12px] px-2.5 py-1.5 rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] inline-flex items-center gap-1"
               >
                 重新生成
               </button>
               <button
                 onClick={adopt}
-                disabled={adopting || !draft.trim()}
-                className={cn(
-                  'text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6]',
-                  'disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1',
-                )}
+                disabled={!(session?.text ?? '').trim()}
+                className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 disabled:cursor-not-allowed"
                 data-testid="ai-polish-adopt"
               >
-                {adopting && <Loader2 size={12} className="animate-spin" />}
                 采纳
               </button>
             </div>
@@ -201,13 +193,14 @@ export function PolishPanel({
         </>
       )}
 
-      {!proposal && !generating && (
+      {!session && !generating && (
         <div className="flex justify-end">
           <button
             onClick={generate}
-            className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] inline-flex items-center gap-1"
+            disabled={starting}
+            className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 inline-flex items-center gap-1"
           >
-            <PenLine size={12} />
+            {starting ? <Loader2 size={12} className="animate-spin" /> : <PenLine size={12} />}
             {currentDescriptionText.trim() ? '开始润色' : '生成描述'}
           </button>
         </div>

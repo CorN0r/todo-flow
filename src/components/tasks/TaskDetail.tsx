@@ -464,17 +464,14 @@ export function TaskDetail() {
               taskId={task.id}
               currentDescriptionText={local.description}
               onBeforeGenerate={flushSave}
-              onAdopt={async (html) => {
-                // 仅替换描述字段,走既有更新流;本地状态同步,避免 800ms 防抖用旧值回写
+              onAdopt={(html) => {
+                // 立即生效:本地状态同步,后台落库;失败走 toast,不让面板等待
                 setLocal((prev) => (prev ? { ...prev, description: html } : null));
-                await new Promise<void>((resolve, reject) => {
-                  mutateRef.current({ id: task.id, description: html }, {
-                    onSuccess: () => {
-                      if (localRef.current) originalRef.current = { ...originalRef.current!, description: html };
-                      resolve();
-                    },
-                    onError: (err) => reject(err),
-                  });
+                mutateRef.current({ id: task.id, description: html }, {
+                  onSuccess: () => {
+                    if (localRef.current) originalRef.current = { ...originalRef.current!, description: html };
+                  },
+                  onError: () => toast.error('描述保存失败,请重试'),
                 });
               }}
               onClose={() => setShowPolish(false)}

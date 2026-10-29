@@ -1,0 +1,132 @@
+import { create } from 'zustand';
+import type { PolishProposal } from '../domain/models/ai';
+
+/**
+ * 润色会话 store:让生成中的请求与已完成的结果跨详情页进出存活。
+ * 组件局部 state 在离开任务详情时会丢失,导致"看不到进度、拿不回结果、
+ * 重试被单飞拦截"。会话放在这里,面板只是它的视图。
+ */
+export type PolishStatus = 'generating' | 'done' | 'error';
+
+export interface PolishSession {
+  taskId: string;
+  status: PolishStatus;
+  /** 前端生成并传给后端的请求标识:进度过滤 + 取消 + 重进面板接续。 */
+  requestId: string;
+  modelSnapshot: string | null;
+  /** 预览文本(含用户编辑,跨进出保留)。 */
+  text: string;
+  /** 发起生成时任务描述的纯文本,用于检测"生成后描述又变了"。 */
+  baseDescriptionText: string;
+  error: string | null;
+}
+
+interface PolishStore {
+  sessions: Record<string, PolishSession>;
+  /** 视图挂载时按需同步一次进度尾巴(仅展示用,不参与状态机)。 */
+  start(taskId: string, baseDescriptionText: string, requestId: string): void;
+  finish(taskId: string, proposal: PolishProposal): void;
+  fail(taskId: string, message: string): void;
+  setText(taskId: string, text: string): void;
+  /** 采纳完成或用户明确放弃后清除会话。 */
+  clear(taskId: string): void;
+}
+
+function genRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `polish-${crypto.randomUUID()}`;
+  }
+  return `polish-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export const usePolishStore = create<PolishStore>((set) => ({
+  sessions: {},
+  start: (taskId, baseDescriptionText, requestId) =>
+    set((s) => ({
+      sessions: {
+        ...s.sessions,
+        [taskId]: {
+          taskId,
+          status: 'generating',
+          requestId,
+          modelSnapshot: null,
+          text: '',
+          baseDescriptionText,
+          error: null,
+        },
+      },
+    })),
+  finish: (taskId, proposal) =>
+    set((s) =>
+      s.sessions[taskId]
+        ? {
+            sessions: {
+              ...s.sessions,
+              [taskId]: {
+                ...s.sessions[taskId],
+                status: 'done',
+                requestId: proposal.request_id,
+                modelSnapshot: proposal.model_snapshot,
+                text: proposal.text,
+                error: null,
+              },
+            },
+          }
+        : s,
+    ),
+  fail: (taskId, message) =>
+    set((s) =>
+      s.sessions[taskId]
+        ? {
+            sessions: {
+              ...s.sessions,
+              [taskId]: { ...s.sessions[taskId], status: 'error', error: message },
+            },
+          }
+        : s,
+    ),
+  setText: (taskId, text) =>
+    set((s) =>
+      s.sessions[taskId]
+        ? { sessions: { ...s.sessions, [taskId]: { ...s.sessions[taskId], text } } }
+        : s,
+    ),
+  clear: (taskId) =>
+    set((s) => {
+      if (!s.sessions[taskId]) return s;
+      const next = { ...s.sessions };
+      delete next[taskId];
+      return { sessions: next };
+    }),
+}));
+
+/**
+ * 发起并托管一次润色生成:flushSave 由调用方注入(任务详情的保存等待);
+ * 之后的网络请求与收尾都在 store 侧完成,不依赖面板存活。
+ */
+export async function runPolish(
+  taskId: string,
+  baseDescriptionText: string,
+  beforeGenerate: () => Promise<void>,
+): Promise<void> {
+  const requestId = genRequestId();
+  const store = usePolishStore.getState();
+  store.start(taskId, baseDescriptionText, requestId);
+  try {
+    await beforeGenerate();
+  } catch {
+    usePolishStore.getState().fail(taskId, '任务保存失败,请先处理未保存的修改后再润色');
+    return;
+  }
+  try {
+    const { getRepositories } = await import('../domain/repositories/current');
+    const proposal = await getRepositories().ai.polishDescription(taskId, requestId);
+    usePolishStore.getState().finish(taskId, proposal);
+  } catch (e) {
+    const cancelled =
+      typeof e === 'object' && e !== null && (e as { code?: string }).code === 'cancelled';
+    usePolishStore
+      .getState()
+      .fail(taskId, cancelled ? '已取消' : String((e as { message?: string })?.message ?? e));
+  }
+}

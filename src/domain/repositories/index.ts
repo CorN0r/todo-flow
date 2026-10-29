@@ -133,7 +133,7 @@ export interface AiModelRepository {
   generateBreakdown(taskId: string, userNote?: string): Promise<BreakdownProposal>;
   applyBreakdown(proposalId: string, operationId: string, items: BreakdownItem[]): Promise<ApplyBreakdownResult>;
   // 描述润色
-  polishDescription(taskId: string): Promise<import('../models/ai').PolishProposal>;
+  polishDescription(taskId: string, requestId: string): Promise<import('../models/ai').PolishProposal>;
   // 诊断
   listInvocations(limit?: number): Promise<AiInvocationSummary[]>;
   clearInvocations(): Promise<void>;

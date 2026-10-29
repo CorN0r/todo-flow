@@ -871,6 +871,7 @@ pub async fn ai_polish_description(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     task_id: String,
+    request_id: Option<String>,
 ) -> Result<PolishProposalDto, AiError> {
     use crate::ai::adapter::FinishReason;
     use crate::ai::polish::{build_polish_request, context_from_parts, validate_polish_text};
@@ -951,7 +952,12 @@ pub async fn ai_polish_description(
             .ok_or_else(|| {
                 AiError::new(AiErrorCode::CredentialUnavailable, "该连接尚未配置 API Key")
             })?;
-        let request_id = format!("polish-{}", uuid::Uuid::new_v4());
+        let request_id = request_id
+            .filter(|r| {
+                !r.is_empty()
+                    && r.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            })
+            .unwrap_or_else(|| format!("polish-{}", uuid::Uuid::new_v4()));
         let request = build_polish_request(&model.model_id, &ctx, use_stream);
         let result = state
             .ai_runtime
