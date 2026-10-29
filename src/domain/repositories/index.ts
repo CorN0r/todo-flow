@@ -130,7 +130,7 @@ export interface AiModelRepository {
   verifyModel(modelEntryId: string, kind: AiVerificationKind): Promise<AiVerification>;
   cancelRequest(requestId: string): Promise<void>;
   // 拆解业务
-  generateBreakdown(taskId: string, userNote?: string): Promise<BreakdownProposal>;
+  generateBreakdown(taskId: string, userNote?: string, requestId?: string): Promise<BreakdownProposal>;
   applyBreakdown(proposalId: string, operationId: string, items: BreakdownItem[]): Promise<ApplyBreakdownResult>;
   // 描述润色
   polishDescription(taskId: string, requestId: string): Promise<import('../models/ai').PolishProposal>;

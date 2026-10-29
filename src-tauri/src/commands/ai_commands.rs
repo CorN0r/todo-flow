@@ -562,6 +562,7 @@ pub async fn ai_generate_breakdown(
     state: State<'_, AppState>,
     task_id: String,
     user_note: Option<String>,
+    request_id: Option<String>,
 ) -> Result<BreakdownProposalDto, AiError> {
     use crate::ai::breakdown::{
         context_fingerprint, html_to_text, BreakdownContext, ChildSummary, StoredProposal,
@@ -654,7 +655,7 @@ pub async fn ai_generate_breakdown(
         (ctx, fingerprint, connection, model, use_stream)
     }; // ---- 数据库锁已释放 ----
 
-    let result = generate_inner(&state, &app, &ctx, &connection, &model, use_stream).await;
+    let result = generate_inner(&state, &app, &ctx, &connection, &model, use_stream, request_id).await;
 
     // 单飞解除(所有路径)
     if let Ok(mut active) = state.ai_runtime.active_breakdowns.lock() {
@@ -723,6 +724,7 @@ async fn generate_inner(
     connection: &AiConnection,
     model: &AiModel,
     use_stream: bool,
+    caller_request_id: Option<String>,
 ) -> GenerateInnerResult {
     use crate::ai::adapter::FinishReason;
     use crate::ai::breakdown::build_breakdown_request;
@@ -733,7 +735,12 @@ async fn generate_inner(
         .ok_or_else(|| AiError::new(AiErrorCode::CredentialUnavailable, "该连接尚未配置 API Key"))?;
 
     let runtime = state.ai_runtime.clone();
-    let request_id = format!("breakdown-{}", uuid::Uuid::new_v4());
+    let request_id = caller_request_id
+        .filter(|r| {
+            !r.is_empty()
+                && r.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        })
+        .unwrap_or_else(|| format!("breakdown-{}", uuid::Uuid::new_v4()));
     let mut request = build_breakdown_request(&model.model_id, ctx, use_stream);
     let snapshot = format!("{} ({})", connection.name, model.model_id);
     let started = std::time::Instant::now();

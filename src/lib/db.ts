@@ -434,8 +434,8 @@ export async function aiCancelRequest(requestId: string): Promise<void> {
   return invoke('ai_cancel_request', { request_id: requestId });
 }
 
-export async function aiGenerateBreakdown(taskId: string, userNote?: string): Promise<BreakdownProposal> {
-  return invoke('ai_generate_breakdown', { task_id: taskId, user_note: userNote ?? null });
+export async function aiGenerateBreakdown(taskId: string, userNote?: string, requestId?: string): Promise<BreakdownProposal> {
+  return invoke('ai_generate_breakdown', { task_id: taskId, user_note: userNote ?? null, request_id: requestId ?? null });
 }
 
 export async function aiApplyBreakdown(

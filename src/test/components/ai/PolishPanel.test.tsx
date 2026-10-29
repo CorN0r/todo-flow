@@ -58,7 +58,7 @@ describe('PolishPanel(会话 store 驱动)', () => {
   it('生成中离开再进入:显示进行中状态与取消,结果回来后可查看', async () => {
     const { repositories } = createMemoryRepositories();
     let release!: (v: { request_id: string; model_snapshot: string; text: string }) => void;
-    const gate = new Promise((resolve) => { release = resolve; });
+    const gate = new Promise<{ request_id: string; model_snapshot: string; text: string }>((resolve) => { release = resolve; });
     setRepositoriesForTesting({
       ...repositories,
       ai: { ...repositories.ai, polishDescription: () => gate },

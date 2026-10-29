@@ -249,10 +249,11 @@ function createMemoryAiRepository(state: MemoryRepositoryState): AiModelReposito
 第一步明确目标;第二步执行;第三步检查。`,
       };
     },
-    async generateBreakdown(taskId, userNote) {
+    async generateBreakdown(taskId, userNote, requestId) {
+      void userNote;
       const proposal: import('../models/ai').BreakdownProposal = {
         proposal_id: createId('ai-proposal', state),
-        request_id: createId('ai-req', state),
+        request_id: requestId ?? createId('ai-req', state),
         model_snapshot: 'memory 替身 (memory-model-a)',
         assumptions: userNote ? [] : ['默认按三个工作日安排'],
         items: [
