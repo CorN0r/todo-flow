@@ -240,6 +240,14 @@ function createMemoryAiRepository(state: MemoryRepositoryState): AiModelReposito
       return clone(verification);
     },
     async cancelRequest() {},
+    async polishDescription(taskId: string) {
+      return {
+        request_id: createId('ai-req', state),
+        model_snapshot: 'memory 替身 (memory-model-a)',
+        text: `【润色】任务 ${taskId} 的执行说明:
+第一步明确目标;第二步执行;第三步检查。`,
+      };
+    },
     async generateBreakdown(taskId, userNote) {
       const proposal: import('../models/ai').BreakdownProposal = {
         proposal_id: createId('ai-proposal', state),

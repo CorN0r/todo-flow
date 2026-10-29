@@ -9,7 +9,7 @@ use todo_flow_lib::ai::adapter::{ChatRequest, FinishReason};
 use todo_flow_lib::ai::apply::{apply_breakdown_items, ApplyResult};
 use todo_flow_lib::ai::breakdown::{
     build_breakdown_request, context_fingerprint, html_to_text, parse_and_validate,
-    BreakdownContext, ChildSummary, StoredProposal,
+    BreakdownContext, StoredProposal,
 };
 use todo_flow_lib::ai::config_repo;
 use todo_flow_lib::ai::credentials::{CredentialStore, WindowsKeyringStore};
@@ -192,4 +192,75 @@ async fn real_end_to_end_breakdown_and_apply() {
     .unwrap();
 
     println!("\n全部通过。验收任务保留在任务列表(标题带【AI验收】,可删除);回执与摘要保留为证据。");
+}
+
+/// 6.x 真实冒烟:默认模型对虚构任务做描述润色(只验证生成链路,不写任务描述)。
+#[tokio::test]
+#[ignore = "真实冒烟:读真实凭证并调用真实服务;手动执行"]
+async fn real_polish_smoke() {
+    let data_dir = todo_flow_lib::default_data_dir().expect("无法定位数据目录");
+    let conn = db_connection::open(&data_dir.join("todo.db")).unwrap();
+    let default_id = config_repo::get_default_model_id(&conn).unwrap().expect("未设置默认模型");
+    let model = config_repo::get_model(&conn, &default_id).unwrap().unwrap();
+    let connection =
+        config_repo::get_connection(&conn, &model.connection_id).unwrap().unwrap();
+    let api_key = WindowsKeyringStore.get(&connection.id).unwrap().filter(|k| !k.is_empty()).expect("凭证缺失");
+
+    // 虚构任务:空描述 → 生成模式
+    let task = task_repo::create(
+        &conn,
+        CreateTaskRequest {
+            title: "【AI润色冒烟】给客厅换个灯泡(自动测试)".into(),
+            description: None,
+            tag_ids: None,
+            parent_task_id: None,
+            due_date: None,
+            priority: None,
+            reminder: None,
+            recurrence: None,
+            my_day_date: None,
+            source: None,
+        },
+    )
+    .unwrap();
+
+    let ctx = todo_flow_lib::ai::polish::context_from_parts(
+        &task.title,
+        &task.description,
+        vec![],
+    );
+    let use_stream = config_repo::latest_verifications(&conn, &model.id)
+        .unwrap()
+        .iter()
+        .any(|v| v.kind == "stream" && v.status == "passed");
+    let runtime = AiRuntime::new();
+    let request_id = format!("polish-smoke-{}", uuid::Uuid::new_v4());
+    let request = todo_flow_lib::ai::polish::build_polish_request(&model.model_id, &ctx, use_stream);
+
+    let started = std::time::Instant::now();
+    let result = runtime
+        .execute_chat(None, &request_id, &connection, &api_key, &request)
+        .await
+        .expect("润色调用失败");
+    println!("用时 {}ms | finish={:?} | 流式={}", started.elapsed().as_millis(), result.finish_reason, use_stream);
+    assert_eq!(result.finish_reason, FinishReason::Stop);
+
+    let text = todo_flow_lib::ai::polish::validate_polish_text(&result.text).expect("润色结果校验失败");
+    println!("生成描述({} 字):\n{}", text.chars().count(), text);
+
+    diagnostics::record_invocation(
+        &conn,
+        "polish",
+        Some(&model.id),
+        &format!("{} ({})", connection.name, model.model_id),
+        "success",
+        None,
+        Some(started.elapsed().as_millis() as i64),
+        result.usage.as_ref(),
+    )
+    .unwrap();
+
+    // 冒烟结束即清理,不留任务
+    task_repo::delete(&conn, &task.id).unwrap();
+    println!("冒烟通过,虚构任务已删除。");
 }

@@ -457,3 +457,7 @@ export async function aiListInvocations(limit?: number): Promise<AiInvocationSum
 export async function aiClearInvocations(): Promise<void> {
   return invoke('ai_clear_invocations');
 }
+
+export async function aiPolishDescription(taskId: string): Promise<import('../domain/models/ai').PolishProposal> {
+  return invoke('ai_polish_description', { task_id: taskId });
+}

@@ -10,7 +10,7 @@ import { cn } from '../../lib/cn';
 import { queryKeys } from '../../lib/queryKeys';
 import type { UpdateTaskInput } from '../../types/task';
 import type { Tag as TagType } from '../../types/tag';
-import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, Check, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer, Sparkles } from 'lucide-react';
+import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, Check, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer, Sparkles, PenLine } from 'lucide-react';
 import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
@@ -19,6 +19,7 @@ import { Portal } from '../shared/Portal';
 import { SubtaskReminderButton } from './SubtaskReminderButton';
 import { SubtaskDateChip } from './SubtaskDateChip';
 import { BreakdownPanel } from '../ai/BreakdownPanel';
+import { PolishPanel } from '../ai/PolishPanel';
 import { toast } from 'sonner';
 import { hexToRgba, PRIORITY_HEX, priorityLabels } from '../../lib/priority';
 
@@ -214,6 +215,7 @@ export function TaskDetail() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showPolish, setShowPolish] = useState(false);
 
   const update = (patch: Partial<LocalState>) => { setLocal((prev) => (prev ? { ...prev, ...patch } : null)); };
 
@@ -445,7 +447,40 @@ export function TaskDetail() {
         <div className="flex items-center gap-1.5 mb-2">
           <AlignLeft size={13} className="text-[#6B7280]" />
           <label className="section-label">描述</label>
+          <span className="flex-1" />
+          {!task.is_completed && (
+            <button
+              onClick={() => setShowPolish((s) => !s)}
+              className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors',
+                showPolish ? 'text-[#7C72F6] bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/[0.06]')}
+              title="用默认模型润色或生成描述">
+              <PenLine size={11} />AI 润色
+            </button>
+          )}
         </div>
+        {showPolish && !task.is_completed && (
+          <div className="mb-2">
+            <PolishPanel
+              taskId={task.id}
+              currentDescriptionText={local.description}
+              onBeforeGenerate={flushSave}
+              onAdopt={async (html) => {
+                // 仅替换描述字段,走既有更新流;本地状态同步,避免 800ms 防抖用旧值回写
+                setLocal((prev) => (prev ? { ...prev, description: html } : null));
+                await new Promise<void>((resolve, reject) => {
+                  mutateRef.current({ id: task.id, description: html }, {
+                    onSuccess: () => {
+                      if (localRef.current) originalRef.current = { ...originalRef.current!, description: html };
+                      resolve();
+                    },
+                    onError: (err) => reject(err),
+                  });
+                });
+              }}
+              onClose={() => setShowPolish(false)}
+            />
+          </div>
+        )}
         <Suspense
           fallback={
             <div className="h-32 flex items-center justify-center text-[#6B7280] text-sm">

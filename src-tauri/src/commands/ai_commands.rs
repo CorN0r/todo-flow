@@ -854,3 +854,165 @@ pub async fn ai_apply_breakdown(
     }
     Ok(result)
 }
+
+// ---------- 任务描述润色 ----------
+
+#[derive(serde::Serialize)]
+pub struct PolishProposalDto {
+    /// 请求标识(进度事件过滤/取消)。
+    pub request_id: String,
+    pub model_snapshot: String,
+    /// 润色/生成的描述纯文本(前端预览可编辑,采纳走 update_task)。
+    pub text: String,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn ai_polish_description(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    task_id: String,
+) -> Result<PolishProposalDto, AiError> {
+    use crate::ai::adapter::FinishReason;
+    use crate::ai::polish::{build_polish_request, context_from_parts, validate_polish_text};
+    use crate::db::task_repo;
+
+    // ---- 短临界区:准入、上下文、默认模型、单飞 ----
+    let (ctx, connection, model, use_stream) = {
+        let conn = state.db()?;
+        let task = task_repo::get_by_id(&conn, &task_id)?
+            .ok_or_else(|| AiError::new(AiErrorCode::Validation, "任务不存在"))?;
+        let deleted: Option<Option<String>> = conn
+            .query_row(
+                "SELECT deleted_at FROM tasks WHERE id = ?1",
+                rusqlite::params![task_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if deleted.flatten().is_some() {
+            return Err(AiError::new(AiErrorCode::Validation, "任务不存在"));
+        }
+        if task.is_completed {
+            return Err(AiError::new(AiErrorCode::Validation, "任务已完成,不需要润色"));
+        }
+        if task.is_archived {
+            return Err(AiError::new(AiErrorCode::Validation, "任务已归档,请先恢复"));
+        }
+
+        let children = task_repo::get_children(&conn, &task_id)?;
+        let ctx = context_from_parts(
+            &task.title,
+            &task.description,
+            children
+                .iter()
+                .map(|c| crate::ai::breakdown::ChildSummary {
+                    title: c.title.clone(),
+                    is_completed: c.is_completed,
+                })
+                .collect(),
+        );
+
+        let default_id = config_repo::get_default_model_id(&conn)?.ok_or_else(|| {
+            AiError::new(AiErrorCode::ConfigMissing, "尚未设置默认模型,请先到设置 → AI 模型完成配置")
+        })?;
+        let model = config_repo::get_model(&conn, &default_id)?.ok_or_else(|| {
+            AiError::new(AiErrorCode::ConfigMissing, "默认模型已不存在,请重新选择")
+        })?;
+        let connection = config_repo::get_connection(&conn, &model.connection_id)?.ok_or_else(|| {
+            AiError::new(AiErrorCode::ConfigMissing, "默认模型所属连接已不存在")
+        })?;
+        if !connection.enabled {
+            return Err(AiError::new(AiErrorCode::Validation, "默认模型所属连接已停用"));
+        }
+        let use_stream = config_repo::latest_verifications(&conn, &model.id)?
+            .iter()
+            .any(|v| v.kind == "stream" && v.status == "passed");
+
+        // 与拆解共用单飞:同一任务同时只允许一个 AI 生成
+        {
+            let mut active = state
+                .ai_runtime
+                .active_breakdowns
+                .lock()
+                .map_err(|_| AiError::new(AiErrorCode::Internal, "内部状态锁失败"))?;
+            if active.contains(&task_id) {
+                return Err(AiError::new(AiErrorCode::Validation, "该任务正在处理 AI 请求,请稍候"));
+            }
+            active.insert(task_id.clone());
+        }
+        (ctx, connection, model, use_stream)
+    }; // ---- 数据库锁已释放 ----
+
+    let started = std::time::Instant::now();
+    let snapshot = format!("{} ({})", connection.name, model.model_id);
+    let outcome = async {
+        let api_key = credential_store()
+            .get(&connection.id)?
+            .filter(|k| !k.trim().is_empty())
+            .ok_or_else(|| {
+                AiError::new(AiErrorCode::CredentialUnavailable, "该连接尚未配置 API Key")
+            })?;
+        let request_id = format!("polish-{}", uuid::Uuid::new_v4());
+        let request = build_polish_request(&model.model_id, &ctx, use_stream);
+        let result = state
+            .ai_runtime
+            .execute_chat(Some(&app), &request_id, &connection, &api_key, &request)
+            .await?;
+        if result.finish_reason != FinishReason::Stop {
+            return Err(AiError::new(
+                AiErrorCode::OutputTruncated,
+                "润色内容被截断,未生成可用结果",
+            ));
+        }
+        let text = validate_polish_text(&result.text)?;
+        Ok::<PolishProposalDto, AiError>(PolishProposalDto {
+            request_id,
+            model_snapshot: snapshot.clone(),
+            text,
+        })
+    }
+    .await;
+
+    // 单飞解除(所有路径)
+    if let Ok(mut active) = state.ai_runtime.active_breakdowns.lock() {
+        active.remove(&task_id);
+    }
+
+    // 调用摘要
+    {
+        let conn = state.db()?;
+        match &outcome {
+            Ok(dto) => {
+                crate::ai::diagnostics::record_invocation(
+                    &conn,
+                    "polish",
+                    Some(&model.id),
+                    &dto.model_snapshot,
+                    "success",
+                    None,
+                    Some(started.elapsed().as_millis() as i64),
+                    None,
+                )?;
+            }
+            Err(e) => {
+                let _ = crate::ai::diagnostics::record_invocation(
+                    &conn,
+                    "polish",
+                    Some(&model.id),
+                    &snapshot,
+                    if e.code == AiErrorCode::Cancelled { "cancelled" } else { "failed" },
+                    Some(
+                        &serde_json::to_value(&e.code)
+                            .unwrap_or_default()
+                            .to_string()
+                            .trim_matches('"')
+                            .to_string(),
+                    ),
+                    Some(started.elapsed().as_millis() as i64),
+                    None,
+                );
+            }
+        }
+    }
+
+    outcome
+}

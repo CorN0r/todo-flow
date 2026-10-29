@@ -10,3 +10,4 @@ pub mod credentials;
 pub mod diagnostics;
 pub mod error;
 pub mod gateway;
+pub mod polish;

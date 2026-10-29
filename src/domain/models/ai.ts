@@ -143,6 +143,13 @@ export interface ApplyBreakdownResult {
   already_applied: boolean;
 }
 
+/** 描述润色/生成结果(纯文本,前端预览可编辑,采纳走 updateTask) */
+export interface PolishProposal {
+  request_id: string;
+  model_snapshot: string;
+  text: string;
+}
+
 export function verificationOf(model: AiModelInfo | undefined, kind: AiVerificationKind): AiVerification | undefined {
   return model?.verifications.find((v) => v.kind === kind);
 }

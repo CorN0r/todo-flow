@@ -635,6 +635,7 @@ pub fn run() {
             commands::ai_commands::ai_verify_model,
             commands::ai_commands::ai_generate_breakdown,
             commands::ai_commands::ai_apply_breakdown,
+            commands::ai_commands::ai_polish_description,
         ])
         .run(tauri::generate_context!());
 
