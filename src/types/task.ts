@@ -71,3 +71,11 @@ export interface TaskReminder {
   reminded: boolean;
   created_at: string;
 }
+
+// 提醒弹窗待处理条目(Rust AlertState 队列快照)
+export interface PendingAlert {
+  reminder_id: string;
+  task_id: string;
+  title: string;
+  reminder_time: string;
+}

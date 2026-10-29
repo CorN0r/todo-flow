@@ -7,6 +7,12 @@ describe('app surface routing', () => {
     expect(getInitialEntryRoute({ search: '?pomodoro=1', userAgent: 'Android' })).toBe('/pomodoro-widget');
   });
 
+  it('routes the reminder alert window to its dedicated page', () => {
+    expect(getInitialEntryRoute({ search: '?reminder=1', userAgent: 'Windows' })).toBe('/reminder-alert');
+    // 提醒弹窗优先级高于 Android 判定(桌面专用窗口)
+    expect(getInitialEntryRoute({ search: '?reminder=1', userAgent: 'Android' })).toBe('/reminder-alert');
+  });
+
   it('selects the mobile entry on Android', () => {
     expect(getInitialEntryRoute({
       search: '',

@@ -1,7 +1,7 @@
 import { useEffect, Suspense, lazy } from 'react';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster, toast } from 'sonner';
+import { Toaster } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
 import './i18n';
 import { useLanguage } from './i18n/useLanguage';
@@ -13,6 +13,7 @@ import { TodayPage } from './pages/TodayPage';
 import { WidgetPage } from './pages/WidgetPage';
 import { PomodoroWidgetPage } from './pages/PomodoroWidgetPage';
 import { NotePage } from './pages/NotePage';
+import { ReminderAlertPage } from './pages/ReminderAlertPage';
 import { CommandPalette } from './components/shared/CommandPalette';
 import { BulkActionBar } from './components/shared/BulkActionBar';
 import { OnboardingOverlay } from './components/shared/OnboardingOverlay';
@@ -63,6 +64,7 @@ function AppLayout() {
       <Route path="/widget" element={<WidgetPage />} />
       <Route path="/pomodoro-widget" element={<PomodoroWidgetPage />} />
       <Route path="/note" element={<NotePage />} />
+      <Route path="/reminder-alert" element={<ReminderAlertPage />} />
       <Route path="/mobile/*" element={<MobileApp />} />
       <Route path="*" element={<MainLayout />} />
     </Routes>
@@ -88,26 +90,11 @@ function MainLayout() {
   });
 
   useEffect(() => {
-    let unlisten1: (() => void) | null = null;
     let unlisten2: (() => void) | null = null;
     let unlisten3: (() => void) | null = null;
     let cancelled = false;
 
     (async () => {
-      const u1 = await listen<{ task_id: string; title: string }>('reminder-triggered', (event) => {
-        toast(event.payload.title, {
-          description: '提醒时间到',
-          duration: 10000,
-          icon: (
-            <div className="w-8 h-8 rounded-full bg-[#7C72F6]/10 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C72F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-            </div>
-          ),
-        });
-      });
       const u2 = await listen('task-changed', () => {
         invalidateTasks(queryClient);
         invalidateTags(queryClient);
@@ -119,19 +106,16 @@ function MainLayout() {
         invalidateTaskNotes(queryClient);
       });
       if (cancelled) {
-        u1();
         u2();
         u3();
         return;
       }
-      unlisten1 = u1;
       unlisten2 = u2;
       unlisten3 = u3;
     })();
 
     return () => {
       cancelled = true;
-      unlisten1?.();
       unlisten2?.();
       unlisten3?.();
     };

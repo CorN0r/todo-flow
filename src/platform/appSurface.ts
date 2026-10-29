@@ -1,4 +1,4 @@
-export type EntryRoute = '/widget' | '/pomodoro-widget' | '/note' | '/mobile/today' | '/date/all';
+export type EntryRoute = '/widget' | '/pomodoro-widget' | '/note' | '/reminder-alert' | '/mobile/today' | '/date/all';
 
 export interface EntryRouteContext {
   search: string;
@@ -36,6 +36,10 @@ export function getInitialEntryRoute(context: EntryRouteContext): EntryRoute {
 
   if (params.has('note')) {
     return '/note';
+  }
+
+  if (params.has('reminder')) {
+    return '/reminder-alert';
   }
 
   if (shouldUseMobileShell(context)) {

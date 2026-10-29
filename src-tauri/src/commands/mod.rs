@@ -1,4 +1,5 @@
 pub mod ai_commands;
+pub mod alert_commands;
 pub mod attachment_commands;
 pub mod habit_commands;
 pub mod note_commands;

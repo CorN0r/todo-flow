@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod alerts;
 pub mod commands;
 pub mod db;
 mod db_watcher;
@@ -237,12 +238,15 @@ pub fn run() {
             };
 
             // Start reminder polling
-            reminders::start_polling(app.handle().clone(), db.clone());
+            // 注意:实际启动挪到 setup 末尾(见下方),确保 reminder-alert 窗口已创建,
+            // 启动即查时不丢首轮弹窗。
 
             // Start DB watcher: 检测外部进程(Agent/CLI)写入,触发前端刷新
             db_watcher::start_polling(app.handle().clone(), db_path.clone(), db.clone());
 
             app.manage(state);
+            // 提醒弹窗待处理队列(轮询线程入队,alert 命令消费)
+            app.manage(alerts::AlertState::default());
 
             #[cfg(not(mobile))]
             {
@@ -469,6 +473,35 @@ pub fn run() {
                     }
                 }
 
+                // ---- Reminder alert window (提醒弹窗,常驻隐藏,到期弹出) ----
+                let alert_win = tauri::WebviewWindowBuilder::new(
+                    app,
+                    crate::reminders::ALERT_WINDOW_LABEL,
+                    tauri::WebviewUrl::App("/?reminder=1".into()),
+                )
+                .title("TodoFlow 提醒")
+                .inner_size(420.0, 380.0)
+                .decorations(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false)
+                .visible(false)
+                .center()
+                .build()?;
+                {
+                    let alert_win_event = alert_win.clone();
+                    alert_win.on_window_event(move |event| {
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                            // 同便签窗口:本进程内一旦 destroy 任何窗口,后续
+                            // WebviewWindowBuilder::build() 必死锁(tauri 2.11 /
+                            // Windows WebView2)。这里只隐藏不销毁;队列非空时
+                            // 下一轮轮询会重新弹出。
+                            api.prevent_close();
+                            let _ = alert_win_event.hide();
+                        }
+                    });
+                }
+
                 // ---- Task note windows (启动时重建全部便签) ----
                 {
                     let notes = db_for_widget
@@ -508,6 +541,9 @@ pub fn run() {
                 // Hide-to-widget is available via the hide_to_tray command (called from frontend)
             }
 
+            // Start reminder polling(桌面窗口已就绪,启动首轮检查可立即弹出漏掉的提醒)
+            reminders::start_polling(app.handle().clone(), db.clone());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -525,6 +561,9 @@ pub fn run() {
             commands::reminder_commands::create_task_reminder,
             commands::reminder_commands::delete_task_reminder,
             commands::reminder_commands::clear_task_reminders,
+            commands::alert_commands::get_pending_alerts,
+            commands::alert_commands::dismiss_alert,
+            commands::alert_commands::snooze_alert,
             commands::tag_commands::create_tag,
             commands::tag_commands::get_tags,
             commands::tag_commands::update_tag,

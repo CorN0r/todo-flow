@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capability for the main window",
-  "windows": ["main", "widget", "pomodoro", "note-*"],
+  "windows": ["main", "widget", "pomodoro", "note-*", "reminder-alert"],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",

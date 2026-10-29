@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Task, TaskDetail, CreateTaskInput, UpdateTaskInput, ReorderItem, TaskReminder } from '../types/task';
+import type { Task, TaskDetail, CreateTaskInput, UpdateTaskInput, ReorderItem, TaskReminder, PendingAlert } from '../types/task';
 import type { Tag, TagWithCount, CreateTagInput } from '../types/tag';
 import type { Attachment } from '../types/attachment';
 import type {
@@ -99,6 +99,19 @@ export async function deleteTaskReminder(reminderId: string): Promise<void> {
 
 export async function clearTaskReminders(taskId: string): Promise<void> {
   return invoke('clear_task_reminders', { task_id: taskId });
+}
+
+// Reminder alert commands (提醒弹窗待处理队列)
+export async function getPendingAlerts(): Promise<PendingAlert[]> {
+  return invoke('get_pending_alerts');
+}
+
+export async function dismissAlert(reminderId: string): Promise<void> {
+  return invoke('dismiss_alert', { reminder_id: reminderId });
+}
+
+export async function snoozeAlert(reminderId: string, minutes: number): Promise<void> {
+  return invoke('snooze_alert', { reminder_id: reminderId, minutes });
 }
 
 // Tag commands
