@@ -38,6 +38,9 @@ const priorityConfig: Record<number, { label: string; color: string; bg: string 
 
 const tagsEqual = (a: string[], b: string[]) => a.length === b.length && a.every((t) => b.includes(t));
 
+/** AI 生成前等待任务保存的上限:本地 SQLite 写入毫秒级,超时即视为保存链路挂起。 */
+const FLUSH_SAVE_TIMEOUT_MS = 8000;
+
 interface LocalState {
   title: string;
   description: string;
@@ -186,7 +189,9 @@ export function TaskDetail() {
     mutateRef.current(input, { onSuccess: () => { originalRef.current = currentLocal; }, onError: () => { toast.error('保存失败'); } });
   }, [buildSaveInput]);
 
-  // 可等待的立即保存:AI 拆解等外部能力在生成前必须确认当前编辑已落库
+  // 可等待的立即保存:AI 拆解等外部能力在生成前必须确认当前编辑已落库。
+  // mutate 的回调在组件卸载后不会触发(TanStack 语义),必须带超时兜底,
+  // 否则保存挂起会把 AI 会话永远卡在"生成中"且无后端请求。
   const flushSave = useCallback(async (): Promise<void> => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
@@ -196,12 +201,19 @@ export function TaskDetail() {
     if (!currentLocal) return;
     const input = buildSaveInput(currentLocal);
     if (!input) return;
-    await new Promise<void>((resolve, reject) => {
+    const settled = new Promise<void>((resolve, reject) => {
       mutateRef.current(input, {
         onSuccess: () => { originalRef.current = currentLocal; resolve(); },
         onError: (err) => reject(err),
       });
     });
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject({ code: 'save_timeout', message: '任务保存超时,请稍后重试' }),
+        FLUSH_SAVE_TIMEOUT_MS,
+      );
+    });
+    await Promise.race([settled, timeout]);
   }, [buildSaveInput]);
 
   useEffect(() => {
@@ -473,9 +485,10 @@ export function TaskDetail() {
           {!task.is_completed && (
             <button
               onClick={() => setShowPolish((s) => !s)}
-              className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors',
+              disabled={breakdownGenerating}
+              className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                 showPolish ? 'text-[#7C72F6] bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/[0.06]')}
-              title="用默认模型润色或生成描述">
+              title={breakdownGenerating ? '该任务正在生成拆解,请先等它完成' : '用默认模型润色或生成描述'}>
               <PenLine size={11} />AI 润色
               {polishGenerating && <span className="text-[#F59E0B]">·生成中</span>}
               {polishSession?.status === 'done' && <span className="text-[#7C72F6]">·有结果</span>}
@@ -488,6 +501,7 @@ export function TaskDetail() {
               taskId={task.id}
               currentDescriptionText={local.description}
               onBeforeGenerate={flushSave}
+              otherBusy={breakdownGenerating}
               onAdopt={(html) => {
                 // 立即生效:本地状态同步,后台落库;失败走 toast,不让面板等待
                 setLocal((prev) => (prev ? { ...prev, description: html } : null));
@@ -541,9 +555,10 @@ export function TaskDetail() {
             {!task.parent_task_id && (
               <button
                 onClick={() => setShowBreakdown((s) => !s)}
-                className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full transition-colors',
+                disabled={polishGenerating}
+                className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                   showBreakdown ? 'text-[#7C72F6] bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/[0.06]')}
-                title="使用默认模型生成子任务建议">
+                title={polishGenerating ? '该任务正在润色,请先等它完成' : '使用默认模型生成子任务建议'}>
                 <Sparkles size={12} />AI 拆解
                 {breakdownGenerating && <span className="text-[#F59E0B]">·生成中</span>}
                 {breakdownSession?.status === 'done' && <span className="text-[#7C72F6]">·有结果</span>}
@@ -557,6 +572,7 @@ export function TaskDetail() {
               taskId={task.id}
               existingChildTitles={children.map((c) => c.title)}
               onBeforeGenerate={flushSave}
+              otherBusy={polishGenerating}
               onClose={closeBreakdown}
             />
           </div>

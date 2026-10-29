@@ -117,9 +117,49 @@ describe('PolishPanel(会话 store 驱动)', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: /开始润色/ }));
     await waitFor(() => expect(screen.getByTestId('ai-polish-error')).toBeInTheDocument());
-    expect(screen.getByTestId('ai-polish-error').textContent).toContain('请求超时');
+    expect(screen.getByTestId('ai-polish-error').textContent).toContain('模型服务响应超时');
 
     await userEvent.click(screen.getByRole('button', { name: /重试/ }));
     await waitFor(() => expect(screen.getByTestId('ai-polish-draft')).toBeInTheDocument());
+  });
+
+  it('拆解生成中(otherBusy):发起按钮禁用,不发起请求', async () => {
+    const { repositories } = createMemoryRepositories();
+    const polish = vi.fn();
+    setRepositoriesForTesting({ ...repositories, ai: { ...repositories.ai, polishDescription: polish } });
+
+    renderWithProviders(
+      <PolishPanel taskId="t1" currentDescriptionText="x" onBeforeGenerate={() => Promise.resolve()} onAdopt={vi.fn()} onClose={() => {}} otherBusy />,
+    );
+    const btn = screen.getByRole('button', { name: /开始润色/ }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    await userEvent.click(btn).catch(() => {});
+    expect(polish).not.toHaveBeenCalled();
+  });
+
+  it('生成中点取消:立即显示已取消,不等待后端回执', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const { repositories } = createMemoryRepositories();
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    setRepositoriesForTesting({ ...repositories, ai: { ...repositories.ai,
+      polishDescription: () => gate.then(() => Promise.reject({ code: 'cancelled', message: '已取消' })),
+      cancelRequest: cancel,
+    } });
+
+    renderWithProviders(
+      <PolishPanel taskId="t1" currentDescriptionText="x" onBeforeGenerate={() => Promise.resolve()} onAdopt={vi.fn()} onClose={() => {}} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /开始润色/ }));
+    await waitFor(() => expect(screen.getByTestId('ai-polish-progress')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: '取消' }));
+    // 乐观置为已取消,无需等 invoke 结束
+    await waitFor(() => expect(screen.getByTestId('ai-polish-error').textContent).toContain('已取消'));
+    expect(cancel).toHaveBeenCalledWith(expect.stringMatching(/^polish-/));
+
+    // 后端取消回执到达后仍保持已取消(幂等)
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.getByTestId('ai-polish-error').textContent).toContain('已取消'));
   });
 });

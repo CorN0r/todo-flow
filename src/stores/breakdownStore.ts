@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { BreakdownItem, BreakdownProposal } from '../domain/models/ai';
+import { aiFailureMessage } from '../lib/aiErrors';
 
 /**
  * 拆解会话 store:与 polishStore 同一模式——生成请求与候选结果跨详情页存活,
@@ -154,12 +155,23 @@ export async function runBreakdown(
   existingChildTitles: string[],
   beforeGenerate: () => Promise<void>,
 ): Promise<void> {
+  // 重入防护:同任务已有拆解在跑时忽略再次发起(双击/重开面板竞态)。
+  if (useBreakdownStore.getState().sessions[taskId]?.status === 'generating') return;
   const requestId = genId('breakdown');
   useBreakdownStore.getState().start(taskId, requestId, userNote, existingChildTitles);
   try {
     await beforeGenerate();
-  } catch {
-    useBreakdownStore.getState().fail(taskId, '任务保存失败,请先处理未保存的修改后再拆解');
+  } catch (e) {
+    // 仅透传带 save_timeout 标记的超时;其余保存失败用通用文案
+    const err = e as { code?: string; message?: string };
+    useBreakdownStore
+      .getState()
+      .fail(
+        taskId,
+        err?.code === 'save_timeout'
+          ? err.message ?? '任务保存超时,请稍后重试'
+          : '任务保存失败,请先处理未保存的修改后再拆解',
+      );
     return;
   }
   try {
@@ -167,8 +179,6 @@ export async function runBreakdown(
     const proposal = await getRepositories().ai.generateBreakdown(taskId, userNote || undefined, requestId);
     useBreakdownStore.getState().finish(taskId, proposal);
   } catch (e) {
-    const err = e as { code?: string; message?: string };
-    const cancelled = err?.code === 'cancelled';
-    useBreakdownStore.getState().fail(taskId, cancelled ? '已取消' : String(err?.message ?? e));
+    useBreakdownStore.getState().fail(taskId, aiFailureMessage(e));
   }
 }

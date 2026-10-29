@@ -18,6 +18,7 @@ export function PolishPanel({
   onBeforeGenerate,
   onAdopt,
   onClose,
+  otherBusy = false,
 }: {
   taskId: string;
   currentDescriptionText: string;
@@ -25,6 +26,8 @@ export function PolishPanel({
   /** 立即返回;描述更新由调用方异步落库,失败自行提示。 */
   onAdopt: (newDescriptionHtml: string) => void;
   onClose: () => void;
+  /** 同任务的拆解正在生成:后端按任务维度单飞,此时发起会被拒,先禁用。 */
+  otherBusy?: boolean;
 }) {
   useTranslation();
   const session = usePolishStore((s) => s.sessions[taskId]);
@@ -77,14 +80,17 @@ export function PolishPanel({
     };
   }, [generating, session?.requestId]);
 
-  const cancel = useCallback(async () => {
+  const cancel = async () => {
     if (!session?.requestId) return;
+    // 乐观置为已取消:真实请求在跑则后端取消会让 invoke 返回并再次 fail(幂等);
+    // 若会话卡在保存阶段(无后端请求),这是唯一能解除"生成中"的途径
+    usePolishStore.getState().fail(taskId, '已取消');
     try {
       await getRepositories().ai.cancelRequest(session.requestId);
     } catch {
       // 取消失败不阻塞,请求结束后自然清理
     }
-  }, [session?.requestId]);
+  };
 
   const adopt = useCallback(() => {
     const text = (session?.text ?? '').trim();
@@ -148,7 +154,9 @@ export function PolishPanel({
         <div className="flex justify-end">
           <button
             onClick={generate}
-            className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] inline-flex items-center gap-1"
+            disabled={otherBusy}
+            title={otherBusy ? '该任务正在生成拆解,请先等它完成' : undefined}
+            className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
           >
             <PenLine size={12} />重试
           </button>
@@ -176,7 +184,9 @@ export function PolishPanel({
             <div className="flex items-center gap-2">
               <button
                 onClick={generate}
-                className="text-[12px] px-2.5 py-1.5 rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] inline-flex items-center gap-1"
+                disabled={otherBusy}
+                title={otherBusy ? '该任务正在生成拆解,请先等它完成' : undefined}
+                className="text-[12px] px-2.5 py-1.5 rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
               >
                 重新生成
               </button>
@@ -197,8 +207,9 @@ export function PolishPanel({
         <div className="flex justify-end">
           <button
             onClick={generate}
-            disabled={starting}
-            className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 inline-flex items-center gap-1"
+            disabled={starting || otherBusy}
+            title={otherBusy ? '该任务正在生成拆解,请先等它完成' : undefined}
+            className="text-[12px] px-3.5 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
           >
             {starting ? <Loader2 size={12} className="animate-spin" /> : <PenLine size={12} />}
             {currentDescriptionText.trim() ? '开始润色' : '生成描述'}

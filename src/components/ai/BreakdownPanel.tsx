@@ -19,11 +19,14 @@ export function BreakdownPanel({
   existingChildTitles,
   onBeforeGenerate,
   onClose,
+  otherBusy = false,
 }: {
   taskId: string;
   existingChildTitles: string[];
   onBeforeGenerate: () => Promise<void>;
   onClose: () => void;
+  /** 同任务的润色正在生成:后端按任务维度单飞,此时发起会被拒,先禁用。 */
+  otherBusy?: boolean;
 }) {
   useTranslation();
   const session = useBreakdownStore((s) => s.sessions[taskId]);
@@ -82,6 +85,9 @@ export function BreakdownPanel({
 
   const cancel = async () => {
     if (!session?.requestId) return;
+    // 乐观置为已取消:真实请求在跑则后端取消会让 invoke 返回并再次 fail(幂等);
+    // 若会话卡在保存阶段(无后端请求),这是唯一能解除"生成中"的途径
+    useBreakdownStore.getState().fail(taskId, '已取消');
     try {
       await getRepositories().ai.cancelRequest(session.requestId);
     } catch {
@@ -176,8 +182,9 @@ export function BreakdownPanel({
           />
           <button
             onClick={() => generate(session?.userNote ?? '')}
-            disabled={starting}
-            className="shrink-0 inline-flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-50"
+            disabled={starting || otherBusy}
+            title={otherBusy ? '该任务正在润色,请先等它完成' : undefined}
+            className="shrink-0 inline-flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-lg bg-[#7C72F6] text-white hover:bg-[#6C63E6] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {starting ? <Loader2 size={12} className="animate-spin" /> : session?.items.length ? <RefreshCw size={12} /> : <Sparkles size={12} />}
             {session?.items.length ? '重新生成' : '生成'}

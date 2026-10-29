@@ -169,4 +169,17 @@ describe('BreakdownPanel(会话 store 驱动)', () => {
       expect(toast.error).toHaveBeenCalledWith('生成后任务内容发生了变化,请基于当前内容重新生成'),
     );
   });
+
+  it('润色生成中(otherBusy):生成按钮禁用,不发起请求', async () => {
+    const generate = vi.fn();
+    withRepositories({ generateBreakdown: generate });
+
+    renderWithProviders(
+      <BreakdownPanel taskId="t1" existingChildTitles={[]} onBeforeGenerate={() => Promise.resolve()} onClose={() => {}} otherBusy />,
+    );
+    const btn = screen.getByRole('button', { name: /生成/ }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    await userEvent.click(btn).catch(() => {});
+    expect(generate).not.toHaveBeenCalled();
+  });
 });

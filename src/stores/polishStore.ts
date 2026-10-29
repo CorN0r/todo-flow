@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { PolishProposal } from '../domain/models/ai';
+import { aiFailureMessage } from '../lib/aiErrors';
 
 /**
  * 润色会话 store:让生成中的请求与已完成的结果跨详情页进出存活。
@@ -109,13 +110,25 @@ export async function runPolish(
   baseDescriptionText: string,
   beforeGenerate: () => Promise<void>,
 ): Promise<void> {
+  // 重入防护:同任务已有生成在跑时忽略再次发起(双击/重开面板竞态),
+  // 否则第二路会被后端单飞拒绝并把会话覆盖成报错。
+  if (usePolishStore.getState().sessions[taskId]?.status === 'generating') return;
   const requestId = genRequestId();
   const store = usePolishStore.getState();
   store.start(taskId, baseDescriptionText, requestId);
   try {
     await beforeGenerate();
-  } catch {
-    usePolishStore.getState().fail(taskId, '任务保存失败,请先处理未保存的修改后再润色');
+  } catch (e) {
+    // 仅透传带 save_timeout 标记的超时;其余保存失败用通用文案
+    const err = e as { code?: string; message?: string };
+    usePolishStore
+      .getState()
+      .fail(
+        taskId,
+        err?.code === 'save_timeout'
+          ? err.message ?? '任务保存超时,请稍后重试'
+          : '任务保存失败,请先处理未保存的修改后再润色',
+      );
     return;
   }
   try {
@@ -123,10 +136,6 @@ export async function runPolish(
     const proposal = await getRepositories().ai.polishDescription(taskId, requestId);
     usePolishStore.getState().finish(taskId, proposal);
   } catch (e) {
-    const cancelled =
-      typeof e === 'object' && e !== null && (e as { code?: string }).code === 'cancelled';
-    usePolishStore
-      .getState()
-      .fail(taskId, cancelled ? '已取消' : String((e as { message?: string })?.message ?? e));
+    usePolishStore.getState().fail(taskId, aiFailureMessage(e));
   }
 }
