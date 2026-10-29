@@ -878,11 +878,17 @@ pub async fn ai_polish_description(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     task_id: String,
+    note: Option<String>,
     request_id: Option<String>,
 ) -> Result<PolishProposalDto, AiError> {
     use crate::ai::adapter::FinishReason;
     use crate::ai::polish::{build_polish_request, context_from_parts, validate_polish_text};
     use crate::db::task_repo;
+
+    let note = note.unwrap_or_default();
+    if note.chars().count() > 200 {
+        return Err(AiError::new(AiErrorCode::Validation, "润色方向过长(最多 200 字)"));
+    }
 
     // ---- 短临界区:准入、上下文、默认模型、单飞 ----
     let (ctx, connection, model, use_stream) = {
@@ -917,6 +923,7 @@ pub async fn ai_polish_description(
                     is_completed: c.is_completed,
                 })
                 .collect(),
+            &note,
         );
 
         let default_id = config_repo::get_default_model_id(&conn)?.ok_or_else(|| {

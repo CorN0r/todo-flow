@@ -32,23 +32,27 @@ export function PolishPanel({
   useTranslation();
   const session = usePolishStore((s) => s.sessions[taskId]);
   const setText = usePolishStore((s) => s.setText);
+  const setUserNote = usePolishStore((s) => s.setUserNote);
   const clear = usePolishStore((s) => s.clear);
   const [progressText, setProgressText] = useState('');
   const [starting, setStarting] = useState(false);
+  // 会话建立前的润色方向草稿(首启后写入会话,重新生成可继续编辑)
+  const [noteDraft, setNoteDraft] = useState('');
 
   const generating = session?.status === 'generating';
   const done = session?.status === 'done';
   const failed = session?.status === 'error';
+  const noteValue = session?.userNote ?? noteDraft;
 
   const generate = useCallback(async () => {
     setStarting(true);
     setProgressText('');
     try {
-      await runPolish(taskId, currentDescriptionText, onBeforeGenerate);
+      await runPolish(taskId, currentDescriptionText, onBeforeGenerate, noteValue);
     } finally {
       setStarting(false);
     }
-  }, [taskId, currentDescriptionText, onBeforeGenerate]);
+  }, [taskId, currentDescriptionText, onBeforeGenerate, noteValue]);
 
   // 流式进度:按会话 request_id 过滤(生成一开始就知道 id,重进面板同样生效)
   useEffect(() => {
@@ -136,6 +140,21 @@ export function PolishPanel({
         仅发送任务标题、描述文本与子任务标题;结果可编辑,采纳后仅替换描述字段。
         {currentDescriptionText.trim() ? '' : '当前描述为空,将根据标题生成。'}
       </p>
+
+      {/* 润色方向(可选):随生成发送,重新生成前可修改 */}
+      {!generating && (
+        <input
+          value={noteValue}
+          onChange={(e) => {
+            setNoteDraft(e.target.value);
+            if (session) setUserNote(taskId, e.target.value);
+          }}
+          maxLength={200}
+          placeholder="润色方向(可选,如:更正式 / 精简到三句话 / 突出数据成果)"
+          className="w-full text-[12px] px-2.5 py-1.5 rounded-lg border border-[#D1D5DB] dark:border-white/[0.10] bg-transparent outline-none focus:border-[#7C72F6] text-[#111827] dark:text-white/90"
+          data-testid="ai-polish-note"
+        />
+      )}
 
       {generating && (
         <div className="rounded-lg bg-[#F3F4F6] dark:bg-white/[0.04] px-3 py-2 text-[11px] text-[#6B7280] font-mono break-all max-h-16 overflow-hidden" data-testid="ai-polish-progress">

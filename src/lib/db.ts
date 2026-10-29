@@ -458,6 +458,10 @@ export async function aiClearInvocations(): Promise<void> {
   return invoke('ai_clear_invocations');
 }
 
-export async function aiPolishDescription(taskId: string, requestId: string): Promise<import('../domain/models/ai').PolishProposal> {
-  return invoke('ai_polish_description', { task_id: taskId, request_id: requestId });
+export async function aiPolishDescription(
+  taskId: string,
+  requestId: string,
+  note?: string,
+): Promise<import('../domain/models/ai').PolishProposal> {
+  return invoke('ai_polish_description', { task_id: taskId, note: note ?? null, request_id: requestId });
 }

@@ -240,8 +240,9 @@ function createMemoryAiRepository(state: MemoryRepositoryState): AiModelReposito
       return clone(verification);
     },
     async cancelRequest() {},
-    async polishDescription(taskId: string, requestId: string) {
+    async polishDescription(taskId: string, requestId: string, note?: string) {
       void taskId;
+      void note;
       return {
         request_id: requestId,
         model_snapshot: 'memory 替身 (memory-model-a)',

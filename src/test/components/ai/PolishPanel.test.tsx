@@ -123,6 +123,30 @@ describe('PolishPanel(会话 store 驱动)', () => {
     await waitFor(() => expect(screen.getByTestId('ai-polish-draft')).toBeInTheDocument());
   });
 
+  it('润色方向随生成发送;重新生成沿用当前输入', async () => {
+    const { repositories } = createMemoryRepositories();
+    const polish = vi.fn().mockResolvedValue({ request_id: 'polish-r1', model_snapshot: '测试 (m)', text: '润色结果' });
+    setRepositoriesForTesting({ ...repositories, ai: { ...repositories.ai, polishDescription: polish } });
+
+    renderWithProviders(
+      <PolishPanel taskId="t1" currentDescriptionText="原始描述" onBeforeGenerate={() => Promise.resolve()} onAdopt={vi.fn()} onClose={() => {}} />,
+    );
+    const note = screen.getByTestId('ai-polish-note') as HTMLInputElement;
+    await userEvent.type(note, '更正式,突出数据');
+    await userEvent.click(screen.getByRole('button', { name: /开始润色/ }));
+    await waitFor(() => expect(screen.getByTestId('ai-polish-draft')).toBeInTheDocument());
+    expect(polish).toHaveBeenCalledWith('t1', expect.stringMatching(/^polish-/), '更正式,突出数据');
+
+    // 结果出来后修改方向再重新生成:沿用最新输入(输入框在生成中卸载,需重取)
+    const noteAfter = screen.getByTestId('ai-polish-note') as HTMLInputElement;
+    expect(noteAfter.value).toBe('更正式,突出数据');
+    await userEvent.clear(noteAfter);
+    await userEvent.type(noteAfter, '精简到三句话');
+    await userEvent.click(screen.getByRole('button', { name: /重新生成/ }));
+    await waitFor(() => expect(polish).toHaveBeenCalledTimes(2));
+    expect(polish).toHaveBeenLastCalledWith('t1', expect.stringMatching(/^polish-/), '精简到三句话');
+  });
+
   it('拆解生成中(otherBusy):发起按钮禁用,不发起请求', async () => {
     const { repositories } = createMemoryRepositories();
     const polish = vi.fn();

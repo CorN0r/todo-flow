@@ -228,6 +228,7 @@ async fn real_polish_smoke() {
         &task.title,
         &task.description,
         vec![],
+        "简洁、面向执行",
     );
     let use_stream = config_repo::latest_verifications(&conn, &model.id)
         .unwrap()

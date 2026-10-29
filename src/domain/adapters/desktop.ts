@@ -94,7 +94,7 @@ export const desktopRepositories: AppRepositories = {
     cancelRequest: (requestId) => db.aiCancelRequest(requestId),
     generateBreakdown: (taskId, userNote, requestId) => db.aiGenerateBreakdown(taskId, userNote, requestId),
     applyBreakdown: (proposalId, operationId, items) => db.aiApplyBreakdown(proposalId, operationId, items),
-    polishDescription: (taskId, requestId) => db.aiPolishDescription(taskId, requestId),
+    polishDescription: (taskId, requestId, note) => db.aiPolishDescription(taskId, requestId, note),
     listInvocations: (limit) => db.aiListInvocations(limit),
     clearInvocations: () => db.aiClearInvocations(),
   },

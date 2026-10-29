@@ -12,6 +12,8 @@ pub struct PolishContext {
     pub task_title: String,
     pub description_text: String,
     pub existing_children: Vec<ChildSummary>,
+    /// 用户补充的润色方向(可选,≤200 字),生成时优先遵循。
+    pub user_note: String,
 }
 
 const SYSTEM_PROMPT: &str = "你是任务描述助手。根据任务信息改写任务描述:\
@@ -41,6 +43,11 @@ fn build_user_message(ctx: &PolishContext) -> String {
             msg.push_str(done_mark);
             msg.push('\n');
         }
+    }
+    if !ctx.user_note.trim().is_empty() {
+        msg.push_str("润色方向(用户补充,在不丢失原有信息的前提下优先遵循):");
+        msg.push_str(ctx.user_note.trim());
+        msg.push('\n');
     }
     msg
 }
@@ -78,11 +85,13 @@ pub fn context_from_parts(
     task_title: &str,
     description_html: &str,
     children: Vec<ChildSummary>,
+    user_note: &str,
 ) -> PolishContext {
     PolishContext {
         task_title: task_title.to_string(),
         description_text: html_to_text(description_html),
         existing_children: children,
+        user_note: user_note.to_string(),
     }
 }
 
@@ -95,6 +104,7 @@ mod tests {
             task_title: "准备旅行".into(),
             description_text: "去京都 看枫叶".into(),
             existing_children: vec![ChildSummary { title: "订机票".into(), is_completed: false }],
+            user_note: String::new(),
         }
     }
 
@@ -113,6 +123,18 @@ mod tests {
     }
 
     #[test]
+    fn user_note_included_when_present_omitted_when_empty() {
+        let mut ctx = sample();
+        ctx.user_note = " 更商务,突出时间节点 ".into();
+        let user = &build_polish_request("m", &ctx, false).messages[1].content;
+        assert!(user.contains("润色方向"));
+        assert!(user.contains("更商务,突出时间节点"));
+
+        let without = &build_polish_request("m", &sample(), false).messages[1].content;
+        assert!(!without.contains("润色方向"));
+    }
+
+    #[test]
     fn empty_description_marks_generate_mode() {
         let mut ctx = sample();
         ctx.description_text = String::new();
@@ -126,9 +148,11 @@ mod tests {
             "t",
             "<p>正文</p><p><img src=\"data:image/png;base64,AA\"/></p>",
             vec![],
+            "偏正式",
         );
         assert_eq!(ctx.description_text, "正文");
         assert!(!ctx.description_text.contains("data:image"));
+        assert_eq!(ctx.user_note, "偏正式");
     }
 
     #[test]
