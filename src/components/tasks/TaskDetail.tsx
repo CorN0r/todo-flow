@@ -20,6 +20,8 @@ import { SubtaskReminderButton } from './SubtaskReminderButton';
 import { SubtaskDateChip } from './SubtaskDateChip';
 import { BreakdownPanel } from '../ai/BreakdownPanel';
 import { PolishPanel } from '../ai/PolishPanel';
+import { usePolishStore } from '../../stores/polishStore';
+import { useBreakdownStore } from '../../stores/breakdownStore';
 import { toast } from 'sonner';
 import { hexToRgba, PRIORITY_HEX, priorityLabels } from '../../lib/priority';
 
@@ -216,6 +218,26 @@ export function TaskDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showPolish, setShowPolish] = useState(false);
+  // AI 会话状态:生成中的请求自动展开面板(重新进入详情可见进度);
+  // 用户手动关闭时记下该请求 id,同一请求不再强制展开,新一代请求恢复自动展开
+  const polishSession = usePolishStore((s) => s.sessions[selectedTaskId ?? '']);
+  const breakdownSession = useBreakdownStore((s) => s.sessions[selectedTaskId ?? '']);
+  const [dismissedPolishId, setDismissedPolishId] = useState<string | null>(null);
+  const [dismissedBreakdownId, setDismissedBreakdownId] = useState<string | null>(null);
+  const polishGenerating = polishSession?.status === 'generating';
+  const breakdownGenerating = breakdownSession?.status === 'generating';
+  const showPolishPanel =
+    showPolish || (polishGenerating && dismissedPolishId !== polishSession?.requestId);
+  const showBreakdownPanel =
+    showBreakdown || (breakdownGenerating && dismissedBreakdownId !== breakdownSession?.requestId);
+  const closePolish = () => {
+    setShowPolish(false);
+    if (polishSession?.requestId) setDismissedPolishId(polishSession.requestId);
+  };
+  const closeBreakdown = () => {
+    setShowBreakdown(false);
+    if (breakdownSession?.requestId) setDismissedBreakdownId(breakdownSession.requestId);
+  };
 
   const update = (patch: Partial<LocalState>) => { setLocal((prev) => (prev ? { ...prev, ...patch } : null)); };
 
@@ -455,10 +477,12 @@ export function TaskDetail() {
                 showPolish ? 'text-[#7C72F6] bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/[0.06]')}
               title="用默认模型润色或生成描述">
               <PenLine size={11} />AI 润色
+              {polishGenerating && <span className="text-[#F59E0B]">·生成中</span>}
+              {polishSession?.status === 'done' && <span className="text-[#7C72F6]">·有结果</span>}
             </button>
           )}
         </div>
-        {showPolish && !task.is_completed && (
+        {showPolishPanel && !task.is_completed && (
           <div className="mb-2">
             <PolishPanel
               taskId={task.id}
@@ -474,7 +498,7 @@ export function TaskDetail() {
                   onError: () => toast.error('描述保存失败,请重试'),
                 });
               }}
-              onClose={() => setShowPolish(false)}
+              onClose={closePolish}
             />
           </div>
         )}
@@ -521,17 +545,19 @@ export function TaskDetail() {
                   showBreakdown ? 'text-[#7C72F6] bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/[0.06]')}
                 title="使用默认模型生成子任务建议">
                 <Sparkles size={12} />AI 拆解
+                {breakdownGenerating && <span className="text-[#F59E0B]">·生成中</span>}
+                {breakdownSession?.status === 'done' && <span className="text-[#7C72F6]">·有结果</span>}
               </button>
             )}
           </div>
         </div>
-        {showBreakdown && !task.parent_task_id && (
+        {showBreakdownPanel && !task.parent_task_id && (
           <div className="mb-3">
             <BreakdownPanel
               taskId={task.id}
               existingChildTitles={children.map((c) => c.title)}
               onBeforeGenerate={flushSave}
-              onClose={() => setShowBreakdown(false)}
+              onClose={closeBreakdown}
             />
           </div>
         )}
