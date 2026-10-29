@@ -21,6 +21,8 @@ export interface PolishSession {
   baseDescriptionText: string;
   /** 用户补充的润色方向(可选),重新生成时作为输入框初值保留。 */
   userNote: string;
+  /** 发起时间戳(ms):生成中计算已等待秒数,重进面板不重置。 */
+  startedAt: number;
   error: string | null;
 }
 
@@ -57,6 +59,7 @@ export const usePolishStore = create<PolishStore>((set) => ({
           text: '',
           baseDescriptionText,
           userNote,
+          startedAt: Date.now(),
           error: null,
         },
       },

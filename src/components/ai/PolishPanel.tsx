@@ -6,6 +6,7 @@ import {
 import { getRepositories } from '../../domain/repositories/current';
 import { runPolish, usePolishStore } from '../../stores/polishStore';
 import { wrapPlainText } from '../../lib/html';
+import { useElapsedSeconds } from './useElapsedSeconds';
 
 /**
  * 描述润色面板 = polishStore 会话的视图。
@@ -38,15 +39,19 @@ export function PolishPanel({
   const [starting, setStarting] = useState(false);
   // 会话建立前的润色方向草稿(首启后写入会话,重新生成可继续编辑)
   const [noteDraft, setNoteDraft] = useState('');
+  // 本次视图挂载后累计收到的输出字数(重进面板从 0 重新累计,仅作活跃信号)
+  const [generatedChars, setGeneratedChars] = useState(0);
 
   const generating = session?.status === 'generating';
   const done = session?.status === 'done';
   const failed = session?.status === 'error';
   const noteValue = session?.userNote ?? noteDraft;
+  const elapsed = useElapsedSeconds(generating, session?.startedAt);
 
   const generate = useCallback(async () => {
     setStarting(true);
     setProgressText('');
+    setGeneratedChars(0);
     try {
       await runPolish(taskId, currentDescriptionText, onBeforeGenerate, noteValue);
     } finally {
@@ -69,6 +74,7 @@ export function PolishPanel({
             if (event.payload.request_id !== session.requestId) return;
             if (event.payload.delta) {
               setProgressText((prev) => (prev + event.payload.delta!).slice(-300));
+              setGeneratedChars((c) => c + event.payload.delta!.length);
             }
           },
         );
@@ -157,8 +163,13 @@ export function PolishPanel({
       )}
 
       {generating && (
-        <div className="rounded-lg bg-[#F3F4F6] dark:bg-white/[0.04] px-3 py-2 text-[11px] text-[#6B7280] font-mono break-all max-h-16 overflow-hidden" data-testid="ai-polish-progress">
-          {progressText || '正在生成…(可离开本页,生成会继续)'}
+        <div className="rounded-lg bg-[#F3F4F6] dark:bg-white/[0.04] px-3 py-2 space-y-1" data-testid="ai-polish-progress">
+          <p className="text-[11px] text-[#6B7280]">
+            已等待 {elapsed} 秒 · {generatedChars > 0 ? `已生成 ${generatedChars} 字` : '等待模型响应…(高峰期可能较久,可离开本页)'}
+          </p>
+          <div className="text-[11px] text-[#6B7280] font-mono break-all max-h-16 overflow-hidden">
+            {progressText || '正在生成…(可离开本页,生成会继续)'}
+          </div>
         </div>
       )}
 

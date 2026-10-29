@@ -170,6 +170,27 @@ describe('BreakdownPanel(会话 store 驱动)', () => {
     );
   });
 
+  it('生成中进度框显示已等待秒数与等待状态', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    withRepositories({
+      generateBreakdown: () => gate.then(() =>
+        Promise.reject({ code: 'cancelled', message: '已取消' }) as never,
+      ),
+    });
+
+    renderWithProviders(
+      <BreakdownPanel taskId="t1" existingChildTitles={[]} onBeforeGenerate={() => Promise.resolve()} onClose={() => {}} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /生成/ }));
+    await waitFor(() => expect(screen.getByTestId('ai-breakdown-progress')).toBeInTheDocument());
+    expect(screen.getByTestId('ai-breakdown-progress').textContent).toContain('已等待');
+    expect(screen.getByTestId('ai-breakdown-progress').textContent).toContain('等待模型响应');
+
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.queryByTestId('ai-breakdown-progress')).not.toBeInTheDocument());
+  });
+
   it('润色生成中(otherBusy):生成按钮禁用,不发起请求', async () => {
     const generate = vi.fn();
     withRepositories({ generateBreakdown: generate });

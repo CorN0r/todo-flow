@@ -8,6 +8,7 @@ import { getRepositories } from '../../domain/repositories/current';
 import { isAiError } from '../../domain/models/ai';
 import { runBreakdown, useBreakdownStore, type DraftItem } from '../../stores/breakdownStore';
 import { cn } from '../../lib/cn';
+import { useElapsedSeconds } from './useElapsedSeconds';
 
 /**
  * 任务拆解面板 = breakdownStore 会话的视图。
@@ -36,16 +37,20 @@ export function BreakdownPanel({
   const clear = useBreakdownStore((s) => s.clear);
   const [progressText, setProgressText] = useState('');
   const [starting, setStarting] = useState(false);
+  // 本次视图挂载后累计收到的输出字数(重进面板从 0 重新累计,仅作活跃信号)
+  const [generatedChars, setGeneratedChars] = useState(0);
 
   const generating = session?.status === 'generating';
   const done = session?.status === 'done';
   const failed = session?.status === 'error';
   // 完成后展示;重新生成失败也保留原有候选(spec:失败保留预览)
   const showResults = !generating && (session?.items.length ?? 0) > 0;
+  const elapsed = useElapsedSeconds(generating, session?.startedAt);
 
   const generate = async (note: string) => {
     setStarting(true);
     setProgressText('');
+    setGeneratedChars(0);
     try {
       await runBreakdown(taskId, note, existingChildTitles, onBeforeGenerate);
     } finally {
@@ -68,6 +73,7 @@ export function BreakdownPanel({
             if (event.payload.request_id !== session.requestId) return;
             if (event.payload.delta) {
               setProgressText((prev) => (prev + event.payload.delta!).slice(-400));
+              setGeneratedChars((c) => c + event.payload.delta!.length);
             }
           },
         );
@@ -194,8 +200,13 @@ export function BreakdownPanel({
 
       {/* 生成中进度 */}
       {generating && (
-        <div className="rounded-lg bg-[#F3F4F6] dark:bg-white/[0.04] px-3 py-2 text-[11px] text-[#6B7280] font-mono break-all max-h-20 overflow-hidden" data-testid="ai-breakdown-progress">
-          {progressText || '正在生成…(可离开本页,生成会继续)'}
+        <div className="rounded-lg bg-[#F3F4F6] dark:bg-white/[0.04] px-3 py-2 space-y-1" data-testid="ai-breakdown-progress">
+          <p className="text-[11px] text-[#6B7280]">
+            已等待 {elapsed} 秒 · {generatedChars > 0 ? `已生成 ${generatedChars} 字` : '等待模型响应…(高峰期可能较久,可离开本页)'}
+          </p>
+          <div className="text-[11px] text-[#6B7280] font-mono break-all max-h-20 overflow-hidden">
+            {progressText || '正在生成…(可离开本页,生成会继续)'}
+          </div>
         </div>
       )}
 

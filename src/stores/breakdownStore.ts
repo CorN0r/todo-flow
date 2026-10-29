@@ -25,6 +25,8 @@ export interface BreakdownSession {
   userNote: string;
   /** 生成时的子任务标题快照,用于同名默认不勾。 */
   baseChildTitles: string[];
+  /** 发起时间戳(ms):生成中计算已等待秒数,重进面板不重置。 */
+  startedAt: number;
   error: string | null;
 }
 
@@ -66,6 +68,7 @@ export const useBreakdownStore = create<BreakdownStore>((set) => ({
             operationId: genId('op'),
             userNote,
             baseChildTitles,
+            startedAt: Date.now(),
             error: null,
           },
         },

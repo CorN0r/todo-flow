@@ -147,6 +147,26 @@ describe('PolishPanel(会话 store 驱动)', () => {
     expect(polish).toHaveBeenLastCalledWith('t1', expect.stringMatching(/^polish-/), '精简到三句话');
   });
 
+  it('生成中进度框显示已等待秒数与等待状态', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const { repositories } = createMemoryRepositories();
+    setRepositoriesForTesting({ ...repositories, ai: { ...repositories.ai,
+      polishDescription: () => gate.then(() => Promise.reject({ code: 'cancelled', message: '已取消' })),
+    } });
+
+    renderWithProviders(
+      <PolishPanel taskId="t1" currentDescriptionText="x" onBeforeGenerate={() => Promise.resolve()} onAdopt={vi.fn()} onClose={() => {}} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /开始润色/ }));
+    await waitFor(() => expect(screen.getByTestId('ai-polish-progress')).toBeInTheDocument());
+    expect(screen.getByTestId('ai-polish-progress').textContent).toContain('已等待');
+    expect(screen.getByTestId('ai-polish-progress').textContent).toContain('等待模型响应');
+
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.queryByTestId('ai-polish-progress')).not.toBeInTheDocument());
+  });
+
   it('拆解生成中(otherBusy):发起按钮禁用,不发起请求', async () => {
     const { repositories } = createMemoryRepositories();
     const polish = vi.fn();
