@@ -92,14 +92,14 @@ async fn real_end_to_end_breakdown_and_apply() {
 
     let started = std::time::Instant::now();
     let (result, json_fallback) = match runtime
-        .execute_chat(None, &request_id, &connection, &api_key, &request)
+        .execute_chat::<tauri::Wry>(None, &request_id, &connection, &api_key, &request)
         .await
     {
         Ok(r) => (r, false),
         Err(e) if e.code == todo_flow_lib::ai::error::AiErrorCode::InvalidFormat => {
             println!("   JSON 模式被拒,降级纯文本重试");
             request.json_mode = false;
-            (runtime.execute_chat(None, &request_id, &connection, &api_key, &request).await.unwrap(), true)
+            (runtime.execute_chat::<tauri::Wry>(None, &request_id, &connection, &api_key, &request).await.unwrap(), true)
         }
         Err(e) => panic!("模型调用失败: {:?}", e),
     };
@@ -240,7 +240,7 @@ async fn real_polish_smoke() {
 
     let started = std::time::Instant::now();
     let result = runtime
-        .execute_chat(None, &request_id, &connection, &api_key, &request)
+        .execute_chat::<tauri::Wry>(None, &request_id, &connection, &api_key, &request)
         .await
         .expect("润色调用失败");
     println!("用时 {}ms | finish={:?} | 流式={}", started.elapsed().as_millis(), result.finish_reason, use_stream);

@@ -1,4 +1,7 @@
 pub mod ai_commands;
+pub mod ai_my_day_commands;
+#[cfg(test)]
+mod ai_my_day_acceptance_tests;
 pub mod alert_commands;
 pub mod attachment_commands;
 pub mod habit_commands;

@@ -37,6 +37,11 @@ export const queryKeys = {
   dashboardStats: {
     all: ['dashboard-stats'] as const,
   },
+  myDayPlan: {
+    all: ['my-day-plan'] as const,
+    detail: (date: string | null) =>
+      date ? (['my-day-plan', date] as const) : (['my-day-plan'] as const),
+  },
 } as const;
 
 /** 失效所有任务列表与详情缓存 */
@@ -77,4 +82,9 @@ export function invalidateTaskNotes(queryClient: QueryClient, taskId?: string | 
 /** 失效仪表盘统计缓存 */
 export function invalidateDashboardStats(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats.all });
+}
+
+/** 失效当日 AI 今日重点计划缓存;不传日期时失效全部 */
+export function invalidateMyDayPlan(queryClient: QueryClient, date?: string | null) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.myDayPlan.detail(date ?? null) });
 }

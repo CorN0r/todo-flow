@@ -434,6 +434,48 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 17)?;
     }
 
+    // v18: AI 今日行动建议(本机计划/行动卡/专用采纳回执;全部本机数据,不进同步系统,
+    // 不改 tasks 领域字段;任务引用为逻辑关联,联查实时状态,不阻止任务删除)
+    if current_version < 18 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS ai_my_day_plans (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                local_date    TEXT NOT NULL UNIQUE,
+                plan_id       TEXT NOT NULL UNIQUE,
+                revision      INTEGER NOT NULL,
+                focus_text    TEXT NOT NULL DEFAULT '',
+                model_snapshot TEXT NOT NULL DEFAULT '',
+                generated_at  TEXT NOT NULL,
+                adopted_at    TEXT NOT NULL,
+                cleared_at    TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS ai_my_day_actions (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id            TEXT NOT NULL REFERENCES ai_my_day_plans(plan_id) ON DELETE CASCADE,
+                display_order      INTEGER NOT NULL,
+                root_task_id       TEXT NOT NULL,
+                target_subtask_id  TEXT,
+                reason             TEXT NOT NULL,
+                next_step          TEXT NOT NULL,
+                stop_at            TEXT NOT NULL,
+                task_fingerprint   TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_my_day_actions_plan ON ai_my_day_actions(plan_id);
+
+            CREATE TABLE IF NOT EXISTS ai_my_day_apply_receipts (
+                operation_id TEXT PRIMARY KEY,
+                proposal_id  TEXT NOT NULL UNIQUE,
+                target_date  TEXT NOT NULL,
+                item_count   INTEGER NOT NULL,
+                content_hash TEXT NOT NULL,
+                result       TEXT NOT NULL,
+                created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );",
+        )?;
+        conn.pragma_update(None, "user_version", 18)?;
+    }
+
     Ok(())
 }
 
@@ -570,7 +612,7 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 17);
+        assert_eq!(version, 18);
 
         assert_eq!(table_count(&conn, "task_tags"), 1);
         // 迁移:task-1 的 tag-1 已写入关联表
@@ -618,5 +660,31 @@ mod tests {
         ] {
             assert_eq!(table_count(&conn, table), 0, "{} should be empty", table);
         }
+
+        // v18: AI 今日行动建议表存在且为空,不影响既有数据
+        for table in [
+            "ai_my_day_plans",
+            "ai_my_day_actions",
+            "ai_my_day_apply_receipts",
+        ] {
+            assert_eq!(table_count(&conn, table), 0, "{} should be empty", table);
+        }
+    }
+
+    #[test]
+    fn fresh_database_reaches_v18_and_rerun_is_idempotent() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 18);
+
+        // 重复迁移不改版本、不报错
+        run(&conn).unwrap();
+        let version: i32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 18);
     }
 }

@@ -26,6 +26,11 @@ import type {
   BreakdownItem,
   BreakdownProposal,
   CreateConnectionInput,
+  MyDayActionInput,
+  MyDayContextPreview,
+  MyDayPlanProposal,
+  MyDayPlanView,
+  MyDaySubtaskPickInput,
   ProviderPreset,
   UpdateConnectionInput,
 } from '../models/ai';
@@ -134,6 +139,28 @@ export interface AiModelRepository {
   applyBreakdown(proposalId: string, operationId: string, items: BreakdownItem[]): Promise<ApplyBreakdownResult>;
   // 描述润色
   polishDescription(taskId: string, requestId: string, note?: string): Promise<import('../models/ai').PolishProposal>;
+  // 今日行动建议
+  prepareMyDayContext(input: {
+    tagIds?: string[];
+    manualTaskIds?: string[];
+    subtaskPicks?: MyDaySubtaskPickInput[];
+  }): Promise<MyDayContextPreview>;
+  generateMyDayPlan(input: {
+    contextId: string;
+    focusNote?: string;
+    mandatoryTaskIds?: string[];
+    excludedTaskIds?: string[];
+    targetCount?: number;
+    requestId?: string;
+  }): Promise<MyDayPlanProposal>;
+  applyMyDayPlan(input: {
+    proposalId: string;
+    operationId: string;
+    actions: MyDayActionInput[];
+    expectedRevision: number;
+  }): Promise<import('../models/ai').ApplyMyDayPlanResult>;
+  getMyDayPlan(date: string): Promise<MyDayPlanView | null>;
+  clearMyDayPlan(date: string, expectedRevision: number): Promise<number>;
   // 诊断
   listInvocations(limit?: number): Promise<AiInvocationSummary[]>;
   clearInvocations(): Promise<void>;

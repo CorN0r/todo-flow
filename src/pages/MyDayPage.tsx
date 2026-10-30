@@ -14,6 +14,8 @@ import { Portal } from '../components/shared/Portal';
 import { Sun, AlertTriangle, Lightbulb, ArrowRight, Plus, Info, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import { sortTasks, nestChildren } from '../lib/sortTasks';
 import { buildSuggestions, suggestionReason, SUGGESTION_COLLAPSED_COUNT } from '../lib/myDaySuggestions';
+import { MyDayAiPanel } from '../components/myday/MyDayAiPanel';
+import { MyDayFocusPlan } from '../components/myday/MyDayFocusPlan';
 import { cn } from '../lib/cn';
 import { useTheme } from '../hooks/useTheme';
 import { useDesktopTaskStatusFilter } from '../hooks/useDesktopTaskStatusFilter';
@@ -57,6 +59,8 @@ export function MyDayPage() {
   const setShowNewTask = useUIStore((s) => s.setShowQuickAdd);
   const [expandSuggestions, setExpandSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  // 建议来源切换:默认规则推荐,AI 按需使用;重启/新一天回到默认
+  const [suggestMode, setSuggestMode] = useState<'rule' | 'ai'>('rule');
   const [ruleTipPos, setRuleTipPos] = useState<{ top: number; left: number } | null>(null);
   const [showYesterday, setShowYesterday] = useState(true);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
@@ -82,6 +86,12 @@ export function MyDayPage() {
   const yesterdayList = (yesterdayTasks || []).filter((t) => !myDayIds.has(t.id) && !t.parent_task_id);
   const suggestionList = buildSuggestions(suggestions || [], myDayIds, dismissedIds);
   const visibleSuggestions = expandSuggestions ? suggestionList : suggestionList.slice(0, SUGGESTION_COLLAPSED_COUNT);
+  const filteredIds = new Set(filteredTasks.map((t) => t.id));
+  const hiddenTaskIds = useMemo(
+    () => new Set(topLevel.filter((t) => !filteredIds.has(t.id)).map((t) => t.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [topLevel, statusFilter],
+  );
 
   const handleToggleSelection = useCallback(() => {
     if (selectionMode) { exitSelection(); } else { useUIStore.getState().enterSelectionMode(); }
@@ -171,16 +181,16 @@ export function MyDayPage() {
             昨日未完成 &middot; {yesterdayList.length} 项
           </button>
         )}
-        {/* 每日建议 */}
-        {suggestionList.length > 0 && (
-          <div className="mb-3">
-            <div className="flex items-center gap-1 mb-1.5 text-[11px] font-semibold text-[#6B7280] tracking-wide">
-              <button onClick={() => setShowSuggestions(!showSuggestions)}
-                aria-label={showSuggestions ? '收起建议区块' : '展开建议区块'}
-                className="flex items-center gap-0.5 hover:text-[#374151] dark:hover:text-white/80 transition-colors">
-                <ChevronRight size={12} className={cn('transition-transform', showSuggestions && 'rotate-90')} />
-                建议 &middot; {suggestionList.length}
-              </button>
+        {/* 每日建议:规则推荐为默认路径,AI 建议按需切换;两者状态互不清空 */}
+        <div className="mb-3">
+          <div className="flex items-center gap-1 mb-1.5 text-[11px] font-semibold text-[#6B7280] tracking-wide">
+            <button onClick={() => setShowSuggestions(!showSuggestions)}
+              aria-label={showSuggestions ? '收起建议区块' : '展开建议区块'}
+              className="flex items-center gap-0.5 hover:text-[#374151] dark:hover:text-white/80 transition-colors">
+              <ChevronRight size={12} className={cn('transition-transform', showSuggestions && 'rotate-90')} />
+              {suggestMode === 'rule' ? `建议 · ${suggestionList.length}` : '建议 · AI'}
+            </button>
+            {suggestMode === 'rule' && (
               <span className="flex items-center cursor-help"
                 onMouseEnter={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -189,7 +199,23 @@ export function MyDayPage() {
                 onMouseLeave={() => setRuleTipPos(null)}>
                 <Info size={11} className="text-[#9CA3AF]" />
               </span>
+            )}
+            <div className="ml-auto flex rounded-md border border-[#E5E7EB] dark:border-white/10 overflow-hidden text-[10px] font-medium">
+              <button onClick={() => setSuggestMode('rule')}
+                className={cn('px-2 py-0.5 transition-colors', suggestMode === 'rule' ? 'bg-[#7C72F6] text-white' : 'text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]')}>
+                规则推荐
+              </button>
+              <button onClick={() => setSuggestMode('ai')}
+                className={cn('px-2 py-0.5 transition-colors', suggestMode === 'ai' ? 'bg-[#7C72F6] text-white' : 'text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]')}
+                aria-pressed={suggestMode === 'ai'}>
+                AI 建议
+              </button>
             </div>
+          </div>
+          {suggestMode === 'ai' ? (
+            showSuggestions && <MyDayAiPanel today={today} myDayIds={myDayIds} />
+          ) : (
+            <>
             {showSuggestions && (
             <div className="space-y-0.5">
               {visibleSuggestions.map((task) => {
@@ -214,6 +240,11 @@ export function MyDayPage() {
                   </div>
                 );
               })}
+              {suggestionList.length === 0 && (
+                <div className="px-2.5 py-1.5 text-[11px] text-[#9CA3AF]">
+                  今天或之前到期的未完成任务会出现在这里;也可以切换到 AI 建议从全部任务中挑选。
+                </div>
+              )}
             </div>
             )}
             {showSuggestions && (suggestionList.length > SUGGESTION_COLLAPSED_COUNT || dismissedIds.size > 0) && (
@@ -233,15 +264,13 @@ export function MyDayPage() {
                 )}
               </div>
             )}
-          </div>
-        )}
+            </>
+          )}
+        </div>
 
-        {suggestionList.length === 0 && dismissedIds.size > 0 && (
-          <button onClick={clearDismissed}
-            className="w-full mb-3 px-3 py-1.5 rounded-lg text-[11px] text-[#9CA3AF] hover:text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-left">
-            重新推荐 &middot; {dismissedIds.size} 项
-          </button>
-        )}
+        {/* 今日重点:AI 采纳的本机结果,独立于建议模式展示 */}
+        <MyDayFocusPlan today={today} hiddenTaskIds={hiddenTaskIds} />
+
         <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
           {filteredTasks.length > 0 && (taskViewMode === 'wall' ? <StickyWall tasks={filteredTasks} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filteredTasks} reorderScope={topLevel} /> : <TaskList tasks={filteredTasks} reorderScope={topLevel} />)}
           {topLevel.length > 0 && filteredTasks.length === 0 && statusFilter !== 'all' && (

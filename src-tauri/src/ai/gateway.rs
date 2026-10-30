@@ -37,6 +37,12 @@ pub struct AiRuntime {
     pub active_breakdowns: Mutex<std::collections::HashSet<String>>,
     /// 拆解候选缓存 proposalId → StoredProposal;仅内存,重启即弃。
     pub proposals: Mutex<HashMap<String, crate::ai::breakdown::StoredProposal>>,
+    /// 今日行动建议:同一本地日期同时只允许一次规划请求。
+    pub active_my_day_dates: Mutex<std::collections::HashSet<String>>,
+    /// 今日行动建议:contextId → 候选快照;同一日期只保留最新一份,仅内存。
+    pub my_day_contexts: Mutex<HashMap<String, crate::ai::my_day::StoredMyDayContext>>,
+    /// 今日行动建议:proposalId → 生成结果;同一日期只保留最新一份,仅内存。
+    pub my_day_proposals: Mutex<HashMap<String, crate::ai::my_day::StoredMyDayProposal>>,
 }
 
 impl Default for AiRuntime {
@@ -56,6 +62,9 @@ impl AiRuntime {
             in_flight: Mutex::new(HashMap::new()),
             active_breakdowns: Mutex::new(std::collections::HashSet::new()),
             proposals: Mutex::new(HashMap::new()),
+            active_my_day_dates: Mutex::new(std::collections::HashSet::new()),
+            my_day_contexts: Mutex::new(HashMap::new()),
+            my_day_proposals: Mutex::new(HashMap::new()),
         }
     }
 
@@ -78,7 +87,7 @@ impl AiRuntime {
         }
     }
 
-    fn emit_progress(app: Option<&tauri::AppHandle>, event: ProgressEvent) {
+    fn emit_progress<R: tauri::Runtime>(app: Option<&tauri::AppHandle<R>>, event: ProgressEvent) {
         if let Some(app) = app {
             let _ = app.emit_to("main", "ai-request-progress", event);
         }
@@ -96,9 +105,9 @@ impl AiRuntime {
 
     /// 执行一次对话请求。返回规范化结果;错误带机器可读 code。
     /// 取消 = 本地停止等待/接收/处理;晚到的服务响应在取消后不会被读取。
-    pub async fn execute_chat(
+    pub async fn execute_chat<R: tauri::Runtime>(
         &self,
-        app: Option<&tauri::AppHandle>,
+        app: Option<&tauri::AppHandle<R>>,
         request_id: &str,
         connection: &AiConnection,
         api_key: &str,
@@ -190,8 +199,8 @@ impl AiRuntime {
         parse_complete_response(&text)
     }
 
-    async fn read_stream(
-        app: Option<&tauri::AppHandle>,
+    async fn read_stream<R: tauri::Runtime>(
+        app: Option<&tauri::AppHandle<R>>,
         request_id: &str,
         response: reqwest::Response,
         mut cancel_rx: tokio::sync::oneshot::Receiver<()>,
@@ -376,7 +385,7 @@ mod tests {
         let mut req = ChatRequest::new("mock-model", vec![crate::ai::adapter::ChatMessage::user("hi")]);
         req.stream = true;
         let result = runtime
-            .execute_chat(None, "req-1", &connection_for(&base, None), "test-key", &req)
+            .execute_chat::<tauri::Wry>(None, "req-1", &connection_for(&base, None), "test-key", &req)
             .await
             .unwrap();
 
@@ -400,7 +409,7 @@ mod tests {
         let runtime = AiRuntime::new();
         let req = ChatRequest::new("m", vec![crate::ai::adapter::ChatMessage::user("hi")]);
         let result = runtime
-            .execute_chat(None, "req-2", &connection_for(&base, None), "k", &req)
+            .execute_chat::<tauri::Wry>(None, "req-2", &connection_for(&base, None), "k", &req)
             .await
             .unwrap();
         assert_eq!(result.text, "答案");
@@ -414,7 +423,7 @@ mod tests {
         let runtime = AiRuntime::new();
         let req = ChatRequest::new("m", vec![crate::ai::adapter::ChatMessage::user("hi")]);
         let err = runtime
-            .execute_chat(None, "req-3", &connection_for(&base, None), "bad-key", &req)
+            .execute_chat::<tauri::Wry>(None, "req-3", &connection_for(&base, None), "bad-key", &req)
             .await
             .unwrap_err();
         assert_eq!(err.code, AiErrorCode::AuthFailed);
@@ -435,7 +444,7 @@ mod tests {
         let mut req = ChatRequest::new("m", vec![crate::ai::adapter::ChatMessage::user("hi")]);
         req.stream = true;
         let conn = connection_for(&base, None);
-        let exec = runtime.execute_chat(None, "req-4", &conn, "k", &req);
+        let exec = runtime.execute_chat::<tauri::Wry>(None, "req-4", &conn, "k", &req);
         tokio::pin!(exec);
         // select 保证请求先被 poll(完成 in_flight 注册),再在 150ms 发出取消
         let err = tokio::select! {
@@ -456,7 +465,7 @@ mod tests {
         let runtime = AiRuntime::new();
         let req = ChatRequest::new("m", vec![crate::ai::adapter::ChatMessage::user("hi")]);
         let err = runtime
-            .execute_chat(None, "req-5", &connection_for(&base, Some(1)), "k", &req)
+            .execute_chat::<tauri::Wry>(None, "req-5", &connection_for(&base, Some(1)), "k", &req)
             .await
             .unwrap_err();
         assert_eq!(err.code, AiErrorCode::Timeout);

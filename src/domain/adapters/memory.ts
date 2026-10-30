@@ -31,6 +31,9 @@ export interface MemoryRepositoryState {
   aiDefaultModel: string | null;
   aiProposals: Map<string, import('../models/ai').BreakdownProposal>;
   aiProposalTaskIds: Map<string, string>;
+  myDayContexts: Map<string, import('../models/ai').MyDayContextPreview>;
+  myDayProposals: Map<string, import('../models/ai').MyDayPlanProposal>;
+  myDayPlans: Map<string, import('../models/ai').MyDayPlanView>;
 }
 
 export type MemoryRepositorySeed = Partial<{
@@ -272,8 +275,7 @@ function createMemoryAiRepository(state: MemoryRepositoryState): AiModelReposito
     },
     async applyBreakdown(proposalId, _operationId, items) {
       const proposal = state.aiProposals.get(proposalId);
-      if (!proposal) throw { code: 'apply_conflict', message: '预览已过期,请重新生成' };
-      const parentId = state.aiProposalTaskIds.get(proposalId);
+      if (!proposal) throw { code: 'apply_conflict', message: '预览已过期,请重新生成' };      const parentId = state.aiProposalTaskIds.get(proposalId);
       const created: string[] = [];
       for (const item of items) {
         const timestamp = now();
@@ -306,6 +308,179 @@ function createMemoryAiRepository(state: MemoryRepositoryState): AiModelReposito
       state.aiProposalTaskIds.delete(proposalId);
       return { created_task_ids: created, already_applied: false };
     },
+    // 今日行动建议替身:候选来自内存任务库;生成返回固定样例;采纳写内存计划
+    async prepareMyDayContext(input) {
+      const date = today();
+      const manual = new Set(input.manualTaskIds ?? []);
+      const tagSet = new Set(input.tagIds ?? []);
+      const eligible = state.tasks.filter(
+        (t) =>
+          !t.parent_task_id &&
+          !t.is_completed &&
+          !t.is_archived &&
+          !t.is_suspended &&
+          !t.is_abandoned &&
+          (tagSet.size === 0 || t.tag_ids.some((id) => tagSet.has(id))),
+      );
+      const manualPicked = eligible.filter((t) => manual.has(t.id));
+      const rest = eligible.filter((t) => !manual.has(t.id)).slice(0, Math.max(0, 20 - manualPicked.length));
+      const picked = [...manualPicked, ...rest];
+      const omitted = eligible.filter((t) => !picked.includes(t));
+      const candidates: import('../models/ai').MyDayCandidate[] = picked.map((t, idx) => {
+        const children = state.tasks.filter(
+          (c) => c.parent_task_id === t.id && !c.is_completed && !c.is_suspended && !c.is_abandoned,
+        );
+        const picks = input.subtaskPicks?.find((p) => p.task_id === t.id);
+        const chosen = (picks ? children.filter((c) => picks.subtask_ids.includes(c.id)) : children.slice(0, 5)).slice(0, 5);
+        const chosenIds = new Set(chosen.map((c) => c.id));
+        return {
+          task_id: t.id,
+          temp_ref: `t${String(idx + 1).padStart(2, '0')}`,
+          title: t.title,
+          description_text: '',
+          due_date: t.due_date ?? null,
+          priority: t.priority,
+          is_pinned: !!t.is_pinned,
+          already_in_my_day: t.my_day_date === date,
+          group: manual.has(t.id) ? ('manual' as const) : ('other' as const),
+          subtasks: chosen.map((c, sidx) => ({
+            subtask_id: c.id,
+            temp_ref: `t${String(idx + 1).padStart(2, '0')}.s${String(sidx + 1).padStart(2, '0')}`,
+            title: c.title,
+            instructions: '',
+            is_completed: false,
+          })),
+          truncated_desc: false,
+          omitted_subtasks: Math.max(0, children.length - chosen.length),
+          omitted_subtask_details: children
+            .filter((c) => !chosenIds.has(c.id))
+            .map((c) => ({ subtask_id: c.id, title: c.title })),
+          fingerprint: `memory-${t.id}`,
+        };
+      });
+      const preview: import('../models/ai').MyDayContextPreview = {
+        context_id: createId('myday-ctx', state),
+        local_date: date,
+        candidates,
+        omitted_candidates: omitted.map((t) => ({
+          task_id: t.id,
+          title: t.title,
+          due_date: t.due_date ?? null,
+          priority: t.priority,
+          is_pinned: !!t.is_pinned,
+          already_in_my_day: t.my_day_date === date,
+        })),
+        eligible_total: eligible.length,
+        used_count: candidates.length,
+        omitted_count: Math.max(0, eligible.length - candidates.length),
+        current_revision: state.myDayPlans.get(date)?.revision ?? 0,
+      };
+      state.myDayContexts.set(preview.context_id, preview);
+      return clone(preview);
+    },
+    async generateMyDayPlan(input) {
+      const context = state.myDayContexts.get(input.contextId);
+      if (!context) throw { code: 'apply_conflict', message: '候选已过期,请重新准备' };
+      const target = Math.min(input.targetCount ?? 3, context.candidates.length);
+      const chosen = context.candidates.filter(
+        (c) => !(input.excludedTaskIds ?? []).includes(c.task_id),
+      );
+      const mandatory = context.candidates.filter((c) => (input.mandatoryTaskIds ?? []).includes(c.task_id));
+      const rest = chosen.filter((c) => !(input.mandatoryTaskIds ?? []).includes(c.task_id));
+      const actions = [...mandatory, ...rest].slice(0, Math.max(target, mandatory.length)).map((c) => ({
+        root_task_id: c.task_id,
+        root_title: c.title,
+        target_subtask_id: c.subtasks[0]?.subtask_id ?? null,
+        subtask_title: c.subtasks[0]?.title ?? null,
+        already_in_my_day: c.already_in_my_day,
+        reason: `${c.title} 值得今天推进`,
+        next_step: `先做 ${c.title} 的第一步`,
+        stop_at: '有一个可以检查的中间结果即可停',
+      }));
+      if (actions.length === 0) throw { code: 'validation', message: '候选不足,无法生成建议' };
+      const proposal: import('../models/ai').MyDayPlanProposal = {
+        proposal_id: createId('myday-prop', state),
+        request_id: input.requestId ?? createId('myday-req', state),
+        model_snapshot: 'memory 替身 (memory-model-a)',
+        local_date: context.local_date,
+        assumptions: input.focusNote ? [] : ['按候选清单默认重要度排序'],
+        actions,
+        not_selected: [],
+      };
+      state.myDayProposals.set(proposal.proposal_id, proposal);
+      return clone(proposal);
+    },
+    async applyMyDayPlan(input) {
+      const proposal = state.myDayProposals.get(input.proposalId);
+      if (!proposal) throw { code: 'apply_conflict', message: '预览已过期,请重新生成' };
+      const date = proposal.local_date;
+      const added: string[] = [];
+      for (const action of input.actions) {
+        const task = state.tasks.find((t) => t.id === action.root_task_id);
+        if (!task) throw { code: 'context_changed', message: '选中任务已不存在' };
+        if (task.my_day_date !== date) {
+          task.my_day_date = date;
+          added.push(task.id);
+        }
+      }
+      const revision = (state.myDayPlans.get(date)?.revision ?? input.expectedRevision) + 1;
+      const planId = createId('myday-plan', state);
+      const view: import('../models/ai').MyDayPlanView = {
+        plan_id: planId,
+        local_date: date,
+        revision,
+        focus_text: '',
+        model_snapshot: proposal.model_snapshot,
+        adopted_at: now(),
+        actions: input.actions.map((a, idx) => {
+          const root = state.tasks.find((t) => t.id === a.root_task_id);
+          const sub = a.target_subtask_id ? state.tasks.find((t) => t.id === a.target_subtask_id) : undefined;
+          return {
+            display_order: idx + 1,
+            root_task_id: a.root_task_id,
+            target_subtask_id: a.target_subtask_id,
+            root_title: root?.title ?? null,
+            subtask_title: sub?.title ?? null,
+            reason: a.reason,
+            next_step: a.next_step,
+            stop_at: a.stop_at,
+            status: 'ok' as const,
+            can_start: true,
+          };
+        }),
+      };
+      state.myDayPlans.set(date, view);
+      state.myDayProposals.delete(input.proposalId);
+      return { added_task_ids: added, plan_id: planId, revision, already_applied: false };
+    },
+    async getMyDayPlan(date) {
+      const view = state.myDayPlans.get(date);
+      if (!view) return null;
+      // 联查实时状态:根任务完成/移出当天 → 失效
+      const actions = view.actions.map((a) => {
+        const root = state.tasks.find((t) => t.id === a.root_task_id);
+        let status: import('../models/ai').MyDayActionStatus = 'ok';
+        if (!root) status = 'deleted';
+        else if (root.is_completed) status = 'completed';
+        else if (root.is_suspended) status = 'suspended';
+        else if (root.is_abandoned) status = 'abandoned';
+        else if (root.my_day_date !== date) status = 'removed_from_day';
+        else if (a.target_subtask_id) {
+          const sub = state.tasks.find((t) => t.id === a.target_subtask_id);
+          if (!sub || sub.parent_task_id !== root.id) status = 'subtask_invalid';
+          else if (sub.is_completed) status = 'subtask_completed';
+        }
+        return { ...a, status, can_start: status === 'ok' };
+      });
+      return clone({ ...view, actions });
+    },
+    async clearMyDayPlan(date, expectedRevision) {
+      const view = state.myDayPlans.get(date);
+      if (!view) return 0;
+      const revision = view.revision === expectedRevision ? view.revision + 1 : view.revision;
+      state.myDayPlans.delete(date);
+      return revision;
+    },
     async listInvocations() {
       return [];
     },
@@ -331,6 +506,9 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
     aiDefaultModel: null,
     aiProposals: new Map(),
     aiProposalTaskIds: new Map(),
+    myDayContexts: new Map(),
+    myDayProposals: new Map(),
+    myDayPlans: new Map(),
   };
 
   const repositories: AppRepositories = {

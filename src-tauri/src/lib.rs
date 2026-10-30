@@ -636,6 +636,11 @@ pub fn run() {
             commands::ai_commands::ai_generate_breakdown,
             commands::ai_commands::ai_apply_breakdown,
             commands::ai_commands::ai_polish_description,
+            commands::ai_my_day_commands::ai_prepare_my_day_context,
+            commands::ai_my_day_commands::ai_generate_my_day_plan,
+            commands::ai_my_day_commands::ai_apply_my_day_plan,
+            commands::ai_my_day_commands::ai_get_my_day_plan,
+            commands::ai_my_day_commands::ai_clear_my_day_plan,
         ])
         .run(tauri::generate_context!());
 

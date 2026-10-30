@@ -465,3 +465,55 @@ export async function aiPolishDescription(
 ): Promise<import('../domain/models/ai').PolishProposal> {
   return invoke('ai_polish_description', { task_id: taskId, note: note ?? null, request_id: requestId });
 }
+
+export async function aiPrepareMyDayContext(input: {
+  tagIds?: string[];
+  manualTaskIds?: string[];
+  subtaskPicks?: import('../domain/models/ai').MyDaySubtaskPickInput[];
+}): Promise<import('../domain/models/ai').MyDayContextPreview> {
+  return invoke('ai_prepare_my_day_context', {
+    tag_ids: input.tagIds ?? null,
+    manual_task_ids: input.manualTaskIds ?? null,
+    subtask_picks: input.subtaskPicks ?? null,
+  });
+}
+
+export async function aiGenerateMyDayPlan(input: {
+  contextId: string;
+  focusNote?: string;
+  mandatoryTaskIds?: string[];
+  excludedTaskIds?: string[];
+  targetCount?: number;
+  requestId?: string;
+}): Promise<import('../domain/models/ai').MyDayPlanProposal> {
+  return invoke('ai_generate_my_day_plan', {
+    context_id: input.contextId,
+    focus_note: input.focusNote ?? null,
+    mandatory_task_ids: input.mandatoryTaskIds ?? null,
+    excluded_task_ids: input.excludedTaskIds ?? null,
+    target_count: input.targetCount ?? null,
+    request_id: input.requestId ?? null,
+  });
+}
+
+export async function aiApplyMyDayPlan(input: {
+  proposalId: string;
+  operationId: string;
+  actions: import('../domain/models/ai').MyDayActionInput[];
+  expectedRevision: number;
+}): Promise<import('../domain/models/ai').ApplyMyDayPlanResult> {
+  return invoke('ai_apply_my_day_plan', {
+    proposal_id: input.proposalId,
+    operation_id: input.operationId,
+    actions: input.actions,
+    expected_revision: input.expectedRevision,
+  });
+}
+
+export async function aiGetMyDayPlan(date: string): Promise<import('../domain/models/ai').MyDayPlanView | null> {
+  return invoke('ai_get_my_day_plan', { date });
+}
+
+export async function aiClearMyDayPlan(date: string, expectedRevision: number): Promise<number> {
+  return invoke('ai_clear_my_day_plan', { date, expected_revision: expectedRevision });
+}
