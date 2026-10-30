@@ -8,7 +8,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { todayISO, isOverdue, formatLocalTime } from '../../lib/date';
 import { cn } from '../../lib/cn';
 import { queryKeys } from '../../lib/queryKeys';
-import type { UpdateTaskInput } from '../../types/task';
+import type { Task, UpdateTaskInput } from '../../types/task';
 import type { Tag as TagType } from '../../types/tag';
 import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, Check, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer, Sparkles, PenLine } from 'lucide-react';
 import { usePomodoroStore } from '../../stores/pomodoroStore';
@@ -18,6 +18,7 @@ import { ReminderList } from '../shared/ReminderList';
 import { Portal } from '../shared/Portal';
 import { SubtaskReminderButton } from './SubtaskReminderButton';
 import { SubtaskDateChip } from './SubtaskDateChip';
+import { SubtaskDescription } from './SubtaskDescription';
 import { BreakdownPanel } from '../ai/BreakdownPanel';
 import { PolishPanel } from '../ai/PolishPanel';
 import { usePolishStore } from '../../stores/polishStore';
@@ -66,6 +67,38 @@ function EditableSubtaskTitle({ child }: { child: { id: string; title: string; i
   return (
     <span className={cn('text-[13px] flex-1 truncate cursor-text', child.is_completed && 'line-through text-[#9CA3AF]', !child.is_completed && 'text-[#111827] dark:text-white/90')}
       onClick={() => { setVal(child.title); setEditing(true); }} title="点击编辑标题">{child.title}</span>
+  );
+}
+
+/** 详情面板子任务行:标题+描述纵向排布,行尾 hover 出现编辑描述图标与删除按钮。 */
+function DetailSubtaskRow({ child, onToggle, onDelete }: { child: Task; onToggle: () => void; onDelete: () => void }) {
+  const [descEditing, setDescEditing] = useState(false);
+  return (
+    <div className={cn('flex items-center gap-2.5 px-3 py-2 rounded-[10px] border transition-colors group',
+      child.is_completed
+        ? 'bg-[#FAFAFA] dark:bg-white/[0.02] border-[#F3F4F6] dark:border-white/[0.04]'
+        : 'bg-white dark:bg-[#1e1e32] border-[#F3F4F6] dark:border-white/[0.06] hover:border-[#E5E7EB] dark:hover:border-white/[0.08]')}>
+      <button onClick={onToggle}
+        className={cn('w-[18px] h-[18px] rounded-full border-[2px] flex items-center justify-center flex-shrink-0 transition-colors',
+          child.is_completed ? 'bg-[#7C72F6] border-[#7C72F6] text-white' : 'border-[#D1D5DB] hover:border-[#7C72F6]')}>
+        {child.is_completed && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+      </button>
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <EditableSubtaskTitle child={child} />
+        <SubtaskDescription taskId={child.id} description={child.description} editing={descEditing} onEditingChange={setDescEditing} />
+      </div>
+      <SubtaskDateChip child={child} />
+      <SubtaskReminderButton child={child} />
+      <button onClick={() => setDescEditing(true)} title="编辑描述"
+        className={cn('shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-all',
+          child.description ? 'text-[#7C72F6] hover:bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#6B7280]')}>
+        <AlignLeft size={12} />
+      </button>
+      <button onClick={onDelete} aria-label="删除子任务"
+        className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[#9CA3AF] hover:text-[#EF4444] transition-all">
+        <X size={12} />
+      </button>
+    </div>
   );
 }
 
@@ -291,7 +324,7 @@ export function TaskDetail() {
                 recurrence: deletedTask.recurrence || undefined,
               });
               for (const child of deletedChildren) {
-                await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id });
+                await createTask.mutateAsync({ title: child.title, description: child.description, parent_task_id: parent.id });
               }
               toast.dismiss();
             }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
@@ -585,23 +618,9 @@ export function TaskDetail() {
             </div>
             <div className="space-y-1 mb-2">
               {children.map((child) => (
-                <div key={child.id} className={cn('flex items-center gap-2.5 px-3 py-2 rounded-[10px] border transition-colors group',
-                  child.is_completed
-                    ? 'bg-[#FAFAFA] dark:bg-white/[0.02] border-[#F3F4F6] dark:border-white/[0.04]'
-                    : 'bg-white dark:bg-[#1e1e32] border-[#F3F4F6] dark:border-white/[0.06] hover:border-[#E5E7EB] dark:hover:border-white/[0.08]')}>
-                  <button onClick={() => updateTask.mutate({ id: child.id, is_completed: !child.is_completed })}
-                    className={cn('w-[18px] h-[18px] rounded-full border-[2px] flex items-center justify-center flex-shrink-0 transition-colors',
-                      child.is_completed ? 'bg-[#7C72F6] border-[#7C72F6] text-white' : 'border-[#D1D5DB] hover:border-[#7C72F6]')}>
-                    {child.is_completed && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                  </button>
-                  <EditableSubtaskTitle child={child} />
-                  <SubtaskDateChip child={child} />
-                  <SubtaskReminderButton child={child} />
-                  <button onClick={() => { const deleted = child; deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(task.id) }); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutateAsync({ title: deleted.title, parent_task_id: deleted.parent_task_id || undefined }).then(() => { queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(task.id) }); }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); } }); }}
-                    className="shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[#9CA3AF] hover:text-[#EF4444] transition-all ml-auto">
-                    <X size={12} />
-                  </button>
-                </div>
+                <DetailSubtaskRow key={child.id} child={child}
+                  onToggle={() => updateTask.mutate({ id: child.id, is_completed: !child.is_completed })}
+                  onDelete={() => { const deleted = child; deleteTask.mutate(child.id, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(task.id) }); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutateAsync({ title: deleted.title, description: deleted.description, parent_task_id: deleted.parent_task_id || undefined }).then(() => { queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(task.id) }); }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); } }); }} />
               ))}
             </div>
           </>

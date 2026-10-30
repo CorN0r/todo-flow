@@ -49,7 +49,7 @@ export function UnifiedLayout({ tasks, reorderScope = tasks }: UnifiedLayoutProp
     setCtxMenu(null);
     setSelectedTaskId(null);
     deleteTask.mutate(t.id);
-    toast.success(() => (<span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: t.title, description: t.description, priority: t.priority, due_date: t.due_date || undefined, tag_ids: t.tag_ids, parent_task_id: t.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 });
+    toast.success(() => (<span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: t.title, description: t.description, priority: t.priority, due_date: t.due_date || undefined, tag_ids: t.tag_ids, parent_task_id: t.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, description: child.description, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 });
   };
 
   const handleDeleteClick = (t: Task) => {

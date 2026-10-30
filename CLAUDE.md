@@ -114,7 +114,8 @@ Windows that are separate WebViews have their own React instances, Zustand store
 src/
 ├── components/
 │   ├── layout/       Sidebar, Header, TaskDetailPanel
-│   ├── tasks/        TaskCard, TaskList, TaskDetail, TaskQuickAdd, UnifiedLayout
+│   ├── tasks/        TaskCard, TaskList, TaskDetail, TaskQuickAdd, UnifiedLayout,
+│   │                 SubtaskDescription(子任务描述预览/编辑,列表+详情共用)
 │   ├── ai/           AiModelSettings(设置页区块), BreakdownPanel(拆解), PolishPanel(润色), useElapsedSeconds(生成计时)
 │   ├── notes/        NoteCard（桌面便签卡片,三皮肤 SKINS 令牌）
 │   ├── calendar/     MonthView, WeekView, DayView
@@ -323,7 +324,7 @@ queryClient.invalidateQueries({
 `due_date` stores `"YYYY-MM-DD"` (date-only) or `"YYYY-MM-DD HH:mm"` (with time). Comparisons use `.slice(0, 10)`. `parseISO()` needs `.replace(' ', 'T')` first.
 
 ### Delete Flow & Undo
-Call `setSelectedTaskId(null)` BEFORE `deleteTask.mutate(id)`. Undo via toast with 8s duration, recreating via `createTask.mutateAsync`.
+Call `setSelectedTaskId(null)` BEFORE `deleteTask.mutate(id)`. Undo via toast with 8s duration, recreating via `createTask.mutateAsync`. Recreate calls MUST pass `description` from the deleted object — for parent tasks also for every child in the recreate loop (spec: `subtask-description`); undo dropping descriptions is a recurring bug, don't reintroduce it.
 
 ### Tag Nesting — Two Levels Max
 Tags support `parent_tag_id` (self-ref FK). UI only shows "添加子标签" when `depth === 0`.

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import type { Task } from '../../types/task';
 import type { Tag } from '../../types/tag';
 import { formatDate, isOverdue } from '../../lib/date';
-import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X, PauseCircle, Play, XCircle, Pin, PinOff, Timer, Bell, Sparkles } from 'lucide-react';
+import { Calendar, Flag, Check, RotateCcw, Trash2, Copy, Sun, SunDim, Plus, ChevronRight, ChevronDown, X, PauseCircle, Play, XCircle, Pin, PinOff, Timer, Bell, Sparkles, AlignLeft } from 'lucide-react';
 import { useUpdateTask, useDeleteTask, useCreateTask, useReorderTasks, useToggleMyDay } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { useTaskNotes, useToggleTaskNote } from '../../hooks/useTaskNotes';
@@ -19,6 +19,7 @@ import { DatePicker } from '../shared/DatePicker';
 import { ReminderList } from '../shared/ReminderList';
 import { SubtaskReminderButton } from './SubtaskReminderButton';
 import { SubtaskDateChip } from './SubtaskDateChip';
+import { SubtaskDescription } from './SubtaskDescription';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -29,21 +30,31 @@ function SortableSubtaskRow({ child, onToggle, onDelete, onEditingChange }: {
   child: Task; onToggle: () => void; onDelete: () => void; onEditingChange?: (editing: boolean) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [descEditing, setDescEditing] = useState(false);
+  const anyEditing = isEditing || descEditing;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: child.id,
-    disabled: isEditing,
+    disabled: anyEditing,
   });
 
   const handleEditingChange = useCallback((editing: boolean) => {
     setIsEditing(editing);
+    if (editing) setDescEditing(false);
+    onEditingChange?.(editing);
+  }, [onEditingChange]);
+
+  // 标题编辑与描述编辑互斥,编辑中统一禁用拖拽
+  const handleDescEditingChange = useCallback((editing: boolean) => {
+    setDescEditing(editing);
+    if (editing) setIsEditing(false);
     onEditingChange?.(editing);
   }, [onEditingChange]);
 
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <div ref={setNodeRef} {...(isEditing ? {} : attributes)} {...(isEditing ? {} : listeners)} style={style}
+    <div ref={setNodeRef} {...(anyEditing ? {} : attributes)} {...(anyEditing ? {} : listeners)} style={style}
       className={cn(isDragging && 'opacity-50 z-50', 'cursor-grab active:cursor-grabbing [&_button]:cursor-pointer')}>
       <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
         isDragging ? 'bg-white dark:bg-[#1e1e32] border-[#7C72F6] shadow-lg'
@@ -56,9 +67,17 @@ function SortableSubtaskRow({ child, onToggle, onDelete, onEditingChange }: {
             </svg>
           )}
         </button>
-        <SubtaskContent child={child} onDelete={onDelete} onEditingChange={handleEditingChange} />
-        {!isEditing && (
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <SubtaskContent child={child} onDelete={onDelete} onEditingChange={handleEditingChange} onEditDescription={() => handleDescEditingChange(true)} />
+          <SubtaskDescription taskId={child.id} description={child.description} editing={descEditing} onEditingChange={handleDescEditingChange} />
+        </div>
+        {!anyEditing && (
           <>
+            <button onClick={() => handleDescEditingChange(true)} title="编辑描述"
+              className={cn('shrink-0 p-1 rounded transition-colors',
+                child.description ? 'text-[#7C72F6] hover:bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] hover:text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]')}>
+              <AlignLeft size={12} />
+            </button>
             <SubtaskDateChip child={child} />
             <SubtaskReminderButton child={child} />
           </>
@@ -68,7 +87,7 @@ function SortableSubtaskRow({ child, onToggle, onDelete, onEditingChange }: {
   );
 }
 
-function SubtaskContent({ child, onDelete, onEditingChange }: { child: Task; onDelete: () => void; onEditingChange?: (editing: boolean) => void }) {
+function SubtaskContent({ child, onDelete, onEditingChange, onEditDescription }: { child: Task; onDelete: () => void; onEditingChange?: (editing: boolean) => void; onEditDescription: () => void }) {
   const updateTask = useUpdateTask();
   const [subMenu, setSubMenu] = useState<{ x: number; y: number; rawX: number; rawY: number } | null>(null);
   const subMenuRef = useRef<HTMLDivElement>(null);
@@ -147,6 +166,10 @@ function SubtaskContent({ child, onDelete, onEditingChange }: { child: Task; onD
             <button onClick={() => { navigator.clipboard.writeText(child.title); toast.success('已复制标题'); setSubMenu(null); }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
               <Copy size={15} className="text-[#6B7280]" /> 复制标题
+            </button>
+            <button onClick={() => { setSubMenu(null); onEditDescription(); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
+              <AlignLeft size={15} className="text-[#6B7280]" /> 编辑描述
             </button>
             <button onClick={() => { setSubMenu(null); setDatePopOpen(true); }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
@@ -297,7 +320,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
     deleteTask.mutate(task.id);
     toast.success(
       () => (
-        <span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_ids: deleted.tag_ids, parent_task_id: deleted.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
+        <span>任务已删除 &middot; <button onClick={async () => { const parent = await createTask.mutateAsync({ title: deleted.title, description: deleted.description, priority: deleted.priority, due_date: deleted.due_date || undefined, tag_ids: deleted.tag_ids, parent_task_id: deleted.parent_task_id || undefined }); for (const child of deletedChildren) { await createTask.mutateAsync({ title: child.title, description: child.description, parent_task_id: parent.id }); } toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>
       ),
       { duration: 8000 },
     );
@@ -472,7 +495,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
                   {children.map((child) => (
                     <SortableSubtaskRow key={child.id} child={child}
                       onToggle={() => updateTask.mutate({ id: child.id, is_completed: !child.is_completed })}
-                      onDelete={() => { const deleted = child; deleteTask.mutate(child.id); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: deleted.title, parent_task_id: deleted.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); }} />
+                      onDelete={() => { const deleted = child; deleteTask.mutate(child.id); toast.success(() => (<span>子任务已删除 &middot; <button onClick={() => { createTask.mutate({ title: deleted.title, description: deleted.description, parent_task_id: deleted.parent_task_id || undefined }); toast.dismiss(); }} className="font-bold text-[#1B2A4A] hover:text-[#0F1A2E] rounded px-1.5 py-0.5 text-xs">撤销</button></span>), { duration: 8000 }); }} />
                   ))}
                 </SortableContext>
               </DndContext>

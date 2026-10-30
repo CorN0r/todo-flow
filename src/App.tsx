@@ -5,7 +5,7 @@ import { Toaster } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
 import './i18n';
 import { useLanguage } from './i18n/useLanguage';
-import { invalidateTasks, invalidateTags, invalidateHabits, invalidateDashboardStats, invalidateTaskNotes } from './lib/queryKeys';
+import { invalidateTasks, invalidateTask, invalidateTags, invalidateHabits, invalidateDashboardStats, invalidateTaskNotes } from './lib/queryKeys';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { TaskDetailPanel } from './components/layout/TaskDetailPanel';
@@ -97,6 +97,9 @@ function MainLayout() {
     (async () => {
       const u2 = await listen('task-changed', () => {
         invalidateTasks(queryClient);
+        // 详情查询键是 ['task', id],不在 ['tasks'] 前缀内;不一起失效的话
+        // AI 采纳子任务等后端写入后,任务详情的子任务列表不会即时刷新
+        invalidateTask(queryClient);
         invalidateTags(queryClient);
         invalidateHabits(queryClient);
         invalidateDashboardStats(queryClient);
