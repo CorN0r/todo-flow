@@ -1,6 +1,6 @@
 [package]
 name = "todo-flow"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 default-run = "todo-flow"
 description = "A modern Windows desktop TODO app with calendar views, subtasks, tags, habit tracking, and image attachments"
