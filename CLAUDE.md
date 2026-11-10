@@ -114,8 +114,10 @@ Windows that are separate WebViews have their own React instances, Zustand store
 src/
 ├── components/
 │   ├── layout/       Sidebar, Header, TaskDetailPanel
-│   ├── tasks/        TaskCard, TaskList, TaskDetail, TaskQuickAdd, UnifiedLayout,
-│   │                 SubtaskDescription(子任务描述预览/编辑,列表+详情共用)
+│   ├── tasks/        TaskCard, TaskList, TaskDetail(双页签:任务内容/进展记录),
+│   │                 TaskQuickAdd, UnifiedLayout,
+│   │                 SubtaskDescription(子任务描述预览/编辑,列表+详情共用),
+│   │                 progress/ProgressTab(进展输入+分页时间线+状态事件)
 │   ├── ai/           AiModelSettings(设置页区块), BreakdownPanel(拆解), PolishPanel(润色), useElapsedSeconds(生成计时)
 │   ├── notes/        NoteCard（桌面便签卡片,三皮肤 SKINS 令牌）
 │   ├── calendar/     MonthView, WeekView, DayView
@@ -124,6 +126,7 @@ src/
 │   └── attachments/  AttachmentZone, ImageLightbox
 ├── pages/            TodayPage, CalendarPage, TagPage, SearchPage, DashboardPage,
 │                     SettingsPage, WidgetPage, PomodoroWidgetPage, NotePage(桌面便签窗口),
+│                     ReviewPage(/review 日周回顾:事实/材料/文稿+AI 生成),
 │                     FocusStatsPage, ...
 ├── hooks/            useTasks, useTags, useTheme, useKeyboardShortcuts, usePomodoroSync,
 │                     useTaskNotes(便签固定/取消固定), useAiModels(AI 配置/验证/摘要)
@@ -139,13 +142,18 @@ src-tauri/
 ├── src/
 │   ├── bin/mcp.rs       todoflow-mcp 二进制入口(clap parse → serve 或 CLI 子命令)
 │   ├── ai/             AI 模型接入(见下文专节):config_repo, credentials, adapter/,
-│   │                    gateway, probe, presets, breakdown, apply, diagnostics, error
+│   │                    gateway, probe, presets, breakdown, apply, diagnostics, error,
+│   │                    review(日/周回顾:有界上下文+四类结果校验)
 │   ├── commands/        task_commands, reminder_commands, tag_commands, settings_commands,
 │   │                    shortcut_commands, widget_commands, stats_commands, habit_commands,
 │   │                    attachment_commands, sync_commands, note_commands(桌面便签),
-│   │                    ai_commands(AI 全部命令,均 rename_all=snake_case)
+│   │                    progress_commands(进展记录+留存+回顾基础,snake_case),
+│   │                    ai_commands(AI 全部命令,均 rename_all=snake_case,
+│   │                      含 ai_prepare_review_context/ai_generate_review)
 │   ├── db/              task_repo, reminder_repo, tag_repo, attachment_repo, habit_repo,
-│   │                    sync_repo, task_note_repo, migrations, connection
+│   │                    sync_repo, task_note_repo, migrations, connection,
+│   │                    progress_repo(记录 CRUD+回执+恢复), history_repo(事件/覆盖/留存),
+│   │                    review_repo(范围/事实/材料/保存稿)
 │   ├── mcp/             mod.rs(MCP server + #[tool] 注册), handlers.rs(纯函数), cli.rs(clap)
 │   ├── models/          task, task_reminder, tag, attachment, settings, habit, sync, task_note
 │   ├── db_watcher.rs    DB 文件 mtime 轮询 → emit task-changed(外部写入检测)
@@ -238,9 +246,14 @@ pomodoroStore (Zustand + localStorage persistence)
 
 ---
 
-## Database Schema (migration v17)
+## Database Schema (migration v19)
 
 - **tasks**: id, title, description, is_completed, is_archived, is_suspended, is_abandoned, is_pinned, priority (0-4), due_date, reminder, parent_task_id (self-ref, CASCADE), sort_order, recurrence (JSON), my_day_date, source (TEXT, `'agent'` = Agent 创建), reminded, created_at, updated_at + sync 字段 (deleted_at, server_revision, local_revision, last_modified_device_id, sync_status)
+- **task_progress_records** (v19, 本机): 手写进展记录。id, task_id, root_task_id/root_tag_ids(保存时快照), record_date(用户可选过去补记), content(1..2000 字), content_hash, version(乐观并发), is_deleted(删除清正文留标记), created_at, updated_at
+- **task_state_events** (v19, 本机): 真实状态转换事件(complete/reopen/suspend/resume/abandon/restore)。INTEGER PK 自增即顺序;local_date + tz_offset + occurred_at/occurred_utc;source(gui/agent);title_snapshot + root 快照。**由 `task_repo::update` 在同一事务内写入**(GUI/MCP/CLI 共用该咽喉点);同状态重写/普通编辑不产生事件;留存关闭(settings `task_history_retention`,默认开)时不写但不阻断任务
+- **task_history_coverage** (v19, 本机): 覆盖说明。kind=baseline(v19 迁移日,之前历史缺失,不回填)/retention_off/cleanup/import;回顾按此显示 完整/部分可用/缺失
+- **period_reviews** (v19, 本机): 每周期+标签范围一份当前稿(scope_key UNIQUE)。manual_text + ai_sections(四类 JSON) + 快照元数据(event_cutoff_at/prepared_at/timezone_offset/coverage_note/source_refs) + revision(期望版本)
+- **progress_save_receipts** (v19, 本机): 保存幂等回执(operation_id PK, content_hash);同操作同内容重试不重复,同操作不同内容拒绝
 - **task_tags**: task_id + tag_id 多对多关联表 (PRIMARY KEY(task_id, tag_id))，任务多标签的唯一真相。`Task.tag_ids: Vec<String>` 经 `json_group_array` 聚合读取；旧 `tasks.tag_id` 列保留但弃用
 - **task_reminders**: id, task_id (FK CASCADE), offset, reminder_time, reminded, created_at
 - **task_notes**: task_id (PK, FK CASCADE), x, y, width, height, always_on_top, style, collapsed, created_at, updated_at（桌面便签，1:1，不进 sync 系统）
@@ -281,6 +294,20 @@ pomodoroStore (Zustand + localStorage persistence)
 - **测试**：单测/集成测试全 mock(含 TcpListener 手写 SSE 服务器,不碰真网);真实验收 `cargo test --test ai_acceptance -- --ignored --nocapture`（真实库+真实凭证+真实服务调用,会往任务列表写带【AI验收】/【AI润色冒烟】前缀的虚构任务）;keyring spike 同为 `--ignored`
 - **前端**：契约在 `src/domain/repositories` 的 `AiModelRepository`(desktop 接 `lib/db.ts` 包装,memory 替身供测试);UI 为 `src/components/ai/`;流式进度监听 `ai-request-progress` 事件并按 `request_id` 过滤;错误文案统一走 `src/lib/aiErrors.ts`(timeout→"模型服务响应超时"等)
 
+## 任务进展与日/周回顾（Progress & Reviews）
+
+规格见 `openspec/changes/add-task-progress-and-reviews`(实施记录与验收材料在其 README/§9)。核心语义:
+
+- **完全自愿**:进展记录只在用户主动进入"进展记录"页签时出现;完成任务/结束专注/关闭详情不弹填写要求,无补写提醒。草稿按任务存 `progressDraftStore`(会话内,operation_id 失败前不变→保存幂等)
+- **详情双页签**:公共头部(标题/完成/属性摘要/我的一天/开始专注/更多操作菜单)+ "任务内容/进展记录"两页签;**两页签都保持挂载用原生 `hidden` 属性切换**(保留 TipTap 编辑器、草稿与滚动;不用 class,测试环境无 Tailwind 时 class 不生效)。切换任务默认内容页(`tabState{taskId,tab}` 派生重置,不在 effect 里 setState——项目 eslint 规则 `react-hooks/set-state-in-effect`)
+- **状态事件唯一写入点** = `task_repo::update`(GUI/MCP/CLI 全走它):真实转换(complete/reopen/suspend/resume/abandon/restore)在**同一 `unchecked_transaction`** 内写 `task_state_events`;事件写失败→任务变化一并回滚。同状态重写/标题编辑不产生事件。MCP/CLI 传 `status_event_source="agent"`。留存开关 settings `task_history_retention`(默认开),关闭写覆盖缺口行,重新开启不回补
+- **完成时间**:`TaskDetail.completed_at` 只来自最近一次 complete 事件(`history_repo::confirmed_completed_at`);无事件显示"完成时间未记录",**绝不用 updated_at 代替**。旧看板统计(`stats_commands`)仍是旧口径,新回顾用独立事实查询
+- **回顾事实口径**:"本期完成"=期内有 complete 事件且截至截止时点最近一次 complete/reopen 仍为 complete 的去重任务;完成后重开单列;根/子任务分列不相加;放弃不算完成;标签按事件/记录保存时的根任务快照筛(当前改标签不改写历史)。覆盖三态 complete/partial/missing 由 `task_history_coverage` 决定
+- **AI 回顾**(`ai/review.rs`):准备快照(存 `AiRuntime.review_contexts`,重启即弃)→ 边界:40 分组/每根 5 子事实/60 记录/标题 120/单条 400/重点 300/请求体 128KiB → 生成(复用 execute_chat,同范围单飞 `active_review_scopes`)→ 输出四类 JSON(8/5/5/5 项,每项 ≤500 字+引用必须在候选内,`parse_and_validate` 拒候选外引用/截断/超界)→ 保存(前端把快照元数据原样回传 `save_review`,形成"按此快照保存";保存只写 `period_reviews`,不动任务)
+- **删除语义**:删记录=清正文留 content_hash 标记;删任务=清该任务+子任务记录正文,事件保留(来源标"任务已删除"禁打开);清理事实区间=删事件+写 cleanup 缺口行。已保存回顾是独立文稿,来源删后显示不可用不恢复
+- **备份恢复**:备份=整库复制(新表自动含);导入默认不动本机进展/回顾,勾选"同时恢复"走 `restore_progress_data`(同 ID 同内容跳过/不同内容拒绝/整批事务/保留原事件时间/版本校验,不动 ai_* 模型配置)
+- **真实验收**:`cargo test --test review_acceptance -- --ignored --nocapture`(隔离库+真实智谱凭证;覆盖有记录无完成/重开/父子并行/历史清理/原因不明样例)
+
 ## Settings Keys
 
 | Key | Value | Used By |
@@ -294,6 +321,7 @@ pomodoroStore (Zustand + localStorage persistence)
 | `keyboard_shortcuts` | JSON `ShortcutMap` | shortcutStore |
 | `shortcuts_enabled` | `"0"`/`"1"` | shortcuts.rs（总开关关闭时不注册任何全局热键） |
 | `note_default_style` | `glass`/`paper`/`minimal`（默认 `paper`） | SettingsPage, note_commands.open_task_note |
+| `task_history_retention` | `0`/`1`（默认 `1`） | history_repo, SettingsPage 任务历史与回顾 |
 | `ai_default_model` | ai_models.id（全局默认模型,可空） | config_repo;**不在 sync 白名单**,按设备管理 |
 | `pomodoroConfig` | localStorage, not DB | pomodoroStore |
 
