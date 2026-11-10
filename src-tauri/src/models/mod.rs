@@ -1,5 +1,7 @@
 pub mod attachment;
 pub mod habit;
+pub mod progress;
+pub mod review;
 pub mod settings;
 pub mod sync;
 pub mod tag;

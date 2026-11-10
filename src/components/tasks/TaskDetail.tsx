@@ -10,7 +10,7 @@ import { cn } from '../../lib/cn';
 import { queryKeys } from '../../lib/queryKeys';
 import type { Task, UpdateTaskInput } from '../../types/task';
 import type { Tag as TagType } from '../../types/tag';
-import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, Check, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer, Sparkles, PenLine } from 'lucide-react';
+import { Trash2, Tag, Flag, Sun, SunDim, Pin, X, Check, SlidersHorizontal, AlignLeft, ListChecks, Activity, Plus, Timer, Sparkles, PenLine, MoreHorizontal, ChevronDown, StickyNote, Bell, Repeat } from 'lucide-react';
 import { usePomodoroStore } from '../../stores/pomodoroStore';
 import { RecurrencePicker } from '../shared/RecurrencePicker';
 import { DatePicker } from '../shared/DatePicker';
@@ -23,6 +23,9 @@ import { BreakdownPanel } from '../ai/BreakdownPanel';
 import { PolishPanel } from '../ai/PolishPanel';
 import { usePolishStore } from '../../stores/polishStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
+import { ProgressTab } from './progress/ProgressTab';
+import { useProgressOverview } from '../../hooks/useProgress';
+import { useTaskReminders } from '../../hooks/useTasks';
 import { toast } from 'sonner';
 import { hexToRgba, PRIORITY_HEX, priorityLabels } from '../../lib/priority';
 
@@ -263,6 +266,15 @@ export function TaskDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showPolish, setShowPolish] = useState(false);
+  // 双页签:普通选中任务默认内容页;仅显式切换时进入进展记录,切换任务回到默认
+  // (用"任务+页签"成对状态派生重置,不在 effect 里 setState)
+  const [tabState, setTabState] = useState<{ taskId: string | null; tab: 'content' | 'progress' }>({ taskId: null, tab: 'content' });
+  const activeTab = tabState.taskId === selectedTaskId ? tabState.tab : 'content';
+  const setActiveTab = (tab: 'content' | 'progress') => setTabState({ taskId: selectedTaskId, tab });
+  const [showMoreAttrs, setShowMoreAttrs] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const [moreActionsPos, setMoreActionsPos] = useState<{ top: number; left: number } | null>(null);
+  const moreActionsBtnRef = useRef<HTMLButtonElement>(null);
   // AI 会话状态:生成中的请求自动展开面板(重新进入详情可见进度);
   // 用户手动关闭时记下该请求 id,同一请求不再强制展开,新一代请求恢复自动展开
   const polishSession = usePolishStore((s) => s.sessions[selectedTaskId ?? '']);
@@ -292,6 +304,21 @@ export function TaskDetail() {
     return new Map(tags.map((t) => [t.id, t]));
   }, [tags]);
   const pomodoroActive = usePomodoroStore((s) => s.isRunning && s.taskId === selectedTaskId);
+  const { data: taskReminders } = useTaskReminders(detail?.task.id ?? null);
+  const { data: progressOverview } = useProgressOverview(detail?.task.id ?? undefined);
+  const reminderCount = (taskReminders ?? []).length;
+  const recurrenceLabel = useMemo(() => {
+    const raw = local?.recurrence ?? '';
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { type?: string; interval?: number };
+      const names: Record<string, string> = { daily: '每天', weekly: '每周', monthly: '每月', yearly: '每年' };
+      const base = names[parsed.type ?? ''] ?? '重复';
+      return parsed.interval && parsed.interval > 1 ? `${base}×${parsed.interval}` : base;
+    } catch {
+      return '重复';
+    }
+  }, [local?.recurrence]);
 
   if (!selectedTaskId) return null;
   if (isLoading) return <p className="text-sm text-[#9CA3AF] py-8 text-center">加载中...</p>;
@@ -364,22 +391,42 @@ export function TaskDetail() {
           </div>
         </div>
         <div className="h-px bg-[#F3F4F6] dark:bg-white/[0.06] my-1" />
-        <div className="flex items-center gap-1.5 mb-1">
-          <Activity size={13} className="text-[#6B7280]" />
-          <label className="section-label">状态</label>
+        {/* 核心属性摘要:两个页签都可辨识;编辑入口在内容页"更多属性" */}
+        <div className="flex items-center gap-2 flex-wrap text-[12px] text-[#6B7280]">
+          <span className="inline-flex items-center gap-1">
+            <Activity size={12} className="text-[#9CA3AF]" />
+            {local.due_date ? local.due_date.replace('T', ' ') : '无日期'}
+          </span>
+          {local.priority > 0 && (
+            <span className="inline-flex items-center gap-1 font-medium" style={{ color: PRIORITY_HEX[local.priority] }}>
+              <Flag size={12} />{priorityLabels[local.priority]}
+            </span>
+          )}
+          {localTags.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <Tag size={12} className="text-[#9CA3AF]" />
+              {localTags.slice(0, 3).map((t) => t.name).join('、')}
+              {localTags.length > 3 && ` +${localTags.length - 3}`}
+            </span>
+          )}
+          {reminderCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-[#7C72F6]">
+              <Bell size={12} />提醒 {reminderCount}
+            </span>
+          )}
+          {recurrenceLabel && (
+            <span className="inline-flex items-center gap-1">
+              <Repeat size={12} className="text-[#9CA3AF]" />{recurrenceLabel}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        {/* 常用操作:我的一天/开始专注 + 更多操作菜单(点击与键盘可达,不依赖悬停) */}
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => { const isMyDay = task.my_day_date === todayISO(); toggleMyDay(task, !isMyDay); }}
             className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
               task.my_day_date === todayISO() ? 'text-[#F59E0B] bg-[#FFFBEB] dark:bg-amber-950/30' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#F59E0B] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
             {task.my_day_date === todayISO() ? <SunDim size={13} /> : <Sun size={13} />}
             我的一天
-          </button>
-          <button onClick={() => { updateTask.mutate({ id: task.id, is_pinned: !task.is_pinned }); }}
-            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
-              task.is_pinned ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
-            <Pin size={13} />
-            置顶
           </button>
           <button onClick={() => {
             if (pomodoroActive) usePomodoroStore.getState().stopTimer();
@@ -388,13 +435,20 @@ export function TaskDetail() {
             className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
               pomodoroActive ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
             <Timer size={13} />
-            番茄钟
+            {pomodoroActive ? '停止专注' : '开始专注'}
           </button>
-          <button onClick={() => toggleTaskNote(task.id, hasNote)}
-            className={cn('inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
-              hasNote ? 'text-[#7C72F6] bg-[#7C72F6]/[0.06] dark:bg-[#7C72F6]/[0.12]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
-            <Pin size={13} />
-            {hasNote ? '取消固定' : '固定到桌面'}
+          <button
+            ref={moreActionsBtnRef}
+            onClick={() => {
+              const rect = moreActionsBtnRef.current?.getBoundingClientRect();
+              setMoreActionsPos(rect ? { top: rect.bottom + 4, left: rect.left } : null);
+              setShowMoreActions(!showMoreActions);
+            }}
+            aria-haspopup="menu"
+            aria-expanded={showMoreActions}
+            className={cn('inline-flex items-center gap-1 text-[12px] font-medium px-2 py-1 rounded-full transition-colors',
+              showMoreActions ? 'text-[#7C72F6] bg-[#7C72F6]/[0.08]' : 'text-[#9CA3AF] bg-[#F3F4F6] dark:bg-white/[0.04] hover:text-[#7C72F6] hover:bg-[#E5E7EB] dark:hover:bg-white/[0.08]')}>
+            <MoreHorizontal size={13} />更多操作
           </button>
           {isOverdue(task.due_date) && !task.is_completed && !task.is_suspended && !task.is_abandoned && (
             <span className="inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full font-medium text-[#F97316] bg-[#FFF7ED] dark:bg-orange-950/30">超期</span>
@@ -412,12 +466,71 @@ export function TaskDetail() {
             </button>
           )}
         </div>
+        {showMoreActions && (
+          <Portal>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMoreActions(false)} />
+            <div role="menu" className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
+              style={moreActionsPos ?? { top: 0, left: 0 }}>
+              <button role="menuitem" onClick={() => { updateTask.mutate({ id: task.id, is_pinned: !task.is_pinned }); setShowMoreActions(false); }}
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 text-[#111827] dark:text-white/90">
+                <Pin size={13} />{task.is_pinned ? '取消置顶' : '置顶'}
+              </button>
+              <button role="menuitem" onClick={() => { toggleTaskNote(task.id, hasNote); setShowMoreActions(false); }}
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 text-[#111827] dark:text-white/90">
+                <StickyNote size={13} />{hasNote ? '取消桌面固定' : '固定到桌面'}
+              </button>
+              <div className="h-px bg-[#F3F4F6] dark:bg-white/[0.06] my-1" />
+              <button role="menuitem" onClick={() => { setShowMoreActions(false); handleDelete(); }}
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#FEF2F2] dark:hover:bg-red-950/30 flex items-center gap-2 text-[#EF4444]">
+                <Trash2 size={13} />删除任务
+              </button>
+            </div>
+          </Portal>
+        )}
       </div>
 
-      {/* ── Attributes ── */}
+      {/* ── 双页签 ── */}
+      <div role="tablist" aria-label="任务详情" className="flex items-center gap-1 border-b border-[#F3F4F6] dark:border-white/[0.06]">
+        <button role="tab" aria-selected={activeTab === 'content'} onClick={() => setActiveTab('content')}
+          className={cn('inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-2 -mb-px border-b-2 transition-colors',
+            activeTab === 'content' ? 'text-[#7C72F6] border-[#7C72F6]' : 'text-[#6B7280] border-transparent hover:text-[#111827] dark:hover:text-white/80')}>
+          <AlignLeft size={13} />任务内容
+        </button>
+        <button role="tab" aria-selected={activeTab === 'progress'} onClick={() => setActiveTab('progress')}
+          className={cn('inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-2 -mb-px border-b-2 transition-colors',
+            activeTab === 'progress' ? 'text-[#7C72F6] border-[#7C72F6]' : 'text-[#6B7280] border-transparent hover:text-[#111827] dark:hover:text-white/80')}>
+          <ListChecks size={13} />进展记录
+          {(progressOverview?.self_count ?? 0) > 0 && (
+            <span className="text-[11px] px-1.5 py-px rounded-full bg-[#7C72F6]/[0.10] text-[#7C72F6] font-medium">
+              {progressOverview!.self_count}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* ── 内容页签(保持挂载以保留编辑/草稿/滚动;hidden 属性隐藏) ── */}
+      <div className="space-y-5" hidden={activeTab !== 'content'}>
+      {/* ── 更多属性(可折叠;完整日期/优先级/标签/提醒/重复) ── */}
       <div>
-        <div className="flex items-center gap-1.5 mb-2">
+        <button onClick={() => setShowMoreAttrs((s) => !s)} aria-expanded={showMoreAttrs}
+          className="w-full flex items-center gap-1.5 mb-2 text-left group">
           <SlidersHorizontal size={13} className="text-[#6B7280]" />
+          <label className="section-label cursor-pointer">更多属性</label>
+          {!showMoreAttrs && (
+            <span className="text-[11px] text-[#9CA3AF] truncate">
+              {local.due_date ? `日期 ${local.due_date.slice(0, 10)}` : ''}
+              {local.priority > 0 ? ` · ${priorityLabels[local.priority]}` : ''}
+              {localTags.length > 0 ? ` · ${localTags.length} 个标签` : ''}
+              {reminderCount > 0 ? ` · 提醒 ${reminderCount}` : ''}
+              {recurrenceLabel ? ` · ${recurrenceLabel}` : ''}
+            </span>
+          )}
+          <span className="flex-1" />
+          <ChevronDown size={13} className={cn('text-[#9CA3AF] transition-transform', showMoreAttrs && 'rotate-180')} />
+        </button>
+        {showMoreAttrs && (
+        <div>
+        <div className="flex items-center gap-1.5 mb-2">
           <label className="section-label">属性</label>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -504,10 +617,12 @@ export function TaskDetail() {
           {/* Recurrence */}
           <RecurrencePicker value={local.recurrence} onChange={(val) => update({ recurrence: val })} iconOnly="label" />
         </div>
-      </div>
 
       {/* ── Reminders ── */}
       {local.due_date && <ReminderList taskId={task.id} dueDate={local.due_date} />}
+        </div>
+        )}
+      </div>
 
       {/* ── Description ── */}
       <div>
@@ -627,23 +742,30 @@ export function TaskDetail() {
         )}
         <SubtasksAddForm taskId={task.id} parentTaskId={task.parent_task_id || ''} />
       </div>
+      </div>
 
-      {/* ── Time Info + Bottom Actions ── */}
-      <div className="pt-3 border-t border-[#F3F4F6] dark:border-white/[0.06] flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF]">
+      {/* ── 进展页签(保持挂载以保留草稿/时间线状态;hidden 属性隐藏) ── */}
+      <div hidden={activeTab !== 'progress'}>
+        <ProgressTab taskId={task.id} />
+      </div>
+
+      {/* ── Time Info ── */}
+      <div className="pt-3 border-t border-[#F3F4F6] dark:border-white/[0.06] flex items-center">
+        <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF] flex-wrap">
           <span>创建于</span>
           <span className="text-[#6B7280]">{formatLocalTime(task.created_at)}</span>
           {task.is_completed && (
             <>
               <span className="mx-1 text-[#E5E7EB]">|</span>
               <span>完成于</span>
-              <span className="text-[#6B7280]">{formatLocalTime(task.updated_at)}</span>
+              {detail.completed_at ? (
+                <span className="text-[#6B7280]">{formatLocalTime(detail.completed_at)}</span>
+              ) : (
+                <span className="text-[#9CA3AF] italic">完成时间未记录</span>
+              )}
             </>
           )}
         </div>
-        <button onClick={handleDelete}
-          className="flex items-center gap-1.5 text-[12px] text-[#6B7280] hover:text-[#EF4444] transition-colors px-2 py-1.5 rounded-lg hover:bg-[#FEF2F2] dark:hover:bg-red-950/30 shrink-0">
-          <Trash2 size={14} />删除</button>
       </div>
     </div>
 

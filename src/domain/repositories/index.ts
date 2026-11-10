@@ -95,7 +95,7 @@ export interface SettingsRepository {
   getAll(): Promise<SettingsMap>;
   backupDatabase(destination: string): Promise<void>;
   exportCsv(path: string, content: string): Promise<void>;
-  importDatabase(source: string): Promise<string>;
+  importDatabase(source: string, includeProgress?: boolean): Promise<string>;
   getDashboardStats(): Promise<DashboardStats>;
 }
 

@@ -1,8 +1,11 @@
 pub mod attachment_repo;
 pub mod connection;
 pub mod habit_repo;
+pub mod history_repo;
 pub mod migrations;
+pub mod progress_repo;
 pub mod reminder_repo;
+pub mod review_repo;
 pub mod sync_repo;
 pub mod tag_repo;
 pub mod task_note_repo;

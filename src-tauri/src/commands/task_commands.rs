@@ -68,6 +68,7 @@ pub fn update_task(
     is_suspended: Option<bool>,
     is_abandoned: Option<bool>,
     is_pinned: Option<bool>,
+    status_event_source: Option<String>,
 ) -> Result<Task, AppError> {
     let conn = state.db()?;
     let task = task_repo::update(
@@ -87,6 +88,7 @@ pub fn update_task(
             is_suspended,
             is_abandoned,
             is_pinned,
+            status_event_source,
         },
     )?;
     let _ = app.emit("task-changed", ());
@@ -188,6 +190,7 @@ pub fn add_task_to_my_day(
             is_suspended: None,
             is_abandoned: None,
             is_pinned: None,
+            status_event_source: None,
         },
     )?;
     let _ = app.emit("task-changed", ());
@@ -218,6 +221,7 @@ pub fn remove_task_from_my_day(
             is_suspended: None,
             is_abandoned: None,
             is_pinned: None,
+            status_event_source: None,
         },
     )?;
     let _ = app.emit("task-changed", ());

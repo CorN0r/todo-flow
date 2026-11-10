@@ -6,6 +6,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { enable as enableAutoStart, disable as disableAutoStart, isEnabled as isAutoStartEnabled } from '@tauri-apps/plugin-autostart';
 import { getRepositories } from '../domain/repositories/current';
 import { invalidateTaskNotes } from '../lib/queryKeys';
+import { clearStateEventsRange, getHistoryRetention, setHistoryRetention } from '../lib/db';
+import { todayISO } from '../lib/date';
+import { cn } from '../lib/cn';
 import { usePomodoroStore } from '../stores/pomodoroStore';
 import { useShortcutStore } from '../stores/shortcutStore';
 import { useTaskNotes, useToggleTaskNote } from '../hooks/useTaskNotes';
@@ -175,6 +178,7 @@ export function SettingsPage() {
   };
 
   const [importing, setImporting] = useState(false);
+  const [importWithProgress, setImportWithProgress] = useState(false);
 
   const handleImport = async () => {
     const [selected] = await getRepositories().platform.chooseFiles({
@@ -184,12 +188,53 @@ export function SettingsPage() {
     if (!selected) return;
     setImporting(true);
     try {
-      const result = await getRepositories().settings.importDatabase(selected as string);
+      const result = await getRepositories().settings.importDatabase(selected as string, importWithProgress);
       toast.success(result);
     } catch (err) {
       toast.error('导入失败: ' + (err as string));
     }
     setImporting(false);
+  };
+
+  // ---------- 任务历史与回顾 ----------
+  const [retentionEnabled, setRetentionEnabled] = useState<boolean | null>(null);
+  const [clearingEvents, setClearingEvents] = useState(false);
+  const [cleanupStart, setCleanupStart] = useState('');
+  const [cleanupEnd, setCleanupEnd] = useState('');
+
+  useEffect(() => {
+    void getHistoryRetention().then(setRetentionEnabled).catch(() => setRetentionEnabled(null));
+  }, []);
+
+  const handleRetentionToggle = async (enabled: boolean) => {
+    const prev = retentionEnabled;
+    setRetentionEnabled(enabled);
+    try {
+      await setHistoryRetention(enabled);
+      toast.success(enabled
+        ? '已开启状态历史留存:完成、重开、挂起等本机操作会自动留痕'
+        : '已关闭后续留存:任务与手写记录照常使用,关闭区间将在回顾中标为资料缺口');
+    } catch (err) {
+      setRetentionEnabled(prev);
+      toast.error('设置失败: ' + (err as string));
+    }
+  };
+
+  const handleCleanupEvents = async () => {
+    if (!cleanupStart || !cleanupEnd || cleanupStart > cleanupEnd) {
+      toast.error('请选择正确的清理日期区间');
+      return;
+    }
+    setClearingEvents(true);
+    try {
+      const removed = await clearStateEventsRange(cleanupStart, cleanupEnd);
+      toast.success(`已清理 ${removed} 条状态事件;该区间在回顾中会标为资料缺口`);
+      setCleanupStart('');
+      setCleanupEnd('');
+    } catch (err) {
+      toast.error('清理失败: ' + (err as string));
+    }
+    setClearingEvents(false);
   };
 
   return (
@@ -229,6 +274,56 @@ export function SettingsPage() {
             <Upload size={16} />
             {importing ? '导入中...' : '导入数据库'}
           </button>
+          <label className="flex items-center gap-2 text-[12px] text-[#6B7280] px-1 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              checked={importWithProgress}
+              onChange={(e) => setImportWithProgress(e.target.checked)}
+              className="accent-[#7C72F6] w-3.5 h-3.5"
+            />
+            同时恢复进展记录与回顾(相同数据跳过,冲突时拒绝且不产生部分覆盖;不改动本机模型配置)
+          </label>
+        </div>
+      </div>
+
+      {/* 任务历史与回顾 */}
+      <div className="mb-6">
+        <h4 className="section-label mb-3">任务历史与回顾</h4>
+        <div className="rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] px-4 py-3 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-[13px] font-medium text-[#111827] dark:text-white/90">保留本机任务状态历史</p>
+              <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+                自动记录本机真实发生的完成、重开、挂起、放弃等转换,供日/周回顾使用;关闭后任务与手写记录照常,仅停止记录新事件。
+              </p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={retentionEnabled ?? true}
+              disabled={retentionEnabled === null}
+              onClick={() => handleRetentionToggle(!(retentionEnabled ?? true))}
+              className={cn('w-10 h-6 rounded-full transition-colors shrink-0 relative',
+                (retentionEnabled ?? true) ? 'bg-[#7C72F6]' : 'bg-[#D1D5DB] dark:bg-white/[0.15]')}
+            >
+              <span className={cn('absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all',
+                (retentionEnabled ?? true) ? 'left-[18px]' : 'left-0.5')} />
+            </button>
+          </div>
+          <div className="pt-3 border-t border-[#F3F4F6] dark:border-white/[0.06] space-y-2">
+            <p className="text-[13px] font-medium text-[#111827] dark:text-white/90">清理事实历史</p>
+            <p className="text-[11px] text-[#9CA3AF]">删除某段日期的状态事件;清理后该段在回顾中标为资料缺口,不会误报为没有活动。手写记录不受影响。</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="date" value={cleanupStart} max={todayISO()} onChange={(e) => setCleanupStart(e.target.value)}
+                className="text-[12px] px-2 py-1 rounded-md border border-[#E5E7EB] dark:border-white/[0.10] bg-transparent text-[#111827] dark:text-white/90 outline-none focus:border-[#7C72F6]" />
+              <span className="text-[12px] text-[#9CA3AF]">至</span>
+              <input type="date" value={cleanupEnd} max={todayISO()} onChange={(e) => setCleanupEnd(e.target.value)}
+                className="text-[12px] px-2 py-1 rounded-md border border-[#E5E7EB] dark:border-white/[0.10] bg-transparent text-[#111827] dark:text-white/90 outline-none focus:border-[#7C72F6]" />
+              <button onClick={handleCleanupEvents} disabled={clearingEvents || !cleanupStart || !cleanupEnd}
+                className="text-[12px] px-3 py-1.5 rounded-full text-[#EF4444] border border-[#EF4444]/40 hover:bg-[#FEF2F2] dark:hover:bg-red-950/30 disabled:opacity-40 font-medium">
+                {clearingEvents ? '清理中...' : '清理该区间'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

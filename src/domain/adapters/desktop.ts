@@ -57,7 +57,7 @@ export const desktopRepositories: AppRepositories = {
     getAll: () => db.getAllSettings(),
     backupDatabase: (destination) => db.backupDatabase(destination),
     exportCsv: (path, content) => db.exportCsv(path, content),
-    importDatabase: (source) => db.importDatabase(source),
+    importDatabase: (source, includeProgress) => db.importDatabase(source, includeProgress),
     getDashboardStats: () => db.getDashboardStats(),
   },
   sync: {

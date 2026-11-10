@@ -4,6 +4,8 @@ use serde_json::json;
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::db::history_repo;
+use crate::db::progress_repo;
 use crate::db::reminder_repo;
 use crate::db::sync_repo;
 use crate::error::AppError;
@@ -198,8 +200,17 @@ pub fn get_detail(conn: &Connection, id: &str) -> Result<Option<TaskDetail>, App
         Some(t) => t,
         None => return Ok(None),
     };
+    let completed_at = if task.is_completed {
+        history_repo::confirmed_completed_at(conn, id)?
+    } else {
+        None
+    };
     let children = get_children(conn, id)?;
-    Ok(Some(TaskDetail { task, children }))
+    Ok(Some(TaskDetail {
+        task,
+        children,
+        completed_at,
+    }))
 }
 
 pub fn get_all(conn: &Connection, filter: TaskFilter) -> Result<Vec<Task>, AppError> {
@@ -327,15 +338,17 @@ pub fn get_today_count(conn: &Connection, today: &str) -> Result<i64, AppError> 
 }
 
 pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Task, AppError> {
+    // 任务变化与状态事件同一事务提交:事件写入失败时整体回滚(设计 §4)
+    let tx = conn.unchecked_transaction()?;
     let existing =
-        get_by_id(conn, id)?.ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
+        get_by_id(&tx, id)?.ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
 
-    let title = req.title.unwrap_or(existing.title);
+    let title = req.title.clone().unwrap_or(existing.title.clone());
     if title.trim().is_empty() {
         return Err(AppError::Validation("Title cannot be empty".to_string()));
     }
 
-    let description = req.description.unwrap_or(existing.description);
+    let description = req.description.clone().unwrap_or(existing.description.clone());
     let is_completed = req.is_completed.unwrap_or(existing.is_completed);
     let priority = req.priority.unwrap_or(existing.priority);
     let due_date = match req.due_date {
@@ -348,7 +361,7 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
         Some(ref list) => list.clone(),
     };
     let original_reminder = existing.reminder.clone();
-    let reminder = req.reminder.or(original_reminder.clone());
+    let reminder = req.reminder.clone().or(original_reminder.clone());
     let recurrence = match req.recurrence {
         None => existing.recurrence.clone(),
         Some(ref d) if d.is_empty() => None,
@@ -366,7 +379,7 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
     let existing_parent_task_id = existing.parent_task_id.clone();
 
     let parent_task_id = match req.parent_task_id {
-        None => existing.parent_task_id,
+        None => existing.parent_task_id.clone(),
         Some(None) => None,
         Some(Some(ref new_parent)) => {
             if new_parent == id {
@@ -374,7 +387,7 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
                     "Task cannot be its own parent".to_string(),
                 ));
             }
-            let parent = get_by_id(conn, new_parent)?.ok_or_else(|| {
+            let parent = get_by_id(&tx, new_parent)?.ok_or_else(|| {
                 AppError::NotFound(format!("Parent task {} not found", new_parent))
             })?;
             if parent.parent_task_id.is_some() {
@@ -400,7 +413,7 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
                             _ => reminder.clone(),
                         };
                         let _ = create(
-                            conn,
+                            &tx,
                             CreateTaskRequest {
                                 title: title.clone(),
                                 description: Some(description.clone()),
@@ -422,7 +435,7 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
 
     let reminder_changed = reminder != original_reminder;
     let now = now_local();
-    conn.execute(
+    tx.execute(
         "UPDATE tasks SET title = ?1, description = ?2, is_completed = ?3, priority = ?4,
          due_date = ?5, parent_task_id = ?6, reminder = ?7, recurrence = ?8,
          my_day_date = ?9, is_suspended = ?10, is_abandoned = ?11,
@@ -450,13 +463,13 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
 
     // 多标签关联:tag_ids 显式传入时替换
     if let Some(ref list) = req.tag_ids {
-        conn.execute(
+        tx.execute(
             "DELETE FROM task_tags WHERE task_id = ?1",
             rusqlite::params![id],
         )?;
         for tid in list {
             if !tid.is_empty() {
-                conn.execute(
+                tx.execute(
                     "INSERT OR IGNORE INTO task_tags (task_id, tag_id) VALUES (?1, ?2)",
                     rusqlite::params![id, tid],
                 )?;
@@ -464,18 +477,45 @@ pub fn update(conn: &Connection, id: &str, req: UpdateTaskRequest) -> Result<Tas
         }
     }
 
+    // 真实状态转换事件:与任务变化同事务;留存关闭时不写(任务照常完成)
+    let transitions = history_repo::compute_transitions(
+        existing.is_completed,
+        is_completed,
+        existing.is_suspended,
+        is_suspended,
+        existing.is_abandoned,
+        is_abandoned,
+    );
+    if !transitions.is_empty() && history_repo::is_retention_enabled(&tx)? {
+        let mut snapshot = existing.clone();
+        snapshot.title = title.clone();
+        snapshot.is_completed = is_completed;
+        snapshot.is_suspended = is_suspended;
+        snapshot.is_abandoned = is_abandoned;
+        snapshot.parent_task_id = parent_task_id.clone();
+        history_repo::record_transitions(
+            &tx,
+            &snapshot,
+            &transitions,
+            req.status_event_source.as_deref().unwrap_or("gui"),
+        )?;
+    }
+
     let task =
-        get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update task".to_string()))?;
-    let _ = sync_repo::record_local_operation(conn, "task", id, "update", json!({ "task": task }))?;
-    get_by_id(conn, id)?.ok_or(AppError::Generic("Failed to update task".to_string()))
+        get_by_id(&tx, id)?.ok_or(AppError::Generic("Failed to update task".to_string()))?;
+    let _ = sync_repo::record_local_operation(&tx, "task", id, "update", json!({ "task": task }))?;
+    tx.commit()?;
+    Ok(task)
 }
 
 pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
-    if sync_repo::is_sync_enabled(conn)? {
-        let _existing = get_by_id(conn, id)?
+    let tx = conn.unchecked_transaction()?;
+    if sync_repo::is_sync_enabled(&tx)? {
+        let _existing = get_by_id(&tx, id)?
             .ok_or_else(|| AppError::NotFound(format!("Task {} not found", id)))?;
-        let _ = sync_repo::record_local_operation(conn, "task", id, "delete", json!({ "id": id }))?;
-        conn.execute(
+        let _ =
+            sync_repo::record_local_operation(&tx, "task", id, "delete", json!({ "id": id }))?;
+        tx.execute(
             "UPDATE tasks
              SET deleted_at = COALESCE(deleted_at, ?1),
                  updated_at = ?1,
@@ -483,14 +523,35 @@ pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
              WHERE parent_task_id = ?2",
             rusqlite::params![now_local(), id],
         )?;
+        // 软删除:清除本任务与子任务的手写正文,保留最小状态事实
+        let mut related = vec![id.to_string()];
+        related.extend(child_ids(&tx, id)?);
+        progress_repo::clear_record_bodies_for_tasks(&tx, &related)?;
+        tx.commit()?;
         return Ok(());
     }
 
-    let affected = conn.execute("DELETE FROM tasks WHERE id = ?1", rusqlite::params![id])?;
+    // 硬删除前收集子任务,删除后清除关联手写正文(事件按逻辑引用保留)
+    let related = {
+        let mut ids = vec![id.to_string()];
+        ids.extend(child_ids(&tx, id)?);
+        ids
+    };
+    let affected = tx.execute("DELETE FROM tasks WHERE id = ?1", rusqlite::params![id])?;
     if affected == 0 {
         return Err(AppError::NotFound(format!("Task {} not found", id)));
     }
+    progress_repo::clear_record_bodies_for_tasks(&tx, &related)?;
+    tx.commit()?;
     Ok(())
+}
+
+fn child_ids(conn: &Connection, parent_id: &str) -> Result<Vec<String>, AppError> {
+    let mut stmt = conn.prepare("SELECT id FROM tasks WHERE parent_task_id = ?1")?;
+    let ids = stmt
+        .query_map(rusqlite::params![parent_id], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ids)
 }
 
 pub fn reorder(conn: &Connection, items: Vec<ReorderItem>) -> Result<(), AppError> {
@@ -701,6 +762,7 @@ mod tests {
                 is_suspended: None,
                 is_abandoned: None,
                 is_pinned: None,
+                status_event_source: None,
             },
         )
         .unwrap();
@@ -873,6 +935,7 @@ mod tests {
                 is_suspended: None,
                 is_abandoned: None,
                 is_pinned: None,
+                status_event_source: None,
             },
         )
         .unwrap();
@@ -918,6 +981,7 @@ mod tests {
                 is_suspended: None,
                 is_abandoned: None,
                 is_pinned: None,
+                status_event_source: None,
             },
         );
         assert!(result.is_err());
@@ -935,5 +999,342 @@ mod tests {
         let conn = setup();
         let result = duplicate(&conn, "nonexistent");
         assert!(result.is_err());
+    }
+
+    // ---------- 状态事件边界 ----------
+
+    fn event_count(conn: &Connection, task_id: &str) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM task_state_events WHERE task_id = ?1",
+            rusqlite::params![task_id],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    fn all_events(conn: &Connection) -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM task_state_events", [], |r| r.get(0))
+            .unwrap()
+    }
+
+    #[test]
+    fn real_transitions_record_events_with_source() {
+        let conn = setup();
+        let task = create(&conn, create_req("事件任务", None)).unwrap();
+
+        // 完成:1 条 complete 事件,来源 gui
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(event_count(&conn, &task.id), 1);
+        let (transition, source): (String, String) = conn
+            .query_row(
+                "SELECT transition, source FROM task_state_events WHERE task_id = ?1",
+                rusqlite::params![task.id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(transition, "complete");
+        assert_eq!(source, "gui");
+
+        // 同状态重复写入:不新增事件
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(event_count(&conn, &task.id), 1);
+
+        // 重新打开:reopen 事件
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(event_count(&conn, &task.id), 2);
+
+        // 普通字段编辑:不产生事件
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                title: Some("改标题".to_string()),
+                priority: Some(3),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(event_count(&conn, &task.id), 2);
+
+        // 挂起/恢复/放弃/恢复使用
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_suspended: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_suspended: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_abandoned: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_abandoned: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(event_count(&conn, &task.id), 6);
+    }
+
+    #[test]
+    fn editing_completed_task_keeps_completed_at() {
+        let conn = setup();
+        let task = create(&conn, create_req("完成时间", None)).unwrap();
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let completed_at = history_repo::confirmed_completed_at(&conn, &task.id)
+            .unwrap()
+            .unwrap();
+
+        // 完成后改标题/描述:完成时间不变(不随 updated_at 移动)
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                title: Some("完成后再编辑".to_string()),
+                description: Some("x".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let after = history_repo::confirmed_completed_at(&conn, &task.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(completed_at, after);
+    }
+
+    #[test]
+    fn event_write_failure_rolls_back_task_change() {
+        let conn = setup();
+        let task = create(&conn, create_req("回滚", None)).unwrap();
+        // 注入事件写入失败:删除事件表
+        conn.execute("DROP TABLE task_state_events", []).unwrap();
+
+        let result = update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        );
+        assert!(result.is_err());
+        // 任务变化与事件共同回滚:任务仍未完成
+        let reloaded = get_by_id(&conn, &task.id).unwrap().unwrap();
+        assert!(!reloaded.is_completed);
+    }
+
+    #[test]
+    fn retention_off_still_completes_without_events() {
+        let conn = setup();
+        crate::db::history_repo::set_retention(&conn, false).unwrap();
+        let task = create(&conn, create_req("关闭留存", None)).unwrap();
+        // 任务照常完成,只是没有事件
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let reloaded = get_by_id(&conn, &task.id).unwrap().unwrap();
+        assert!(reloaded.is_completed);
+        assert_eq!(all_events(&conn), 0);
+        // 手写记录不受影响
+        crate::db::progress_repo::create_progress_record(
+            &conn,
+            crate::models::progress::CreateProgressRequest {
+                task_id: task.id.clone(),
+                content: "照常记录".to_string(),
+                record_date: chrono::Local::now().format("%Y-%m-%d").to_string(),
+                operation_id: None,
+            },
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn recurrence_completion_records_event_for_original() {
+        let conn = setup();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let task = create(
+            &conn,
+            CreateTaskRequest {
+                title: "每日任务".to_string(),
+                due_date: Some(today),
+                recurrence: Some(r#"{"type":"daily","interval":1}"#.to_string()),
+                ..create_req("每日任务", None)
+            },
+        )
+        .unwrap();
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // 原实例有完成事件
+        assert_eq!(event_count(&conn, &task.id), 1);
+        // 循环产生下一实例(新实例无事件)
+        let instances: Vec<Task> = get_all(
+            &conn,
+            crate::models::task::TaskFilter {
+                search_query: Some("每日任务".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(instances.len() >= 2);
+    }
+
+    #[test]
+    fn delete_task_clears_record_bodies_keeps_events() {
+        let conn = setup();
+        let task = create(&conn, create_req("删除任务", None)).unwrap();
+        let child = create(&conn, create_req("子任务", Some(task.id.clone()))).unwrap();
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        crate::db::progress_repo::create_progress_record(
+            &conn,
+            crate::models::progress::CreateProgressRequest {
+                task_id: task.id.clone(),
+                content: "根的记录".to_string(),
+                record_date: today.clone(),
+                operation_id: None,
+            },
+        )
+        .unwrap();
+        crate::db::progress_repo::create_progress_record(
+            &conn,
+            crate::models::progress::CreateProgressRequest {
+                task_id: child.id.clone(),
+                content: "子的记录".to_string(),
+                record_date: today,
+                operation_id: None,
+            },
+        )
+        .unwrap();
+
+        delete(&conn, &task.id).unwrap();
+        // 最小状态事实保留
+        assert_eq!(event_count(&conn, &task.id), 1);
+        // 手写正文清除
+        let remaining_bodies: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_progress_records WHERE is_deleted = 0",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(remaining_bodies, 0);
+    }
+
+    #[test]
+    fn subtask_event_snapshots_root() {
+        let conn = setup();
+        let root = create(&conn, create_req("根", None)).unwrap();
+        let child = create(&conn, create_req("子", Some(root.id.clone()))).unwrap();
+        update(
+            &conn,
+            &child.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let (root_id, title): (String, String) = conn
+            .query_row(
+                "SELECT root_task_id, title_snapshot FROM task_state_events WHERE task_id = ?1",
+                rusqlite::params![child.id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(root_id, root.id);
+        assert_eq!(title, "子");
+    }
+
+    #[test]
+    fn update_detail_reports_confirmed_completion() {
+        let conn = setup();
+        let task = create(&conn, create_req("详情完成时间", None)).unwrap();
+        let detail = get_detail(&conn, &task.id).unwrap().unwrap();
+        assert!(detail.completed_at.is_none());
+
+        update(
+            &conn,
+            &task.id,
+            UpdateTaskRequest {
+                is_completed: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let detail = get_detail(&conn, &task.id).unwrap().unwrap();
+        assert!(detail.completed_at.is_some());
     }
 }

@@ -1,3 +1,4 @@
+use chrono::Local;
 use rusqlite::Connection;
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -476,6 +477,100 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.pragma_update(None, "user_version", 18)?;
     }
 
+    // v19: 任务进展与日/周回顾(手写进展记录/本机状态事件/历史覆盖/周期回顾/保存回执;
+    // 全部本机数据,不进同步系统;任务引用为逻辑关联,不阻止任务删除;
+    // 不回填旧完成事件——基线覆盖行记录本机事实历史起点)
+    if current_version < 19 {
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS task_progress_records (
+                id            TEXT PRIMARY KEY,
+                task_id       TEXT NOT NULL,
+                root_task_id  TEXT NOT NULL,
+                root_tag_ids  TEXT NOT NULL DEFAULT '[]',
+                record_date   TEXT NOT NULL,
+                content       TEXT NOT NULL,
+                content_hash  TEXT NOT NULL,
+                version       INTEGER NOT NULL DEFAULT 1,
+                is_deleted    INTEGER NOT NULL DEFAULT 0,
+                deleted_at    TEXT,
+                created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                updated_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_progress_records_task
+                ON task_progress_records(task_id, is_deleted, record_date DESC, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_progress_records_root
+                ON task_progress_records(root_task_id, is_deleted, record_date DESC);
+            CREATE INDEX IF NOT EXISTS idx_progress_records_date
+                ON task_progress_records(record_date, is_deleted);
+
+            CREATE TABLE IF NOT EXISTS task_state_events (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id        TEXT NOT NULL,
+                root_task_id   TEXT NOT NULL,
+                transition     TEXT NOT NULL,
+                occurred_at    TEXT NOT NULL,
+                occurred_utc   TEXT NOT NULL,
+                local_date     TEXT NOT NULL,
+                tz_offset      TEXT NOT NULL,
+                source         TEXT NOT NULL,
+                title_snapshot TEXT NOT NULL,
+                root_tag_ids   TEXT NOT NULL DEFAULT '[]'
+            );
+            CREATE INDEX IF NOT EXISTS idx_state_events_task
+                ON task_state_events(task_id, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_state_events_date
+                ON task_state_events(local_date, root_task_id);
+
+            CREATE TABLE IF NOT EXISTS task_history_coverage (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind        TEXT NOT NULL,
+                start_date  TEXT NOT NULL,
+                end_date    TEXT,
+                note        TEXT NOT NULL DEFAULT '',
+                created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS period_reviews (
+                id                    TEXT PRIMARY KEY,
+                scope_key             TEXT NOT NULL UNIQUE,
+                period_kind           TEXT NOT NULL,
+                period_start          TEXT NOT NULL,
+                period_end            TEXT NOT NULL,
+                tag_ids               TEXT NOT NULL DEFAULT '[]',
+                manual_text           TEXT NOT NULL DEFAULT '',
+                ai_sections           TEXT,
+                ai_model_snapshot     TEXT,
+                event_cutoff_at       TEXT,
+                prepared_at           TEXT,
+                prepared_at_local_date TEXT,
+                timezone_offset       TEXT,
+                coverage_note         TEXT,
+                source_refs           TEXT,
+                revision              INTEGER NOT NULL DEFAULT 1,
+                is_deleted            INTEGER NOT NULL DEFAULT 0,
+                created_at            TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                updated_at            TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS progress_save_receipts (
+                operation_id TEXT PRIMARY KEY,
+                entity_kind  TEXT NOT NULL,
+                entity_id    TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                result       TEXT NOT NULL,
+                created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );",
+        )?;
+        // 本机事实基线:升级当日之前没有可靠状态事件,不回填旧完成历史
+        conn.execute(
+            "INSERT INTO task_history_coverage (kind, start_date, end_date, note)
+             VALUES ('baseline', ?1, NULL, '本机状态事件自该日起可用')",
+            rusqlite::params![today],
+        )?;
+        conn.pragma_update(None, "user_version", 19)?;
+    }
+
     Ok(())
 }
 
@@ -612,7 +707,7 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 18);
+        assert_eq!(version, 19);
 
         assert_eq!(table_count(&conn, "task_tags"), 1);
         // 迁移:task-1 的 tag-1 已写入关联表
@@ -669,6 +764,25 @@ mod tests {
         ] {
             assert_eq!(table_count(&conn, table), 0, "{} should be empty", table);
         }
+
+        // v19: 进展/回顾新表存在且为空;覆盖表仅有一条基线行(升级前无可靠事件)
+        for table in [
+            "task_progress_records",
+            "task_state_events",
+            "period_reviews",
+            "progress_save_receipts",
+        ] {
+            assert_eq!(table_count(&conn, table), 0, "{} should be empty", table);
+        }
+        assert_eq!(table_count(&conn, "task_history_coverage"), 1);
+        let baseline_kind: String = conn
+            .query_row(
+                "SELECT kind FROM task_history_coverage LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(baseline_kind, "baseline");
     }
 
     #[test]
@@ -678,13 +792,13 @@ mod tests {
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 18);
+        assert_eq!(version, 19);
 
         // 重复迁移不改版本、不报错
         run(&conn).unwrap();
         let version: i32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 18);
+        assert_eq!(version, 19);
     }
 }

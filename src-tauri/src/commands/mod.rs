@@ -6,6 +6,7 @@ pub mod alert_commands;
 pub mod attachment_commands;
 pub mod habit_commands;
 pub mod note_commands;
+pub mod progress_commands;
 pub mod reminder_commands;
 pub mod settings_commands;
 pub mod shortcut_commands;

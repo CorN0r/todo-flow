@@ -49,6 +49,7 @@ const HabitPage = lazy(() => import('./pages/HabitPage').then((m) => ({ default:
 const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const FocusStatsPage = lazy(() => import('./pages/FocusStatsPage').then((m) => ({ default: m.FocusStatsPage })));
+const ReviewPage = lazy(() => import('./pages/ReviewPage').then((m) => ({ default: m.ReviewPage })));
 const PomodoroFullscreen = lazy(() => import('./components/shared/PomodoroFullscreen').then((m) => ({ default: m.PomodoroFullscreen })));
 
 function PomodoroSync() {
@@ -195,6 +196,7 @@ function MainLayout() {
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/pomodoro" element={<PomodoroFullscreen />} />
                   <Route path="/focus-stats" element={<FocusStatsPage />} />
+                  <Route path="/review" element={<ReviewPage />} />
                 </Routes>
               </Suspense>
             </ErrorBoundary>

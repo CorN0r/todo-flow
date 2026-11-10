@@ -42,6 +42,23 @@ export const queryKeys = {
     detail: (date: string | null) =>
       date ? (['my-day-plan', date] as const) : (['my-day-plan'] as const),
   },
+  progress: {
+    all: ['progress'] as const,
+    records: (taskId: string | null, includeChildren: boolean, page: number, pageSize: number) =>
+      taskId ? (['progress', 'records', taskId, includeChildren, page, pageSize] as const) : (['progress', 'records'] as const),
+    events: (taskId: string | null, includeChildren: boolean, page: number, pageSize: number) =>
+      taskId ? (['progress', 'events', taskId, includeChildren, page, pageSize] as const) : (['progress', 'events'] as const),
+    overview: (taskId: string | null) =>
+      taskId ? (['progress', 'overview', taskId] as const) : (['progress', 'overview'] as const),
+  },
+  reviews: {
+    all: ['reviews'] as const,
+    facts: (kind: string, start: string, tags: string) => (['reviews', 'facts', kind, start, tags] as const),
+    material: (kind: string, start: string, tags: string, materialKind: string, page: number) =>
+      (['reviews', 'material', kind, start, tags, materialKind, page] as const),
+    saved: (kind: string, start: string, tags: string) => (['reviews', 'saved', kind, start, tags] as const),
+    contextStatus: (kind: string, start: string, tags: string) => (['reviews', 'context', kind, start, tags] as const),
+  },
 } as const;
 
 /** 失效所有任务列表与详情缓存 */
@@ -87,4 +104,18 @@ export function invalidateDashboardStats(queryClient: QueryClient) {
 /** 失效当日 AI 今日重点计划缓存;不传日期时失效全部 */
 export function invalidateMyDayPlan(queryClient: QueryClient, date?: string | null) {
   queryClient.invalidateQueries({ queryKey: queryKeys.myDayPlan.detail(date ?? null) });
+}
+
+/** 失效某任务的进展记录/事件/摘要缓存;不传 id 时失效全部进展缓存 */
+export function invalidateProgress(queryClient: QueryClient, taskId?: string | null) {
+  if (taskId) {
+    queryClient.invalidateQueries({ queryKey: ['progress'] , exact: false });
+  } else {
+    queryClient.invalidateQueries({ queryKey: queryKeys.progress.all });
+  }
+}
+
+/** 失效回顾相关缓存(事实/材料/保存稿/上下文状态) */
+export function invalidateReviews(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.reviews.all });
 }

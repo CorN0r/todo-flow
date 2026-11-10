@@ -43,6 +43,12 @@ pub struct AiRuntime {
     pub my_day_contexts: Mutex<HashMap<String, crate::ai::my_day::StoredMyDayContext>>,
     /// 今日行动建议:proposalId → 生成结果;同一日期只保留最新一份,仅内存。
     pub my_day_proposals: Mutex<HashMap<String, crate::ai::my_day::StoredMyDayProposal>>,
+    /// 日/周回顾:同一回顾范围同时至多一个生成请求。
+    pub active_review_scopes: Mutex<std::collections::HashSet<String>>,
+    /// 日/周回顾:scopeKey → 准备好的上下文快照;同范围重新准备会替换,仅内存。
+    pub review_contexts: Mutex<HashMap<String, crate::ai::review::PreparedReviewContext>>,
+    /// 日/周回顾:scopeKey → 生成候选;仅内存,保存与否由用户显式决定。
+    pub review_proposals: Mutex<HashMap<String, crate::ai::review::StoredReviewProposal>>,
 }
 
 impl Default for AiRuntime {
@@ -65,6 +71,9 @@ impl AiRuntime {
             active_my_day_dates: Mutex::new(std::collections::HashSet::new()),
             my_day_contexts: Mutex::new(HashMap::new()),
             my_day_proposals: Mutex::new(HashMap::new()),
+            active_review_scopes: Mutex::new(std::collections::HashSet::new()),
+            review_contexts: Mutex::new(HashMap::new()),
+            review_proposals: Mutex::new(HashMap::new()),
         }
     }
 

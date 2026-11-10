@@ -180,8 +180,8 @@ export async function exportCsv(path: string, content: string): Promise<void> {
   return invoke('export_csv', { path, content });
 }
 
-export async function importDatabase(source: string): Promise<string> {
-  return invoke('import_database', { source });
+export async function importDatabase(source: string, includeProgress?: boolean): Promise<string> {
+  return invoke('import_database', { source, include_progress: includeProgress ?? false });
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -516,4 +516,100 @@ export async function aiGetMyDayPlan(date: string): Promise<import('../domain/mo
 
 export async function aiClearMyDayPlan(date: string, expectedRevision: number): Promise<number> {
   return invoke('ai_clear_my_day_plan', { date, expected_revision: expectedRevision });
+}
+
+// ---------- 进展记录 / 状态历史 / 日周回顾(本机数据) ----------
+import type {
+  CoverageInfo, PreparedReviewContext, ProgressOverview, ProgressPage,
+  ProgressRecordResult, ReviewContextStatus, ReviewFacts, ReviewProposal,
+  SaveReviewResult, SavedReview, StateEventPage, ReviewSections,
+} from '../types/progress';
+
+export async function progressCreateRecord(taskId: string, content: string, recordDate: string, operationId?: string): Promise<ProgressRecordResult> {
+  return invoke('progress_create_record', { task_id: taskId, content, record_date: recordDate, operation_id: operationId ?? null });
+}
+
+export async function progressUpdateRecord(recordId: string, content: string, recordDate: string, expectedVersion: number, operationId?: string): Promise<ProgressRecordResult> {
+  return invoke('progress_update_record', { record_id: recordId, content, record_date: recordDate, expected_version: expectedVersion, operation_id: operationId ?? null });
+}
+
+export async function progressDeleteRecord(recordId: string, expectedVersion: number): Promise<void> {
+  return invoke('progress_delete_record', { record_id: recordId, expected_version: expectedVersion });
+}
+
+export async function progressListRecords(taskId: string, includeChildren: boolean, page: number, pageSize: number): Promise<ProgressPage> {
+  return invoke('progress_list_records', { task_id: taskId, include_children: includeChildren, page, page_size: pageSize });
+}
+
+export async function progressListEvents(taskId: string, includeChildren: boolean, page: number, pageSize: number): Promise<StateEventPage> {
+  return invoke('progress_list_events', { task_id: taskId, include_children: includeChildren, page, page_size: pageSize });
+}
+
+export async function progressGetOverview(taskId: string): Promise<ProgressOverview> {
+  return invoke('progress_get_overview', { task_id: taskId });
+}
+
+export async function getHistoryRetention(): Promise<boolean> {
+  return invoke('get_history_retention');
+}
+
+export async function setHistoryRetention(enabled: boolean): Promise<void> {
+  return invoke('set_history_retention', { enabled });
+}
+
+export async function clearStateEventsRange(startDate: string, endDate: string): Promise<number> {
+  return invoke('clear_state_events_range', { start_date: startDate, end_date: endDate });
+}
+
+export async function getHistoryCoverage(): Promise<CoverageInfo> {
+  return invoke('get_history_coverage');
+}
+
+export async function getReviewFacts(periodKind: 'day' | 'week', startDate: string, tagIds: string[]): Promise<ReviewFacts> {
+  return invoke('get_review_facts', { period_kind: periodKind, start_date: startDate, tag_ids: tagIds });
+}
+
+export async function reviewListMaterial(periodKind: 'day' | 'week', startDate: string, tagIds: string[], materialKind: 'records' | 'events', page: number, pageSize: number): Promise<ProgressPage | StateEventPage> {
+  return invoke('review_list_material', { period_kind: periodKind, start_date: startDate, tag_ids: tagIds, material_kind: materialKind, page, page_size: pageSize });
+}
+
+export async function getSavedReview(periodKind: 'day' | 'week', startDate: string, tagIds: string[]): Promise<SavedReview | null> {
+  return invoke('get_saved_review', { period_kind: periodKind, start_date: startDate, tag_ids: tagIds });
+}
+
+export async function saveReview(input: {
+  period_kind: 'day' | 'week';
+  start_date: string;
+  tag_ids: string[];
+  manual_text?: string;
+  ai?: {
+    sections: ReviewSections;
+    model_snapshot: string;
+    event_cutoff_at: string;
+    prepared_at: string;
+    prepared_at_local_date: string;
+    timezone_offset: string;
+    coverage_note: string;
+    source_refs: unknown;
+  } | null;
+  expected_revision: number;
+  operation_id?: string;
+}): Promise<SaveReviewResult> {
+  return invoke('save_review', input);
+}
+
+export async function deleteReview(periodKind: 'day' | 'week', startDate: string, tagIds: string[]): Promise<void> {
+  return invoke('delete_review', { period_kind: periodKind, start_date: startDate, tag_ids: tagIds });
+}
+
+export async function aiPrepareReviewContext(periodKind: 'day' | 'week', startDate: string, tagIds: string[], note?: string): Promise<PreparedReviewContext> {
+  return invoke('ai_prepare_review_context', { period_kind: periodKind, start_date: startDate, tag_ids: tagIds, note: note ?? null });
+}
+
+export async function aiGetReviewContextStatus(periodKind: 'day' | 'week', startDate: string, tagIds: string[]): Promise<ReviewContextStatus> {
+  return invoke('ai_get_review_context_status', { period_kind: periodKind, start_date: startDate, tag_ids: tagIds });
+}
+
+export async function aiGenerateReview(periodKind: 'day' | 'week', startDate: string, tagIds: string[], requestId?: string): Promise<ReviewProposal> {
+  return invoke('ai_generate_review', { period_kind: periodKind, start_date: startDate, tag_ids: tagIds, request_id: requestId ?? null });
 }

@@ -1036,3 +1036,272 @@ pub async fn ai_polish_description(
 
     outcome
 }
+
+// ---------- 日/周回顾 AI 生成 ----------
+
+#[derive(serde::Serialize)]
+pub struct ReviewContextStatusDto {
+    pub prepared: bool,
+    /// 资料是否相对准备时点已有更新
+    pub sources_changed: bool,
+    pub context_fingerprint: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct ReviewProposalDto {
+    /// 请求标识(进度事件过滤/取消)
+    pub request_id: String,
+    pub model_snapshot: String,
+    pub sections: crate::models::review::ReviewSections,
+    /// 保存时需随快照回传的元数据(前端原样传给 save_review)
+    pub event_cutoff_at: String,
+    pub prepared_at: String,
+    pub prepared_at_local_date: String,
+    pub timezone_offset: String,
+    pub coverage_note: String,
+    pub source_refs: serde_json::Value,
+    pub context_fingerprint: String,
+}
+
+/// 准备回顾上下文:固定日期/时区/范围/覆盖/统计与来源版本为快照并预览。
+/// 不发起模型请求;幂等,同范围重新准备会替换快照。
+#[tauri::command(rename_all = "snake_case")]
+pub fn ai_prepare_review_context(
+    state: State<'_, AppState>,
+    period_kind: String,
+    start_date: String,
+    tag_ids: Option<Vec<String>>,
+    note: Option<String>,
+) -> Result<crate::ai::review::PreparedReviewContext, AiError> {
+    use crate::ai::review::{self};
+
+    let note = note.unwrap_or_default();
+    if note.chars().count() > review::MAX_USER_NOTE_CHARS {
+        return Err(AiError::new(
+            AiErrorCode::Validation,
+            format!("回顾重点至多 {} 字", review::MAX_USER_NOTE_CHARS),
+        ));
+    }
+
+    let conn = state.db()?;
+    let scope = crate::db::review_repo::compute_scope(&period_kind, &start_date, &tag_ids.unwrap_or_default())?;
+    let facts = crate::db::review_repo::get_review_facts(&conn, &scope)?;
+    let ctx = review::build_context(&conn, &scope, &facts, &note)?;
+    let scope_key = ctx.scope_key.clone();
+    let mut contexts = state
+        .ai_runtime
+        .review_contexts
+        .lock()
+        .map_err(|_| AiError::new(AiErrorCode::Internal, "内部状态锁失败"))?;
+    contexts.insert(scope_key, ctx.clone());
+    Ok(ctx)
+}
+
+/// 查询准备状态:是否已准备、资料是否相对准备时点已有更新。
+#[tauri::command(rename_all = "snake_case")]
+pub fn ai_get_review_context_status(
+    state: State<'_, AppState>,
+    period_kind: String,
+    start_date: String,
+    tag_ids: Option<Vec<String>>,
+) -> Result<ReviewContextStatusDto, AiError> {
+    let scope = crate::db::review_repo::compute_scope(&period_kind, &start_date, &tag_ids.unwrap_or_default())?;
+    let stored = {
+        let contexts = state
+            .ai_runtime
+            .review_contexts
+            .lock()
+            .map_err(|_| AiError::new(AiErrorCode::Internal, "内部状态锁失败"))?;
+        contexts.get(&scope.scope_key).cloned()
+    };
+    let Some(stored) = stored else {
+        return Ok(ReviewContextStatusDto {
+            prepared: false,
+            sources_changed: false,
+            context_fingerprint: None,
+        });
+    };
+    let current = {
+        let conn = state.db()?;
+        let facts = crate::db::review_repo::get_review_facts(&conn, &scope)?;
+        crate::ai::review::build_context(&conn, &scope, &facts, &stored.user_note)?
+    };
+    Ok(ReviewContextStatusDto {
+        prepared: true,
+        sources_changed: current.context_fingerprint != stored.context_fingerprint,
+        context_fingerprint: Some(stored.context_fingerprint),
+    })
+}
+
+/// 生成回顾:使用已准备的快照;同一范围同时至多一个请求;取消/失败不写库。
+#[tauri::command(rename_all = "snake_case")]
+pub async fn ai_generate_review(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    period_kind: String,
+    start_date: String,
+    tag_ids: Option<Vec<String>>,
+    request_id: Option<String>,
+) -> Result<ReviewProposalDto, AiError> {
+    use crate::ai::adapter::FinishReason;
+    use crate::ai::review::{self};
+
+    let scope =
+        crate::db::review_repo::compute_scope(&period_kind, &start_date, &tag_ids.unwrap_or_default())?;
+
+    // ---- 短临界区:快照、默认模型、单飞 ----
+    let (ctx, connection, model, use_stream) = {
+        let conn = state.db()?;
+        let contexts = state
+            .ai_runtime
+            .review_contexts
+            .lock()
+            .map_err(|_| AiError::new(AiErrorCode::Internal, "内部状态锁失败"))?;
+        let ctx = contexts.get(&scope.scope_key).cloned().ok_or_else(|| {
+            AiError::new(AiErrorCode::Validation, "请先准备资料,再生成回顾")
+        })?;
+        drop(contexts);
+
+        let default_id = config_repo::get_default_model_id(&conn)?.ok_or_else(|| {
+            AiError::new(AiErrorCode::ConfigMissing, "尚未设置默认模型,请先到设置 → AI 模型完成配置")
+        })?;
+        let model = config_repo::get_model(&conn, &default_id)?
+            .ok_or_else(|| AiError::new(AiErrorCode::ConfigMissing, "默认模型已不存在,请重新选择"))?;
+        let connection = config_repo::get_connection(&conn, &model.connection_id)?.ok_or_else(|| {
+            AiError::new(AiErrorCode::ConfigMissing, "默认模型所属连接已不存在")
+        })?;
+        if !connection.enabled {
+            return Err(AiError::new(AiErrorCode::Validation, "默认模型所属连接已停用"));
+        }
+        let use_stream = config_repo::latest_verifications(&conn, &model.id)?
+            .iter()
+            .any(|v| v.kind == "stream" && v.status == "passed");
+
+        {
+            let mut active = state
+                .ai_runtime
+                .active_review_scopes
+                .lock()
+                .map_err(|_| AiError::new(AiErrorCode::Internal, "内部状态锁失败"))?;
+            if active.contains(&scope.scope_key) {
+                return Err(AiError::new(AiErrorCode::Validation, "该回顾范围正在生成,请稍候"));
+            }
+            active.insert(scope.scope_key.clone());
+        }
+        (ctx, connection, model, use_stream)
+    }; // ---- 数据库锁已释放 ----
+
+    let started = std::time::Instant::now();
+    let snapshot = format!("{} ({})", connection.name, model.model_id);
+    let scope_key = ctx.scope_key.clone();
+    let outcome = async {
+        let api_key = credential_store()
+            .get(&connection.id)?
+            .filter(|k| !k.trim().is_empty())
+            .ok_or_else(|| {
+                AiError::new(AiErrorCode::CredentialUnavailable, "该连接尚未配置 API Key")
+            })?;
+        let request_id = request_id
+            .filter(|r| {
+                !r.is_empty()
+                    && r.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            })
+            .unwrap_or_else(|| format!("review-{}", uuid::Uuid::new_v4()));
+
+        // 空材料不发送空请求(手写回顾仍可用)
+        if ctx.groups.is_empty() && ctx.records.is_empty() {
+            return Err(AiError::new(
+                AiErrorCode::Validation,
+                "该范围内没有任何任务事实或进展记录,未发送模型请求;可直接手写回顾",
+            ));
+        }
+
+        let request = review::build_review_request(&model.model_id, &ctx, use_stream);
+        review::check_request_size(&request)?;
+        let result = state
+            .ai_runtime
+            .execute_chat(Some(&app), &request_id, &connection, &api_key, &request)
+            .await?;
+        if result.finish_reason != FinishReason::Stop {
+            return Err(AiError::new(
+                AiErrorCode::OutputTruncated,
+                "回顾内容被截断,未生成可保存稿",
+            ));
+        }
+        let sections = review::parse_and_validate(&result.text, &review::valid_ref_set(&ctx))?;
+
+        let dto = ReviewProposalDto {
+            request_id,
+            model_snapshot: snapshot.clone(),
+            sections,
+            event_cutoff_at: ctx.event_cutoff_at.clone(),
+            prepared_at: ctx.prepared_at.clone(),
+            prepared_at_local_date: ctx.prepared_at_local_date.clone(),
+            timezone_offset: ctx.timezone_offset.clone(),
+            coverage_note: ctx.coverage_note.clone(),
+            source_refs: review::source_refs_json(&ctx),
+            context_fingerprint: ctx.context_fingerprint.clone(),
+        };
+
+        let proposal = crate::ai::review::StoredReviewProposal {
+            scope_key: scope_key.clone(),
+            context_fingerprint: ctx.context_fingerprint.clone(),
+            model_snapshot: snapshot.clone(),
+            created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            sections: dto.sections.clone(),
+        };
+        let mut proposals = state
+            .ai_runtime
+            .review_proposals
+            .lock()
+            .map_err(|_| AiError::new(AiErrorCode::Internal, "内部状态锁失败"))?;
+        proposals.insert(scope_key.clone(), proposal);
+
+        Ok::<ReviewProposalDto, AiError>(dto)
+    }
+    .await;
+
+    // 单飞解除(所有路径)
+    if let Ok(mut active) = state.ai_runtime.active_review_scopes.lock() {
+        active.remove(&scope_key);
+    }
+
+    // 调用摘要
+    {
+        let conn = state.db()?;
+        match &outcome {
+            Ok(dto) => {
+                crate::ai::diagnostics::record_invocation(
+                    &conn,
+                    "review",
+                    Some(&model.id),
+                    &dto.model_snapshot,
+                    "success",
+                    None,
+                    Some(started.elapsed().as_millis() as i64),
+                    None,
+                )?;
+            }
+            Err(e) => {
+                let _ = crate::ai::diagnostics::record_invocation(
+                    &conn,
+                    "review",
+                    Some(&model.id),
+                    &snapshot,
+                    if e.code == AiErrorCode::Cancelled { "cancelled" } else { "failed" },
+                    Some(
+                        &serde_json::to_value(&e.code)
+                            .unwrap_or_default()
+                            .to_string()
+                            .trim_matches('"')
+                            .to_string(),
+                    ),
+                    Some(started.elapsed().as_millis() as i64),
+                    None,
+                );
+            }
+        }
+    }
+
+    outcome
+}

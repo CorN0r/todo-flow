@@ -191,6 +191,7 @@ pub fn update_task(conn: &Connection, p: &UpdateTaskParams) -> Result<Value, App
             is_suspended: p.is_suspended,
             is_abandoned: p.is_abandoned,
             is_pinned: p.is_pinned,
+            status_event_source: Some("agent".to_string()),
         },
     )?;
     serde_json::to_value(&task).map_err(|e| AppError::Generic(format!("序列化失败: {e}")))
@@ -214,6 +215,7 @@ fn complete_inner(conn: &Connection, id: &str, completed: bool) -> Result<Value,
             is_suspended: None,
             is_abandoned: None,
             is_pinned: None,
+            status_event_source: Some("agent".to_string()),
         },
     )?;
     serde_json::to_value(&task).map_err(|e| AppError::Generic(format!("序列化失败: {e}")))
@@ -508,6 +510,18 @@ mod tests {
         assert_eq!(done["is_completed"], true);
         let reopened = reopen_task(&conn, &GetTaskParams { id: id.clone() }).unwrap();
         assert_eq!(reopened["is_completed"], false);
+
+        // Agent 入口的状态转换同样产生本机事件,来源标记 agent
+        let events: Vec<(String, String)> = conn
+            .prepare("SELECT transition, source FROM task_state_events ORDER BY id")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0], ("complete".to_string(), "agent".to_string()));
+        assert_eq!(events[1], ("reopen".to_string(), "agent".to_string()));
 
         let del = delete_task(&conn, &GetTaskParams { id: id.clone() }).unwrap();
         assert_eq!(del["deleted"], true);

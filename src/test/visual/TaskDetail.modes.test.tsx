@@ -29,6 +29,7 @@ vi.mock('../../hooks/useTasks', () => ({
   useDuplicateTask: () => ({ mutate: vi.fn() }),
   useReorderTasks: () => ({ mutate: vi.fn() }),
   useToggleMyDay: () => vi.fn(),
+  useTaskReminders: () => ({ data: [] }),
 }));
 
 vi.mock('../../hooks/useTags', () => ({

@@ -16,6 +16,9 @@ const { dbMock, tasksState } = vi.hoisted(() => ({
     openTaskNote: vi.fn(),
     closeTaskNote: vi.fn(),
     getAllTaskNotes: vi.fn(),
+    getHistoryRetention: vi.fn().mockResolvedValue(true),
+    setHistoryRetention: vi.fn().mockResolvedValue(undefined),
+    clearStateEventsRange: vi.fn().mockResolvedValue(0),
   },
   tasksState: { data: [] as any[] },
 }));

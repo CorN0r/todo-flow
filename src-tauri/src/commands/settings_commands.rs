@@ -78,11 +78,12 @@ pub fn export_csv(path: String, content: String) -> Result<(), AppError> {
     std::fs::write(&path, &content).map_err(|e| AppError::Generic(format!("Export failed: {}", e)))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn import_database(
     app: AppHandle,
     state: State<AppState>,
     source: String,
+    include_progress: Option<bool>,
 ) -> Result<String, AppError> {
     let src = PathBuf::from(&source);
     if !src.exists() {
@@ -92,6 +93,24 @@ pub fn import_database(
     }
     let src_conn = Connection::open(&src)
         .map_err(|e| AppError::Generic(format!("Cannot open source database: {}", e)))?;
+
+    // 版本校验:不从未知的新版本覆盖本机
+    if include_progress.unwrap_or(false) {
+        let src_version: i32 = src_conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap_or(0);
+        let local_version: i32 = {
+            let conn = state.db()?;
+            conn.pragma_query_value(None, "user_version", |row| row.get(0))
+                .unwrap_or(0)
+        };
+        if src_version > local_version {
+            return Err(AppError::Validation(format!(
+                "备份由更新版本创建(user_version {} > {}),请先升级应用再恢复",
+                src_version, local_version
+            )));
+        }
+    }
 
     let conn = state.db()?;
 
@@ -384,17 +403,35 @@ pub fn import_database(
         count
     };
 
+    // 显式选择时恢复进展记录/状态事件/覆盖与回顾(整批原子;旧备份缺表兼容)
+    let progress_summary = if include_progress.unwrap_or(false) {
+        let tx = conn.unchecked_transaction()?;
+        let counts = crate::db::progress_repo::restore_progress_data(&tx, &src_conn)?;
+        crate::db::history_repo::record_import_coverage(
+            &tx,
+            "从备份恢复了进展与回顾数据;导入的当前任务状态不代表本机当日活动",
+        )?;
+        tx.commit()?;
+        format!(
+            ";恢复进展与回顾数据(新增 {} 条,跳过相同 {} 条)",
+            counts.inserted, counts.skipped
+        )
+    } else {
+        String::new()
+    };
+
     drop(conn);
     let _ = app.emit("task-changed", ());
 
     Ok(format!(
-        "已导入 {} 个任务、{} 个标签、{} 个提醒、{} 个附件、{} 个习惯、{} 条打卡记录",
+        "已导入 {} 个任务、{} 个标签、{} 个提醒、{} 个附件、{} 个习惯、{} 条打卡记录{}",
         imported_tasks,
         imported_tags,
         imported_reminders,
         imported_attachments,
         imported_habits,
         imported_habit_logs,
+        progress_summary,
     ))
 }
 

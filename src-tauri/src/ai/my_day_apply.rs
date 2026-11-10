@@ -599,6 +599,7 @@ mod tests {
             is_suspended: None,
             is_abandoned: None,
             is_pinned: None,
+            status_event_source: None,
         }
     }
 

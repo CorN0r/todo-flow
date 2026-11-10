@@ -28,6 +28,9 @@ pub struct Task {
 pub struct TaskDetail {
     pub task: Task,
     pub children: Vec<Task>,
+    /// 可确认的完成时间(来自真实完成事件);None=完成时间未记录(不以更新时间代替)
+    #[serde(default)]
+    pub completed_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,7 +47,7 @@ pub struct CreateTaskRequest {
     pub source: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct UpdateTaskRequest {
     pub title: Option<String>,
     pub description: Option<String>,
@@ -59,9 +62,12 @@ pub struct UpdateTaskRequest {
     pub is_suspended: Option<bool>,
     pub is_abandoned: Option<bool>,
     pub is_pinned: Option<bool>,
+    /// 状态事件来源标记(gui/agent);仅真实状态转换时使用
+    #[serde(default)]
+    pub status_event_source: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct TaskFilter {
     pub tag_ids: Option<Vec<String>>,
     pub is_completed: Option<bool>,

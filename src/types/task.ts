@@ -25,6 +25,8 @@ export interface Task {
 export interface TaskDetail {
   task: Task;
   children: Task[];
+  /** 可确认的完成时间(来自真实完成事件);null=完成时间未记录 */
+  completed_at?: string | null;
 }
 
 export interface CreateTaskInput {

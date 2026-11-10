@@ -7,7 +7,7 @@ import type { DashboardStats } from '../domain/models/settings';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
 import { cn } from '../lib/cn';
-import { BarChart3, CheckCircle2, Clock, List, AlertTriangle, TrendingUp, Zap, Flame } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, List, AlertTriangle, TrendingUp, Zap, Flame, NotebookPen } from 'lucide-react';
 import { usePomodoroStore } from '../stores/pomodoroStore';
 import { useUIStore } from '../stores/uiStore';
 
@@ -343,6 +343,11 @@ export function DashboardPage() {
           <h3 className="text-[20px] font-bold text-[#111827] dark:text-white">数据看板</h3>
           <p className="text-[12px] text-[#9CA3AF]">效率概览</p>
         </div>
+        <span className="flex-1" />
+        <button onClick={() => navigate('/review')}
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full text-[#7C72F6] bg-[#7C72F6]/[0.08] hover:bg-[#7C72F6]/[0.14] transition-colors">
+          <NotebookPen size={14} />回顾
+        </button>
       </div>
 
       {/* Tab switcher */}
