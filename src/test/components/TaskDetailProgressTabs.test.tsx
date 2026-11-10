@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   createMutateAsync: vi.fn(() => Promise.resolve({ id: 'rebuilt' })),
   reorderMutate: vi.fn(),
   detail: null as { task: any; children: any[]; completed_at?: string | null } | null,
-  recordsPage: { items: [], total: 0, page: 1, page_size: 20 },
-  overview: { self_count: 0, with_children_count: 0, last_record_at: null },
+  recordsPage: { items: [] as any[], total: 0, page: 1, page_size: 20 },
+  overview: { self_count: 0, with_children_count: 0, last_record_at: null as string | null },
   createRecord: vi.fn(),
   store: {
     selectedTaskId: null as string | null,
