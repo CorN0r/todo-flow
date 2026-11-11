@@ -1,4 +1,4 @@
-# TodoFlow v0.7.0
+# TodoFlow
 
 面向 Windows 与 Android 的本地优先待办事项管理应用，基于 Tauri v2 + React 19 构建。
 
