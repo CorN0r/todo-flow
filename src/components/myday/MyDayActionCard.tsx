@@ -43,17 +43,17 @@ export function MyDayActionCard({
           className="w-3 h-3 accent-[#7C72F6] shrink-0"
           aria-label={draft.selected ? '取消采纳这一项' : '采纳这一项'}
         />
-        <span className="text-[10px] text-[#9CA3AF] shrink-0">{index + 1}</span>
-        <span className={cn('text-xs font-medium truncate flex-1', 'text-[#111827] dark:text-white/90')}>
+        <span className="text-[11px] text-[#9CA3AF] shrink-0">{index + 1}</span>
+        <span className={cn('text-[13px] font-medium truncate flex-1', 'text-[#111827] dark:text-white/90')}>
           {draft.root_title}
         </span>
         {draft.subtask_title && (
-          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#7C72F6]/10 text-[#7C72F6] truncate max-w-[40%]">
+          <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-full bg-[#7C72F6]/10 text-[#7C72F6] truncate max-w-[40%]">
             {draft.subtask_title}
           </span>
         )}
         {draft.already_in_my_day && (
-          <span className="shrink-0 text-[10px] text-amber-500">已加入</span>
+          <span className="shrink-0 text-[11px] text-amber-500">已加入</span>
         )}
         <div className="shrink-0 flex items-center gap-0.5">
           <button
@@ -75,40 +75,40 @@ export function MyDayActionCard({
           <button
             onClick={onSwapOut}
             disabled={busy}
-            className="ml-1 flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full text-[#9CA3AF] hover:text-[#EF4444] hover:bg-[#EF4444]/8 disabled:opacity-30"
+            className="ml-1 flex items-center gap-0.5 text-[11px] px-1.5 py-0.5 rounded-full text-[#9CA3AF] hover:text-[#EF4444] hover:bg-[#EF4444]/8 disabled:opacity-30"
             title="排除该任务并换一件"
           >
             <RefreshCw size={10} />换一件
           </button>
         </div>
       </div>
-      <p className="text-[10px] text-[#6B7280] leading-relaxed">{draft.reason}</p>
+      <p className="text-[11px] text-[#6B7280] leading-relaxed">{draft.reason}</p>
       <div className="grid grid-cols-1 gap-1">
         <label className="block">
-          <span className="text-[10px] text-[#9CA3AF]">下一步行动</span>
+          <span className="text-[11px] text-[#9CA3AF]">下一步行动</span>
           <textarea
             value={draft.next_step}
             onChange={(e) => onEdit({ next_step: e.target.value })}
             rows={2}
             maxLength={300}
-            className="mt-0.5 w-full rounded-md border border-[#E5E7EB] dark:border-white/10 bg-white dark:bg-white/[0.04] px-1.5 py-1 text-[11px] text-[#111827] dark:text-white/90 resize-none focus:outline-none focus:border-[#7C72F6]/50"
+            className="mt-0.5 w-full rounded-md border border-[#E5E7EB] dark:border-white/10 bg-white dark:bg-white/[0.04] px-1.5 py-1 text-[12px] text-[#111827] dark:text-white/90 resize-none focus:outline-none focus:border-[#7C72F6]/50"
             data-testid="my-day-next-step-input"
           />
         </label>
         <label className="block">
-          <span className="text-[10px] text-[#9CA3AF]">本次停止标准</span>
+          <span className="text-[11px] text-[#9CA3AF]">本次停止标准</span>
           <textarea
             value={draft.stop_at}
             onChange={(e) => onEdit({ stop_at: e.target.value })}
             rows={2}
             maxLength={300}
-            className="mt-0.5 w-full rounded-md border border-[#E5E7EB] dark:border-white/10 bg-white dark:bg-white/[0.04] px-1.5 py-1 text-[11px] text-[#111827] dark:text-white/90 resize-none focus:outline-none focus:border-[#7C72F6]/50"
+            className="mt-0.5 w-full rounded-md border border-[#E5E7EB] dark:border-white/10 bg-white dark:bg-white/[0.04] px-1.5 py-1 text-[12px] text-[#111827] dark:text-white/90 resize-none focus:outline-none focus:border-[#7C72F6]/50"
             data-testid="my-day-stop-at-input"
           />
         </label>
       </div>
       {draft.was_mandatory && !draft.selected && (
-        <p className="text-[10px] text-[#F59E0B]">该项曾被标记为必做,采纳摘要会显示其未被选中</p>
+        <p className="text-[11px] text-[#F59E0B]">该项曾被标记为必做,采纳摘要会显示其未被选中</p>
       )}
     </div>
   );

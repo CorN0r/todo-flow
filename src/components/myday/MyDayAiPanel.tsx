@@ -174,13 +174,13 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
   if (defaultModel !== undefined && defaultModel === null) {
     return (
       <div className="rounded-lg border border-dashed border-[#E5E7EB] dark:border-white/10 px-3 py-3 space-y-1.5" data-testid="my-day-ai-no-model">
-        <div className="flex items-center gap-1.5 text-[11px] text-[#6B7280]">
+        <div className="flex items-center gap-1.5 text-[12px] text-[#6B7280]">
           <Sparkles size={12} className="text-[#7C72F6]" />
           AI 建议需要先配置默认模型;规则推荐不受影响,随时可用。
         </div>
         <button
           onClick={() => navigate('/settings')}
-          className="text-[11px] px-2 py-1 rounded-md bg-[#7C72F6]/10 text-[#7C72F6] hover:bg-[#7C72F6]/20 font-medium"
+          className="text-[12px] px-2 py-1 rounded-md bg-[#7C72F6]/10 text-[#7C72F6] hover:bg-[#7C72F6]/20 font-medium"
         >
           去设置 → AI 模型
         </button>
@@ -194,10 +194,10 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
     <div className="rounded-xl border border-[#7C72F6]/25 bg-[#FAFAFF] dark:bg-white/[0.03] p-3 space-y-2.5" data-testid="my-day-ai-panel">
       {/* 范围与候选 */}
       <div className="space-y-1.5">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#111827] dark:text-white/90">
+        <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#111827] dark:text-white/90">
           <Sparkles size={12} className="text-[#7C72F6]" />
           AI 今日行动建议
-          <span className="text-[10px] text-[#9CA3AF] font-normal">从任务池准备候选,点击生成才调用模型</span>
+          <span className="text-[11px] text-[#9CA3AF] font-normal">从任务池准备候选,点击生成才调用模型</span>
         </div>
 
         {flatTags.length > 0 && (
@@ -206,7 +206,7 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
             <button
               onClick={() => setSelectedTagIds([])}
               className={cn(
-                'text-[10px] px-1.5 py-0.5 rounded-full transition-colors',
+                'text-[11px] px-1.5 py-0.5 rounded-full transition-colors',
                 selectedTagIds.length === 0
                   ? 'bg-[#7C72F6]/15 text-[#7C72F6] font-medium'
                   : 'text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]',
@@ -219,7 +219,7 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                 key={tag.id}
                 onClick={() => toggleTag(tag.id)}
                 className={cn(
-                  'text-[10px] px-1.5 py-0.5 rounded-full transition-colors',
+                  'text-[11px] px-1.5 py-0.5 rounded-full transition-colors',
                   selectedTagIds.includes(tag.id)
                     ? 'bg-[#7C72F6]/15 text-[#7C72F6] font-medium'
                     : 'text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]',
@@ -232,18 +232,18 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
         )}
 
         {preparing ? (
-          <div className="flex items-center gap-1.5 text-[11px] text-[#6B7280] py-1">
+          <div className="flex items-center gap-1.5 text-[12px] text-[#6B7280] py-1">
             <Loader2 size={12} className="animate-spin text-[#7C72F6]" />正在准备候选…
           </div>
         ) : candidates.length === 0 ? (
-          <div className="text-[11px] text-[#6B7280] py-1">
+          <div className="text-[12px] text-[#6B7280] py-1">
             {failed && session?.error
               ? session.error
               : '当前范围没有可执行候选;可清空标签恢复全部范围,或先创建任务。'}
           </div>
         ) : (
           <div className="space-y-0.5">
-            <div className="text-[10px] text-[#9CA3AF]">
+            <div className="text-[11px] text-[#9CA3AF]">
               候选 {session!.preview!.used_count} 项
               {session!.preview!.omitted_count > 0 && ` · 范围内共 ${session!.preview!.eligible_total} 项,未带入 ${session!.preview!.omitted_count} 项`}
               (发送给模型的只有这些候选的摘要)
@@ -257,7 +257,7 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                   <div
                     key={c.task_id}
                     className={cn(
-                      'px-2 py-1 rounded-lg text-[11px] space-y-0.5',
+                      'px-2 py-1 rounded-lg text-[12px] space-y-0.5',
                       isExcluded
                         ? 'bg-[#EF4444]/6 text-[#9CA3AF] line-through'
                         : 'bg-white/70 dark:bg-white/[0.03] text-[#374151] dark:text-white/70',
@@ -268,21 +268,21 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                         <button
                           onClick={() => void useMyDayPlanStore.getState().removeManualTask(today, c.task_id)}
                           disabled={generating || preparing}
-                          className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#10B981]/12 text-[#10B981] font-medium hover:bg-[#10B981]/20 disabled:opacity-40"
+                          className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-full bg-[#10B981]/12 text-[#10B981] font-medium hover:bg-[#10B981]/20 disabled:opacity-40"
                           title="撤销手动补入"
                         >
                           补入 ×
                         </button>
                       )}
                       <span className="flex-1 truncate">{c.title}</span>
-                      {c.due_date && <span className="text-[10px] text-amber-500 shrink-0">{c.due_date.slice(0, 10)}</span>}
-                      {c.already_in_my_day && <span className="text-[10px] text-amber-500 shrink-0">已加入</span>}
-                      {c.truncated_desc && <span className="text-[10px] text-[#9CA3AF] shrink-0" title="说明超长已截断">截断</span>}
+                      {c.due_date && <span className="text-[11px] text-amber-500 shrink-0">{c.due_date.slice(0, 10)}</span>}
+                      {c.already_in_my_day && <span className="text-[11px] text-amber-500 shrink-0">已加入</span>}
+                      {c.truncated_desc && <span className="text-[11px] text-[#9CA3AF] shrink-0" title="说明超长已截断">截断</span>}
                       <button
                         onClick={() => useMyDayPlanStore.getState().toggleMandatory(today, c.task_id)}
                         disabled={generating}
                         className={cn(
-                          'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full transition-colors disabled:opacity-40',
+                          'shrink-0 text-[11px] px-1.5 py-0.5 rounded-full transition-colors disabled:opacity-40',
                           isMandatory ? 'bg-[#F59E0B]/15 text-[#F59E0B] font-medium' : 'text-[#9CA3AF] hover:text-[#F59E0B]',
                         )}
                       >
@@ -292,7 +292,7 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                         onClick={() => useMyDayPlanStore.getState().toggleExcluded(today, c.task_id)}
                         disabled={generating}
                         className={cn(
-                          'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full transition-colors disabled:opacity-40',
+                          'shrink-0 text-[11px] px-1.5 py-0.5 rounded-full transition-colors disabled:opacity-40',
                           isExcluded ? 'bg-[#EF4444]/10 text-[#EF4444] font-medium' : 'text-[#9CA3AF] hover:text-[#EF4444]',
                         )}
                       >
@@ -302,13 +302,13 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                     {/* 子任务纳入替换:纳入的可移出,未纳入的可补入(每次至多 5 项) */}
                     {hasSubtaskChoices && (
                       <div className="flex items-center gap-1 flex-wrap pl-0.5">
-                        <span className="text-[10px] text-[#9CA3AF] shrink-0">子任务</span>
+                        <span className="text-[11px] text-[#9CA3AF] shrink-0">子任务</span>
                         {c.subtasks.map((s) => (
                           <button
                             key={s.subtask_id}
                             onClick={() => void useMyDayPlanStore.getState().toggleSubtaskPick(today, c.task_id, s.subtask_id)}
                             disabled={generating || preparing}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#7C72F6]/12 text-[#7C72F6] hover:bg-[#7C72F6]/25 disabled:opacity-40 truncate max-w-[30%]"
+                            className="text-[11px] px-1.5 py-0.5 rounded-full bg-[#7C72F6]/12 text-[#7C72F6] hover:bg-[#7C72F6]/25 disabled:opacity-40 truncate max-w-[30%]"
                             title="移出本次纳入的子任务"
                           >
                             {s.title}
@@ -319,7 +319,7 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                             key={s.subtask_id}
                             onClick={() => void useMyDayPlanStore.getState().toggleSubtaskPick(today, c.task_id, s.subtask_id)}
                             disabled={generating || preparing}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/10 disabled:opacity-40 truncate max-w-[30%]"
+                            className="text-[11px] px-1.5 py-0.5 rounded-full text-[#9CA3AF] hover:text-[#7C72F6] hover:bg-[#7C72F6]/10 disabled:opacity-40 truncate max-w-[30%]"
                             title="纳入该子任务(替换默认选择)"
                           >
                             + {s.title}
@@ -336,20 +336,20 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
               <div className="pt-0.5" data-testid="my-day-omitted-candidates">
                 <button
                   onClick={() => setShowOmitted((v) => !v)}
-                  className="text-[10px] text-[#9CA3AF] hover:text-[#6B7280]"
+                  className="text-[11px] text-[#9CA3AF] hover:text-[#6B7280]"
                 >
                   {showOmitted ? '收起' : '展开'}范围内还有 {session!.preview!.omitted_candidates.length} 项未带入
                 </button>
                 {showOmitted && (
                   <div className="mt-0.5 space-y-0.5">
                     {session!.preview!.omitted_candidates.map((o) => (
-                      <div key={o.task_id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] bg-[#F9FAFB] dark:bg-white/[0.02] text-[#6B7280]">
+                      <div key={o.task_id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[12px] bg-[#F9FAFB] dark:bg-white/[0.02] text-[#6B7280]">
                         <span className="flex-1 truncate">{o.title}</span>
-                        {o.due_date && <span className="text-[10px] text-[#9CA3AF] shrink-0">{o.due_date.slice(0, 10)}</span>}
+                        {o.due_date && <span className="text-[11px] text-[#9CA3AF] shrink-0">{o.due_date.slice(0, 10)}</span>}
                         <button
                           onClick={() => void useMyDayPlanStore.getState().addManualTask(today, o.task_id)}
                           disabled={generating || preparing}
-                          className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full text-[#10B981] hover:bg-[#10B981]/10 disabled:opacity-40"
+                          className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-full text-[#10B981] hover:bg-[#10B981]/10 disabled:opacity-40"
                         >
                           补入
                         </button>
@@ -371,11 +371,11 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
           placeholder="今天想推进什么?(可选,300 字内)"
           rows={2}
           maxLength={300}
-          className="flex-1 rounded-md border border-[#E5E7EB] dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1.5 text-[11px] text-[#111827] dark:text-white/90 resize-none focus:outline-none focus:border-[#7C72F6]/50"
+          className="flex-1 rounded-md border border-[#E5E7EB] dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1.5 text-[12px] text-[#111827] dark:text-white/90 resize-none focus:outline-none focus:border-[#7C72F6]/50"
           data-testid="my-day-focus-note"
         />
         <div className="shrink-0 flex flex-col items-end gap-1">
-          <span className="text-[10px] text-[#9CA3AF]">推荐项数</span>
+          <span className="text-[11px] text-[#9CA3AF]">推荐项数</span>
           <div className="flex rounded-md border border-[#E5E7EB] dark:border-white/10 overflow-hidden">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
@@ -383,7 +383,7 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                 onClick={() => useMyDayPlanStore.getState().setTargetCount(today, n)}
                 disabled={generating}
                 className={cn(
-                  'w-6 h-6 text-[11px] transition-colors disabled:opacity-40',
+                  'w-6 h-6 text-[12px] transition-colors disabled:opacity-40',
                   (session?.targetCount ?? 3) === n
                     ? 'bg-[#7C72F6] text-white'
                     : 'text-[#6B7280] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]',
@@ -400,13 +400,13 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
       {generating ? (
         <div className="flex items-center gap-2">
           <Loader2 size={13} className="animate-spin text-[#7C72F6] shrink-0" />
-          <span className="text-[11px] text-[#6B7280] flex-1 truncate">
+          <span className="text-[12px] text-[#6B7280] flex-1 truncate">
             生成中 · 已等待 {elapsed} 秒 · 已生成 {generatedChars} 字
             {progressText && <span className="ml-1 text-[#9CA3AF]" title={progressText.slice(-120)}>…</span>}
           </span>
           <button
             onClick={cancel}
-            className="shrink-0 flex items-center gap-0.5 text-[10px] px-2 py-1 rounded-md text-[#EF4444] hover:bg-[#EF4444]/8"
+            className="shrink-0 flex items-center gap-0.5 text-[11px] px-2 py-1 rounded-md text-[#EF4444] hover:bg-[#EF4444]/8"
           >
             <X size={11} />取消
           </button>
@@ -416,14 +416,14 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
           <button
             onClick={generate}
             disabled={preparing || candidates.length === 0 || adopting}
-            className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-md bg-[#7C72F6] text-white hover:bg-[#6C63E0] disabled:opacity-40 font-medium transition-colors"
+            className="flex items-center gap-1 text-[12px] px-2.5 py-1.5 rounded-md bg-[#7C72F6] text-white hover:bg-[#6C63E0] disabled:opacity-40 font-medium transition-colors"
             data-testid="my-day-generate-button"
           >
             <Sparkles size={12} />
             {done ? '重新生成' : '生成建议'}
           </button>
           {failed && session?.error && (
-            <span className="flex items-center gap-1 text-[10px] text-[#EF4444] min-w-0">
+            <span className="flex items-center gap-1 text-[11px] text-[#EF4444] min-w-0">
               <AlertTriangle size={11} className="shrink-0" />
               <span className="truncate">{session.error}</span>
             </span>
@@ -436,8 +436,8 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
         <div className="space-y-2 border-t border-[#E5E7EB] dark:border-white/10 pt-2" data-testid="my-day-proposal">
           {session.assumptions.length > 0 && (
             <div className="rounded-md bg-amber-50 dark:bg-amber-500/10 px-2 py-1.5">
-              <div className="text-[10px] font-medium text-amber-600 dark:text-amber-400 mb-0.5">模型假设(待确认,非已确认事实)</div>
-              <ul className="text-[10px] text-amber-700/90 dark:text-amber-300/80 list-disc list-inside space-y-0.5">
+              <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400 mb-0.5">模型假设(待确认,非已确认事实)</div>
+              <ul className="text-[11px] text-amber-700/90 dark:text-amber-300/80 list-disc list-inside space-y-0.5">
                 {session.assumptions.map((a, i) => (
                   <li key={i}>{a}</li>
                 ))}
@@ -460,7 +460,7 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
             ))}
           </div>
           {session.notSelected.length > 0 && (
-            <div className="text-[10px] text-[#9CA3AF]">
+            <div className="text-[11px] text-[#9CA3AF]">
               未选入本轮重点(仍在原清单,今天不做不是事实判断):
               {session.notSelected.map((n) => ` ${n.title}`).join(' ·')}
             </div>
@@ -469,17 +469,17 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
           {/* 采纳摘要 */}
           {done && (
             <div className="rounded-md bg-white dark:bg-white/[0.04] border border-[#E5E7EB] dark:border-white/10 px-2 py-1.5 space-y-1" data-testid="my-day-adopt-summary">
-              <div className="text-[10px] text-[#374151] dark:text-white/80">
+              <div className="text-[11px] text-[#374151] dark:text-white/80">
                 本轮重点 {selectedDrafts.length} 项:新增 {newIds} 项、已在今日 {keptIds} 项
                 {uncoveredListCount > 0 && `;原有清单另有 ${uncoveredListCount} 项不在本轮重点`}
               </div>
               {replacedOut.length > 0 && (
-                <div className="text-[10px] text-[#9CA3AF]">
+                <div className="text-[11px] text-[#9CA3AF]">
                   将移出重点(仍保留在今日清单):{replacedOut.map((a) => a.root_title ?? a.root_task_id).join(' ·')}
                 </div>
               )}
               {unselectedMandatory.length > 0 && (
-                <div className="text-[10px] text-[#F59E0B]">
+                <div className="text-[11px] text-[#F59E0B]">
                   曾标记必做但未选中:{unselectedMandatory.map((d) => d.root_title).join(' ·')}(以你的最终选择为准)
                 </div>
               )}
@@ -487,13 +487,13 @@ export function MyDayAiPanel({ today, myDayIds }: { today: string; myDayIds: Set
                 <button
                   onClick={adopt}
                   disabled={adopting || selectedDrafts.length === 0}
-                  className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md bg-[#7C72F6] text-white hover:bg-[#6C63E0] disabled:opacity-40 font-medium"
+                  className="flex items-center gap-1 text-[12px] px-2.5 py-1 rounded-md bg-[#7C72F6] text-white hover:bg-[#6C63E0] disabled:opacity-40 font-medium"
                   data-testid="my-day-adopt-button"
                 >
                   {adopting ? <Loader2 size={11} className="animate-spin" /> : <Check size={12} />}
                   采纳为今日重点
                 </button>
-                <span className="text-[10px] text-[#9CA3AF]">只添加今日归属,不改截止日期与排序</span>
+                <span className="text-[11px] text-[#9CA3AF]">只添加今日归属,不改截止日期与排序</span>
               </div>
             </div>
           )}
