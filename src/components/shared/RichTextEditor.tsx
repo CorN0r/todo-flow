@@ -227,6 +227,7 @@ function ToolbarDivider() {
  * 安全地将 HTML 内容载入编辑器。
  * ProseMirror 内置的 DOMParser 会丢弃 data: URL 的 <img> 标签，
  * 这里用浏览器 DOMParser 分解 HTML → 文本用 insertContentAt → 图片用 setImage 绕过解析。
+ * 纯文本(MCP/CLI 的 agent 任务详情)与行内元素合并为段落插入,不再被丢弃。
  */
 function safeSetHTMLContent(editor: ReturnType<typeof useEditor>, html: string) {
   if (!editor) return;
@@ -237,18 +238,37 @@ function safeSetHTMLContent(editor: ReturnType<typeof useEditor>, html: string) 
   // 收集顶层节点
   type ParsedNode = { type: 'p'; html: string } | { type: 'img'; src: string; alt?: string };
   const nodes: ParsedNode[] = [];
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const blockTags = new Set(['p', 'h1', 'h2', 'h3', 'blockquote', 'ul', 'ol', 'pre']);
+  // 行内缓冲:MCP/CLI 写入的详情常为纯文本(文本节点)或行内元素,合并为一个段落,不再被静默丢弃
+  let inline = '';
+  const flushInline = () => {
+    if (inline.trim()) nodes.push({ type: 'p', html: `<p>${inline}</p>` });
+    inline = '';
+  };
   for (const child of Array.from(body.childNodes)) {
-    if (child.nodeType !== 1) continue;
-    const el = child as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' ||
-        tag === 'blockquote' || tag === 'ul' || tag === 'ol' || tag === 'pre') {
-      nodes.push({ type: 'p', html: el.outerHTML });
-    } else if (tag === 'img') {
-      const src = el.getAttribute('src') || '';
-      if (src) nodes.push({ type: 'img', src, alt: el.getAttribute('alt') || undefined });
+    if (child.nodeType === 3) {
+      const text = (child.textContent || '').replace(/\r\n?/g, '\n');
+      if (text.trim()) inline += escapeHtml(text).replace(/\n/g, '<br>');
+    } else if (child.nodeType === 1) {
+      const el = child as HTMLElement;
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'img') {
+        const src = el.getAttribute('src') || '';
+        if (src) {
+          flushInline();
+          nodes.push({ type: 'img', src, alt: el.getAttribute('alt') || undefined });
+        }
+      } else if (blockTags.has(tag)) {
+        flushInline();
+        nodes.push({ type: 'p', html: el.outerHTML });
+      } else {
+        inline += el.outerHTML;
+      }
     }
   }
+  flushInline();
 
   // 逐节点插入（图片绕过 DOMParser）
   editor.commands.clearContent();

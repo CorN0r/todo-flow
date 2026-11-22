@@ -105,6 +105,40 @@ describe('RichTextEditor', () => {
     expect(img.src).toBe(dataUrl);
   });
 
+  // MCP/CLI 创建的 agent 任务详情是纯文本(无 <p> 包裹),不能被丢弃
+  it('loads plain-text description (agent-created task)', async () => {
+    renderEditor({ value: '收集本季度工作内容与数据,整理成原始素材清单' });
+
+    await waitFor(() => {
+      expect(document.querySelector('.ProseMirror')?.textContent)
+        .toContain('收集本季度工作内容与数据,整理成原始素材清单');
+    });
+  });
+
+  it('keeps line breaks in plain-text description as hard breaks', async () => {
+    renderEditor({ value: '第一行列出数据\n第二行标注来源' });
+
+    await waitFor(() => {
+      expect(document.querySelector('.ProseMirror br')).toBeInTheDocument();
+      expect(document.querySelector('.ProseMirror')?.textContent)
+        .toContain('第一行列出数据');
+      expect(document.querySelector('.ProseMirror')?.textContent)
+        .toContain('第二行标注来源');
+    });
+  });
+
+  it('loads mixed inline text, blocks and escaped special chars', async () => {
+    renderEditor({ value: '前置说明 <strong>重点</strong><p>块级段落 & 1 < 2</p>' });
+
+    await waitFor(() => {
+      const surface = document.querySelector('.ProseMirror');
+      expect(surface?.textContent).toContain('前置说明');
+      expect(surface?.textContent).toContain('重点');
+      expect(surface?.textContent).toContain('块级段落 & 1 < 2');
+      expect(surface?.querySelector('strong')?.textContent).toBe('重点');
+    });
+  });
+
   it('opens and closes fullscreen while keeping content', async () => {
     const html = `<p>fullscreen content</p><img src="${dataUrl}">`;
     const { onChange } = renderEditor({ value: html });
