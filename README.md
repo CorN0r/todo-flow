@@ -142,8 +142,10 @@
 
 ## 数据管理
 
-- **存储位置**：`%APPDATA%/com.todoflow.desktop/todo.db`（SQLite 本地数据库）
+- **存储位置**：`%APPDATA%/com.todoflow.desktop/`（SQLite 本地数据库）。默认工作区的数据库是其中的 `todo.db`，其余工作区各在 `workspaces/<id>/` 下
+- **工作区**：把不同用途的数据分开（比如工作和个人），同一时间使用一个。侧边栏顶部切换，在“管理工作区”里新建、从文件添加、重命名、删除。切换会重启应用，提醒只对当前工作区生效
 - **备份**：设置页 → 备份数据库，保存为 `.db` 文件
+- **从备份找回**：设置页 → 从备份找回。先预览备份里有哪些任务，默认只勾选当前库中没有的，确认后才执行；已存在的任务不会被改动，除非你主动勾选、用备份版本替换它
 - **导出**：设置页 → 导出任务为 CSV，可用 Excel 打开
 
 ---
@@ -213,13 +215,15 @@ todoflow-mcp list --search 周报
 todoflow-mcp list --tag work --completed
 todoflow-mcp done <任务ID>
 todoflow-mcp tags
+todoflow-mcp --profile 工作 add "准备周会材料"
 todoflow-mcp --db-path D:\backup\todo.db list
 ```
 
 ### 数据位置与安全
 
-- 默认数据库：`%APPDATA%\com.todoflow.desktop\todo.db`（可用 `--db-path` 覆盖）
-- GUI 运行期间，Agent 写入的任务约 2 秒内自动出现在界面中
+- 默认读写应用**当前激活的工作区**；`--profile <工作区名称>` 固定到指定工作区，`--db-path` 指定任意数据库文件（两者不能同时用）。名称不存在时会列出可用的工作区
+- 旧配置无需修改：不带参数时，行为和以前一样
+- GUI 运行期间，Agent 写入当前工作区的任务约 2 秒内自动出现在界面中；在应用里切换工作区后，Agent 的后续写入跟着切换
 - 本地直连 SQLite，无网络请求、无鉴权；Agent 拥有与你相同的读写权限，注意提示词安全
 
 ---

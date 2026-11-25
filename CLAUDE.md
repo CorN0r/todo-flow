@@ -119,6 +119,7 @@ src/
 │   │                 SubtaskDescription(子任务描述预览/编辑,列表+详情共用),
 │   │                 progress/ProgressTab(进展输入+分页时间线+状态事件)
 │   ├── ai/           AiModelSettings(设置页区块), BreakdownPanel(拆解), PolishPanel(润色), useElapsedSeconds(生成计时)
+│   ├── workspace/    WorkspaceSwitcher(侧边栏切换器), WorkspaceManagerDialog, RecoverFromBackupDialog
 │   ├── notes/        NoteCard（桌面便签卡片,三皮肤 SKINS 令牌）
 │   ├── calendar/     MonthView, WeekView, DayView
 │   ├── shared/       CommandPalette, SearchBar, DatePicker, KeyCapture, ShortcutEditor,
@@ -129,8 +130,9 @@ src/
 │                     ReviewPage(/review 日周回顾:事实/材料/文稿+AI 生成),
 │                     FocusStatsPage, ...
 ├── hooks/            useTasks, useTags, useTheme, useKeyboardShortcuts, usePomodoroSync,
-│                     useTaskNotes(便签固定/取消固定), useAiModels(AI 配置/验证/摘要)
-├── domain/           跨平台契约层:models/(含 ai.ts), repositories/(含 AiModelRepository),
+│                     useTaskNotes(便签固定/取消固定), useAiModels(AI 配置/验证/摘要),
+│                     useWorkspaces(工作区列表与操作)
+├── domain/           跨平台契约层:models/(含 ai.ts, workspace.ts), repositories/(含 AiModelRepository),
 │                     adapters/(desktop 接 invoke,memory 为测试替身)——业务组件不直接碰 Tauri
 ├── stores/           uiStore, shortcutStore, pomodoroStore, calendarStore, polishStore/breakdownStore(AI 会话,跨详情页存活)
 ├── lib/              db.ts (Tauri invoke wrappers), date.ts, cn.ts, priority.ts,
@@ -149,14 +151,20 @@ src-tauri/
 │   │                    attachment_commands, sync_commands, note_commands(桌面便签),
 │   │                    progress_commands(进展记录+留存+回顾基础,snake_case),
 │   │                    ai_commands(AI 全部命令,均 rename_all=snake_case,
-│   │                      含 ai_prepare_review_context/ai_generate_review)
+│   │                      含 ai_prepare_review_context/ai_generate_review),
+│   │                    workspace_commands(工作区:列出/新建/添加/重命名/删除/激活,见下文专节),
+│   │                    backup_recovery_commands(从备份找回:预览 inspect_backup + 执行 recover_from_backup)
 │   ├── db/              task_repo, reminder_repo, tag_repo, attachment_repo, habit_repo,
 │   │                    sync_repo, task_note_repo, migrations, connection,
-│   │                    progress_repo(记录 CRUD+回执+恢复), history_repo(事件/覆盖/留存),
-│   │                    review_repo(范围/事实/材料/保存稿)
-│   ├── mcp/             mod.rs(MCP server + #[tool] 注册), handlers.rs(纯函数), cli.rs(clap)
+│   │                    progress_repo(记录 CRUD+回执), history_repo(事件/覆盖/留存),
+│   │                    review_repo(范围/事实/材料/保存稿), recovery_repo(从备份找回,单事务)
+│   ├── mcp/             mod.rs(MCP server + #[tool] 注册), handlers.rs(纯函数), cli.rs(clap),
+│   │                    target.rs(读写哪个工作区:--db-path / --profile / 跟随激活项)
+│   ├── workspace/       工作区:registry(清单), files(只读校验+一致副本), store(新建/添加/删除),
+│   │                    mod.rs(启动解析+重启标记)
 │   ├── models/          task, task_reminder, tag, attachment, settings, habit, sync, task_note
 │   ├── db_watcher.rs    DB 文件 mtime 轮询 → emit task-changed(外部写入检测)
+│   ├── window_state.rs  主窗口位置/尺寸的保存与恢复(window-state.json)
 │   ├── shortcuts.rs     Dynamic global shortcut registration + handler dispatch
 │   └── reminders.rs     Background polling thread (60s interval)
 ```
@@ -236,7 +244,7 @@ pomodoroStore (Zustand + localStorage persistence)
 
 - `pomodoroConfig` → localStorage `pomodoroConfig`
 - `dailyFocusMinutes` + `taskFocusMinutes` → localStorage `pomodoroHistory`
-- Current timer state (taskId, minutes, seconds, etc.) → memory only, lost on restart
+- 进行中的会话 → localStorage `pomodoroSession`(起点/模式/关联任务/已完成节数/写入时的剩余秒数/是否运行)。切换工作区会重启应用,靠它在重启后接着计时:运行中的会话扣掉应用不在的时间,暂停的原样恢复,恢复后仍在运行的会话重新接上计时循环。`totalSessionsToday` 不持久化。⚠️ 初始状态对象里**不要再写 `sessionStartTime: null`**:恢复出来的状态是展开在前面的,后面再写一个 null 会把它覆盖掉——计时在走但窗口不显示,落盘逻辑还会删掉存档(2026-11-24 真机验收踩到;测试已断言恢复后 `sessionStartTime` 非空)。⚠️ **只有主窗口负责番茄钟会话**(`ownsPomodoroSession()`:地址不带查询参数)。悬浮窗、番茄钟小窗、提醒、便签加载的是同一份前端代码,每个窗口各有一份本模块的实例;恢复会话、接计时循环、落盘都必须限定在主窗口,否则重启时每个窗口各恢复一份、各自写记录——主窗口点了停止,别的窗口还会把记录写回去(2026-11-24 真机验收踩到;测试覆盖了四种次要窗口的地址)
 
 ### Start Entries
 
@@ -276,8 +284,28 @@ pomodoroStore (Zustand + localStorage persistence)
 - **标签按名称自动创建**：`tag_names` 参数里不存在的标签自动建（写路径，`tag_repo::get_by_name` 查重）；`list_tasks` 过滤时未知标签名静默忽略
 - **source 标记**：Agent 创建的任务写 `tasks.source = 'agent'`（GUI 手动创建为 NULL）。前端 `task.source === 'agent'` 时，列表/卡片标题前显示 Sparkles 图标，详情面板显示「由 Agent 创建」
 - **GUI 实时刷新**：`src-tauri/src/db_watcher.rs` 轮询 `todo.db` + `todo.db-wal` 的 mtime（2s），检测外部写入后 emit `task-changed`。⚠️ WAL 写事务落在 -wal 文件，必须同时监控两个文件
-- **数据目录**：`src-tauri/src/lib.rs` 的 `default_data_dir()`（Windows `%APPDATA%\com.todoflow.desktop`），CLI 用 `--db-path` 覆盖
-- **端到端测试**：`cargo test --test mcp_stdio`（子进程跑真实二进制做 initialize → tools/list → tools/call，`env!("CARGO_BIN_EXE_todoflow-mcp")`）
+- **目标解析**（`mcp/target.rs`）：`--db-path` > `--profile <名称>`（不区分大小写，与 `--db-path` 互斥）> 跟随应用当前激活的工作区（没有清单时就是现有默认路径，旧配置不用改）。跟随模式下**每次工具调用都重新解析**，另有 1 秒一次的定时检查：应用里切换工作区后，常驻的 MCP 进程自行换到新工作区并放开旧文件（用户随后才能删除旧工作区）。`--db-path` 指定的文件不登记为工作区
+- **端到端测试**：`cargo test --test mcp_stdio`（子进程跑真实二进制做 initialize → tools/list → tools/call，`env!("CARGO_BIN_EXE_todoflow-mcp")`；含工作区目标场景：运行中切换、`--profile` 固定、参数互斥、无清单回退，测试用 `APPDATA` 环境变量指向临时数据目录）
+
+## Workspaces（工作区）
+
+同一时间只激活一个的独立数据空间。规格见主 spec `openspec/specs/workspaces`、`workspace-switching`、`backup-recovery`、`agent-workspace-targeting`；变更已归档到 `openspec/changes/archive/2026-11-25-add-workspaces`（审核记录、验收材料和后续优化建议在其 README）。
+
+- **模型**：一个工作区 = 一个 `todo.db` + 同级 `attachments/`。清单 `workspaces.json` 在应用数据目录（所有库之外），数据目录存相对路径；“默认工作区”就是应用数据目录本身（升级后原地登记，不移动文件），其余在 `workspaces/<id>/`。`AppState.data_dir` 指**当前工作区**的数据目录，`AppState.app_data_dir` 指应用数据目录
+- **切换 = 更新清单 + `AppHandle::request_restart()`**：不做运行中换连接，所以那批直接持有连接的后台代码（提醒轮询、便签回调、托盘）都不用改。⚠️ Tauri 的重启是“先拉起新进程、再退出旧进程”，新进程会被单实例检测当成第二实例而退出——必须靠重启标记 `restart.pending`：带标记启动时用 `single_instance::is_another_instance_running` 等旧实例放开锁（上限 15 秒）再走单实例检测。
+- **`tauri dev` 下靠“锚”保住开发会话**（`workspace/dev_handover.rs`，只在开发构建里生效，仅 Windows）：Tauri 的 `request_restart()` 是“拉起新实例后以 0 退出”，`npx tauri dev` 只盯着它启动的那一个进程，会把它当成应用关闭——命令结束、开发服务器停掉，切换后的窗口加载不出前端，还留下一个挡住下一次 `tauri dev` 的进程。所以开发构建里被 `tauri dev` 直接启动的进程不初始化应用，只拉起一份真正的应用并等它（“锚”）；应用实例切换时拉起后继者，把进程号写进约定的临时文件，以约定的退出码结束，锚据此改为等待后继者。进程树因此是“cargo → 锚（约 10 MB）→ 应用”，切多少次都只有这两个应用进程；锚退出时应用实例跟着退出。⚠️ 看到两个 `todo-flow.exe` 是正常的，别把锚当成残留进程。独立构建和发布构建里 `cfg!(dev)` 为假，走的还是原来的重启。
+- **启动解析**（`workspace::resolve_for_startup`）：清单缺失或损坏 → 重建（只有全新安装才允许新建空库）；激活项打不开 → 按最近使用顺序回退并经 `StartupNotice` 提示；全部不可用 → 报错退出
+- **文件校验与复制**（`workspace/files.rs`）：只读打开（不走 `db::connection::open`，它会设 WAL 改动源文件）→ 完整性检查 → 必需的表 → `user_version ≤ migrations::LATEST_USER_VERSION`；复制用 `VACUUM INTO`，源文件带着未合并的 `-wal`（MCP 进程仍在用）时也拿到完整内容。读备份一律先做升级后的临时副本
+- **删除**：先把库文件改名做占用探测（Windows 下被别的进程打开时改名失败 → 什么都不改并提示），成功后才清凭证、删条目和文件。删除**当前**工作区时库正被本进程占用 → 只登记（`pending_delete`）+ 换激活项 + 重启，由新进程在启动时完成；那时仍被占用（例如跟随激活项的 MCP 服务还没放开）最多重试 5×600ms，再不行就保留条目并提示
+- **主窗口状态**（`window_state.rs`）：`tauri.conf.json` 的主窗口 `visible:false`，setup 里先按 `window-state.json` 恢复位置再 `show()`；常驻线程每秒落盘 + 退出时落盘——为此用 `builder.build()` + `app.run()`（不是 `Builder::run`）才能收到 `RunEvent::Exit`
+- **从备份找回**（`db/recovery_repo.rs`）：取代了旧的整库 `import_database`（连同 `restore_progress_data` 一起移除）。先预览 → 勾选 → **单事务**执行；默认只找回当前库中没有的任务，任务整行以备份为准（带 `source` 标记）；带回所选任务的子任务及依赖的标签、提醒、便签、附件记录、进展记录。**进展记录**：本机仍有效的不动，随任务删除被清空正文的按备份恢复；**状态事件**只增不改（自增主键跨库撞号 → 保留本机）。习惯、设置、模型配置、同步状态不带；“同时恢复日／周回顾”是显式选项（同范围不同文稿、同 ID 不同内容都拒绝整次找回）；导入缺口每天只记一条
+- **前端**：`components/workspace/`（WorkspaceSwitcher、WorkspaceManagerDialog、RecoverFromBackupDialog）与 `hooks/useWorkspaces`；方法挂在 `SettingsRepository`（与备份、导出并列）；切换器只在 `platform.kind === 'desktop'` 显示，折叠时用小字换行显示名称；文案走 i18n（`workspace.*`、`recover.*`）
+- **浮层必须遵守 Portal 约定**（见下文 Portal Dropdown Positioning）：切换菜单是 Portal + `fixed` + `z-[200]`，两个对话框 `z-[300]`。⚠️ 2026-11-24 真机实测：把菜单写成侧边栏内部的 `absolute` 定位，在玻璃主题下会被后面的导航项盖住、点击落到导航上。表面样式见 `popupSurface.ts`——玻璃主题会把 `bg-white` / `dark:bg-[#1E1E32]` 改写成很淡的半透明，所以菜单用接近不透明的 `menuSurface`（下面没有变暗背景），对话框用 `dialogSurface`（`glass-panel-strong`，和搜索下拉一致）
+- **启动提示不带错误前缀**：直接展示给用户的说明用 `AppError::user_message()`（去掉 "Validation error: " 等英文前缀）；`Display` 保留前缀供日志和前端判别
+- **管理界面的任务数只算顶层任务**（`workspace::store::task_count`）：要和“全部任务”页面标题上的数字一致，页面默认折叠子任务，把子任务算进去会显示 176 对 124 这样的不一致
+- **切换耗时实测**（独立调试构建，2026-11-24）：从点击到新窗口出现 3–7 秒，进入数据多的工作区更慢；经界面连续切换 10 次全部成功，窗口位置不变
+- **真机验收**：需要界面操作的验收受限于两点——这台机器的屏幕会很快自动锁定（实测 1–10 分钟不等；锁屏时截图和点击都不可用），WebView2 的 a11y 树内容陈旧不可靠。可靠的做法：给 exe 设 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 后启动，用调试口**只读**地取元素位置和文字（`src-tauri/target/acceptance-tools/cdp.mjs at|find` 直接给出截图坐标），再按坐标点击；不需要界面的部分（重启交接、窗口位置、回退、重启后完成删除、MCP）可以纯进程级验证（`headless.py`）。排查“本地存储里的值丢了”：直接看 `%LOCALAPPDATA%\com.todoflow.desktop\EBWebView\Default\Local Storage\leveldb\*.log`，记录是明文的，能分清“没写盘”和“被删了”。主窗口的 a11y 树这次实测可用：按钮和菜单项按 `AXPress` 触发比坐标点击稳（“更多操作”按钮坐标点了两下都没展开，可访问性一按就开）；但按名字找元素要避开同名的——标题栏的“关闭”会把主窗口收进气泡，而面板右上角的关闭键离它很近，关面板改点列表的空白处。坐标点击默认同时走鼠标和可访问性两条路，可能产生真人做不出的操作组合，验证“用户会不会遇到”时用纯鼠标（`strategy: 'event'`）
+- **附件缺失**：`get_attachment_file_path` 在文件不在磁盘上时返回 null（从 `.db` 添加的工作区只有记录、没有文件），AttachmentZone 显示“文件缺失”占位，仍可删除该记录
 
 ## AI 模型接入（AI Model Access）
 
@@ -305,7 +333,7 @@ pomodoroStore (Zustand + localStorage persistence)
 - **回顾事实口径**:"本期完成"=期内有 complete 事件且截至截止时点最近一次 complete/reopen 仍为 complete 的去重任务;完成后重开单列;根/子任务分列不相加;放弃不算完成;标签按事件/记录保存时的根任务快照筛(当前改标签不改写历史)。覆盖三态 complete/partial/missing 由 `task_history_coverage` 决定
 - **AI 回顾**(`ai/review.rs`):准备快照(存 `AiRuntime.review_contexts`,重启即弃)→ 边界:40 分组/每根 5 子事实/60 记录/标题 120/单条 400/重点 300/请求体 128KiB → 生成(复用 execute_chat,同范围单飞 `active_review_scopes`)→ 输出四类 JSON(8/5/5/5 项,每项 ≤500 字+引用必须在候选内,`parse_and_validate` 拒候选外引用/截断/超界)→ 保存(前端把快照元数据原样回传 `save_review`,形成"按此快照保存";保存只写 `period_reviews`,不动任务)
 - **删除语义**:删记录=清正文留 content_hash 标记;删任务=清该任务+子任务记录正文,事件保留(来源标"任务已删除"禁打开);清理事实区间=删事件+写 cleanup 缺口行。已保存回顾是独立文稿,来源删后显示不可用不恢复
-- **备份恢复**:备份=整库复制(新表自动含);导入默认不动本机进展/回顾,勾选"同时恢复"走 `restore_progress_data`(同 ID 同内容跳过/不同内容拒绝/整批事务/保留原事件时间/版本校验,不动 ai_* 模型配置)
+- **备份恢复**：备份=整库复制(新表自动含);找回走 `db/recovery_repo.rs`(见 Workspaces 节)——所选任务缺失的进展记录/事件随任务带回,随任务删除被清空正文的记录按备份恢复,本机仍有效的不动;"同时恢复日/周回顾"为显式选项(冲突拒绝整次找回,不动 ai_* 模型配置)。想原样回到某个时间点,把备份**添加为新工作区**
 - **真实验收**:`cargo test --test review_acceptance -- --ignored --nocapture`(隔离库+真实智谱凭证;覆盖有记录无完成/重开/父子并行/历史清理/原因不明样例)
 
 ## Settings Keys
@@ -340,6 +368,8 @@ Tauri v2 defaults to **camelCase** for `invoke()` parameter names. Every `#[taur
 
 ### Portal Dropdown Positioning
 ALL dropdowns/popups MUST use `<Portal>` + `fixed` positioning with `getBoundingClientRect()`. Context menus: `z-[200]`, confirm dialogs: `z-[300]`, pomodoro fullscreen: `z-[300]`.
+
+这条不是风格偏好：侧边栏（玻璃主题下带 `backdrop-filter`）是独立的层叠上下文，放在它里面的 `absolute` 浮层会被后面的导航项盖住，点击也落到导航上（2026-11-24 工作区切换菜单实测）。另外玻璃主题会改写 `bg-white` / `dark:bg-[#1E1E32]`，浮层的表面样式要单独处理，见 `components/workspace/popupSurface.ts`。
 
 ### TanStack Query Invalidation
 ```tsx
@@ -464,6 +494,7 @@ Description is included in the debounced auto-save (800ms). Two places must incl
 - Left edge has a drag handle (5px wide, hover shows blue indicator + `GripVertical` icon)
 - Width persisted to `localStorage` key `taskDetailPanelWidth`
 - `mousemove`/`mouseup` listeners attached to `document` during drag
+- ⚠️ `<TaskDetail key={selectedTaskId} />` 必须带 key(和 `UnifiedLayout` 一样按任务重建)。面板不关也能换任务:搜索结果里选一个,或者关闭动画还没结束就点了另一条。`TaskDetail` 里存着正在编辑的内容,沿用同一个实例会把它当成“未保存的修改”合并到新任务上并自动保存,上一个任务没来得及保存的修改也会写到新任务上。2026-11-24 真机验收时表现为“关掉详情后马上点开另一个任务,后者的标题变成了前者的”。守护测试:`src/test/components/TaskDetailPanel.switchTask.test.tsx`(用真实的 `TaskDetail` 和 `useTask`)
 
 ---
 
