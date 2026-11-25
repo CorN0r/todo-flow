@@ -13,6 +13,9 @@ export const queryKeys = {
     detail: (id: string | null) =>
       id ? (['task', id] as const) : (['task'] as const),
   },
+  workspaces: {
+    all: ['workspaces'] as const,
+  },
   tags: {
     all: ['tags'] as const,
   },

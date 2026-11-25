@@ -7,3 +7,4 @@ export type * from './settings';
 export type * from './sync';
 export type * from './tag';
 export type * from './task';
+export type * from './workspace';

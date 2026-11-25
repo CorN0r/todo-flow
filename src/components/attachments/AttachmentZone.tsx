@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
-import { X, FileText, File, Link, Paperclip } from 'lucide-react';
+import { X, FileText, File, Link, Paperclip, FileWarning } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import '../../i18n';
 import { cn } from '../../lib/cn';
 import { useUploadAttachment, useDeleteAttachment, useAttachments } from '../../hooks/useAttachments';
 import { getRepositories } from '../../domain/repositories/current';
@@ -29,19 +31,49 @@ function AttachmentThumbnail({
   attachment: Attachment;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const [src, setSrc] = useState<string | null>(null);
+  // 记录还在、文件不在磁盘上(例如从数据库文件添加的工作区只有记录、没有文件)
+  const [missing, setMissing] = useState(false);
   const deleteMutation = useDeleteAttachment();
   const isImage = IMAGE_TYPES.includes(attachment.mime_type);
 
   useEffect(() => {
-    if (isImage) {
-      getAttachmentFilePath(attachment.id).then((path) => {
-        setSrc(getRepositories().platform.toFileAssetUrl(path));
-      });
-    }
+    let cancelled = false;
+    getAttachmentFilePath(attachment.id)
+      .then((path) => {
+        if (cancelled) return;
+        if (!path) setMissing(true);
+        else if (isImage) setSrc(getRepositories().platform.toFileAssetUrl(path));
+      })
+      .catch(() => { /* 路径读不到:按原有方式显示 */ });
+    return () => { cancelled = true; };
   }, [attachment.id, isImage]);
 
   const fileInfo = getFileTypeIcon(attachment.mime_type);
+
+  // 文件缺失:只说明情况,不呈现为可打开的附件;仍可删除这条记录
+  if (missing) {
+    return (
+      <div
+        data-testid="attachment-missing"
+        title={attachment.original_name}
+        className="relative group aspect-square rounded-lg border border-dashed border-[#D1D5DB] dark:border-white/[0.12] bg-[#F9FAFB] dark:bg-white/[0.03] flex flex-col items-center justify-center gap-1 p-2"
+      >
+        <FileWarning size={24} className="text-[#9CA3AF]" />
+        <span className="text-[10px] text-[#9CA3AF] text-center leading-tight">{t('attachment.missing')}</span>
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <button
+            onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(attachment.id); }}
+            className="p-1.5 rounded-md bg-white/80 hover:bg-red-50 text-red-500 transition-colors"
+            aria-label="Delete attachment"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isImage) {
     return (
@@ -52,6 +84,7 @@ function AttachmentThumbnail({
             alt={attachment.original_name}
             className="w-full h-full object-cover cursor-pointer"
             onClick={onClick}
+            onError={() => setMissing(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">

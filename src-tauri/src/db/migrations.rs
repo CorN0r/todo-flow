@@ -1,6 +1,9 @@
 use chrono::Local;
 use rusqlite::Connection;
 
+/// 当前应用最新的数据库结构版本(`user_version`)。文件校验据此拒绝来自更新版本的数据库。
+pub const LATEST_USER_VERSION: i32 = 19;
+
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
 
@@ -480,7 +483,7 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
     // v19: 任务进展与日/周回顾(手写进展记录/本机状态事件/历史覆盖/周期回顾/保存回执;
     // 全部本机数据,不进同步系统;任务引用为逻辑关联,不阻止任务删除;
     // 不回填旧完成事件——基线覆盖行记录本机事实历史起点)
-    if current_version < 19 {
+    if current_version < LATEST_USER_VERSION {
         let today = Local::now().format("%Y-%m-%d").to_string();
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS task_progress_records (
@@ -568,7 +571,7 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
              VALUES ('baseline', ?1, NULL, '本机状态事件自该日起可用')",
             rusqlite::params![today],
         )?;
-        conn.pragma_update(None, "user_version", 19)?;
+        conn.pragma_update(None, "user_version", LATEST_USER_VERSION)?;
     }
 
     Ok(())

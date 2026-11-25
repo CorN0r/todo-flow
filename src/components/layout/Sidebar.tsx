@@ -12,6 +12,7 @@ import { getTask } from '../../lib/db';
 import type { TagWithCount } from '../../types/tag';
 
 import { useUIStore } from '../../stores/uiStore';
+import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -258,6 +259,7 @@ export function Sidebar() {
         <button onClick={toggleSidebar} className="mt-4 p-1.5 rounded-lg text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] dark:text-[#C4C4CC] dark:hover:text-white dark:hover:bg-white/10 transition-colors" aria-label="展开侧边栏">
           <PanelLeft size={18} />
         </button>
+        <WorkspaceSwitcher collapsed />
         <nav className="flex-1 flex flex-col gap-[2px] mt-2">
           <NavLink to="/date/all" className={collapsedBtnCls} aria-label="全部任务"><span className="w-4 h-4 flex items-center justify-center text-xs font-bold">☰</span></NavLink>
           <NavLink to="/myday" className={collapsedBtnCls} aria-label="我的一天"><Sun size={16} /></NavLink>
@@ -288,6 +290,9 @@ export function Sidebar() {
         </button>
         <span className={`text-[16px] font-bold ${logoText}`}>TodoFlow</span>
       </div>
+
+      {/* 当前工作区:点开可切换或管理 */}
+      <WorkspaceSwitcher collapsed={false} />
 
       {/* Main Nav — p:8px 12px, gap:2px */}
       <nav className="flex flex-col gap-[2px]" style={{ padding: '8px 12px 0 12px' }}>

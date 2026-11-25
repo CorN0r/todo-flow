@@ -12,6 +12,7 @@ import type {
   SyncOperation,
   SyncOperationStatus,
 } from '../domain/models/sync';
+import type { BackupPreview, RecoverCounts, WorkspaceInfo } from '../domain/models/workspace';
 
 // 外部程序直写 DB 时可能把空值写成字符串 "null";读取时统一清洗,避免日期解析抛 Invalid time value
 const NULL_LIKE = new Set(['null', 'undefined', 'nan', '']);
@@ -155,7 +156,7 @@ export async function deleteAttachment(id: string): Promise<void> {
   return invoke('delete_attachment', { id });
 }
 
-export async function getAttachmentFilePath(attachmentId: string): Promise<string> {
+export async function getAttachmentFilePath(attachmentId: string): Promise<string | null> {
   return invoke('get_attachment_file_path', { attachmentId });
 }
 
@@ -180,8 +181,46 @@ export async function exportCsv(path: string, content: string): Promise<void> {
   return invoke('export_csv', { path, content });
 }
 
-export async function importDatabase(source: string, includeProgress?: boolean): Promise<string> {
-  return invoke('import_database', { source, include_progress: includeProgress ?? false });
+// Workspaces
+export async function listWorkspaces(): Promise<WorkspaceInfo[]> {
+  return invoke('list_workspaces');
+}
+
+export async function createWorkspace(name: string, switchAfter: boolean): Promise<WorkspaceInfo> {
+  return invoke('create_workspace', { name, switch_after: switchAfter });
+}
+
+export async function addWorkspaceFromFile(source: string, name: string | null, switchAfter: boolean): Promise<WorkspaceInfo> {
+  return invoke('add_workspace_from_file', { source, name, switch_after: switchAfter });
+}
+
+export async function renameWorkspace(id: string, name: string): Promise<WorkspaceInfo> {
+  return invoke('rename_workspace', { id, name });
+}
+
+export async function deleteWorkspace(id: string): Promise<string | null> {
+  return invoke('delete_workspace', { id });
+}
+
+export async function activateWorkspace(id: string): Promise<void> {
+  return invoke('activate_workspace', { id });
+}
+
+export async function getStartupNotice(): Promise<string | null> {
+  return invoke('get_startup_notice');
+}
+
+// Backup recovery
+export async function inspectBackup(source: string): Promise<BackupPreview> {
+  return invoke('inspect_backup', { source });
+}
+
+export async function recoverFromBackup(
+  source: string,
+  taskIds: string[],
+  includeReviews: boolean,
+): Promise<RecoverCounts> {
+  return invoke('recover_from_backup', { source, task_ids: taskIds, include_reviews: includeReviews });
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {

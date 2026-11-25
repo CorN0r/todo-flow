@@ -3,6 +3,7 @@ import type { CreateHabitInput, Habit, HabitWithStats, ReorderHabitsItem, Update
 import type { HabitLog } from '../models/habitLog';
 import type { CreateTaskReminderInput, TaskReminder } from '../models/reminder';
 import type { DashboardStats, SettingsMap } from '../models/settings';
+import type { BackupPreview, RecoverCounts, WorkspaceInfo } from '../models/workspace';
 import type {
   CreateSyncConflictInput,
   CreateSyncOperationInput,
@@ -76,7 +77,8 @@ export interface AttachmentRepository {
   uploadLink(taskId: string, url: string, title?: string): Promise<Attachment>;
   listForTask(taskId: string): Promise<Attachment[]>;
   delete(id: string): Promise<void>;
-  getFilePath(id: string): Promise<string>;
+  /** 文件不在磁盘上时为 null(记录在、文件缺) */
+  getFilePath(id: string): Promise<string | null>;
 }
 
 export interface TaskNoteRepository {
@@ -95,7 +97,21 @@ export interface SettingsRepository {
   getAll(): Promise<SettingsMap>;
   backupDatabase(destination: string): Promise<void>;
   exportCsv(path: string, content: string): Promise<void>;
-  importDatabase(source: string, includeProgress?: boolean): Promise<string>;
+  // 工作区:同一时间只激活一个;切换、删除当前工作区通过重启应用完成
+  listWorkspaces(): Promise<WorkspaceInfo[]>;
+  /** 新建空白工作区;偏好从当前工作区复制 */
+  createWorkspace(name: string, switchAfter: boolean): Promise<WorkspaceInfo>;
+  /** 把一个数据库文件复制成新工作区;`name` 为 null 时取文件名 */
+  addWorkspaceFromFile(source: string, name: string | null, switchAfter: boolean): Promise<WorkspaceInfo>;
+  renameWorkspace(id: string, name: string): Promise<WorkspaceInfo>;
+  /** 返回未能清理的文件说明(如果有) */
+  deleteWorkspace(id: string): Promise<string | null>;
+  activateWorkspace(id: string): Promise<void>;
+  /** 启动时要告知用户的事,读取一次即清空 */
+  getStartupNotice(): Promise<string | null>;
+  // 从备份找回:先预览、再勾选
+  inspectBackup(source: string): Promise<BackupPreview>;
+  recoverFromBackup(source: string, taskIds: string[], includeReviews: boolean): Promise<RecoverCounts>;
   getDashboardStats(): Promise<DashboardStats>;
 }
 

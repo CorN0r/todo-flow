@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Upload, Download, Database, PanelBottom, ChevronRight, ChevronDown, Rocket, Keyboard, Bell } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Upload, Download, Database, Layers, PanelBottom, ChevronRight, ChevronDown, Rocket, Keyboard, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,6 +16,8 @@ import { useTaskNotes, useToggleTaskNote } from '../hooks/useTaskNotes';
 import { useTasks } from '../hooks/useTasks';
 import { ShortcutEditor } from '../components/shared/ShortcutEditor';
 import { AiModelSettings } from '../components/ai/AiModelSettings';
+import { RecoverFromBackupDialog } from '../components/workspace/RecoverFromBackupDialog';
+import { WorkspaceManagerDialog } from '../components/workspace/WorkspaceManagerDialog';
 import type { NoteStyle } from '../types/note';
 
 type BubbleColors = { from: string; via: string; to: string };
@@ -45,6 +48,7 @@ function parseBubbleColors(raw: string | null): BubbleColors {
 }
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const [exporting, setExporting] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
   const [widgetEnabled, setWidgetEnabled] = useState(true);
@@ -177,24 +181,9 @@ export function SettingsPage() {
     setExporting(false);
   };
 
-  const [importing, setImporting] = useState(false);
-  const [importWithProgress, setImportWithProgress] = useState(false);
-
-  const handleImport = async () => {
-    const [selected] = await getRepositories().platform.chooseFiles({
-      filters: [{ name: 'SQLite Database', extensions: ['db'] }],
-      multiple: false,
-    });
-    if (!selected) return;
-    setImporting(true);
-    try {
-      const result = await getRepositories().settings.importDatabase(selected as string, importWithProgress);
-      toast.success(result);
-    } catch (err) {
-      toast.error('导入失败: ' + (err as string));
-    }
-    setImporting(false);
-  };
+  const [recoverOpen, setRecoverOpen] = useState(false);
+  const [workspacesOpen, setWorkspacesOpen] = useState(false);
+  const workspacesAvailable = getRepositories().platform.kind === 'desktop';
 
   // ---------- 任务历史与回顾 ----------
   const [retentionEnabled, setRetentionEnabled] = useState<boolean | null>(null);
@@ -267,22 +256,27 @@ export function SettingsPage() {
             {backingUp ? '备份中...' : '备份数据库'}
           </button>
           <button
-            onClick={handleImport}
-            disabled={importing}
+            onClick={() => setRecoverOpen(true)}
             className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] hover:bg-[#F9FAFB] dark:hover:bg-white/[0.04] transition-colors w-full text-[#111827] dark:text-white/90 font-medium"
+            data-testid="settings-recover"
           >
             <Upload size={16} />
-            {importing ? '导入中...' : '导入数据库'}
+            {t('recover.action')}
           </button>
-          <label className="flex items-center gap-2 text-[12px] text-[#6B7280] px-1 select-none cursor-pointer">
-            <input
-              type="checkbox"
-              checked={importWithProgress}
-              onChange={(e) => setImportWithProgress(e.target.checked)}
-              className="accent-[#7C72F6] w-3.5 h-3.5"
-            />
-            同时恢复进展记录与回顾(相同数据跳过,冲突时拒绝且不产生部分覆盖;不改动本机模型配置)
-          </label>
+          {workspacesAvailable && (
+            <button
+              onClick={() => setWorkspacesOpen(true)}
+              className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-[10px] border border-[#F3F4F6] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] hover:bg-[#F9FAFB] dark:hover:bg-white/[0.04] transition-colors w-full text-[#111827] dark:text-white/90 font-medium"
+              data-testid="settings-manage-workspaces"
+            >
+              <Layers size={16} />
+              {t('settings.manageWorkspaces')}
+            </button>
+          )}
+          <RecoverFromBackupDialog open={recoverOpen} onClose={() => setRecoverOpen(false)} />
+          {workspacesAvailable && (
+            <WorkspaceManagerDialog open={workspacesOpen} onClose={() => setWorkspacesOpen(false)} />
+          )}
         </div>
       </div>
 

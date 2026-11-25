@@ -5,6 +5,7 @@ pub mod history_repo;
 pub mod migrations;
 pub mod progress_repo;
 pub mod reminder_repo;
+pub mod recovery_repo;
 pub mod review_repo;
 pub mod sync_repo;
 pub mod tag_repo;

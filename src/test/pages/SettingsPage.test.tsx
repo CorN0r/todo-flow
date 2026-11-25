@@ -12,7 +12,6 @@ const { dbMock, tasksState } = vi.hoisted(() => ({
     setSetting: vi.fn(),
     backupDatabase: vi.fn(),
     exportCsv: vi.fn(),
-    importDatabase: vi.fn(),
     openTaskNote: vi.fn(),
     closeTaskNote: vi.fn(),
     getAllTaskNotes: vi.fn(),
@@ -108,5 +107,21 @@ describe('SettingsPage 桌面便签区块', () => {
     renderWithProviders(<SettingsPage />);
     expect(await screen.findByText('便签数量已达上限')).toBeInTheDocument();
     expect(screen.getByText('8/8')).toBeInTheDocument();
+  });
+});
+
+describe('SettingsPage 数据区', () => {
+  it('不再有"导入数据库",改为"从备份找回"和"管理工作区"两个入口', async () => {
+    renderWithProviders(<SettingsPage />);
+    expect(await screen.findByRole('button', { name: /从备份找回/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /管理工作区/ })).toBeInTheDocument();
+    expect(screen.queryByText('导入数据库')).toBeNull();
+  });
+
+  it('点击"从备份找回"打开先预览的对话框', async () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /从备份找回/ }));
+    expect(await screen.findByRole('dialog', { name: '从备份找回' })).toBeInTheDocument();
+    expect(screen.getByTestId('recover-choose-file')).toBeInTheDocument();
   });
 });

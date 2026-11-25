@@ -22,6 +22,11 @@ export function ImageLightbox({ attachments, initialIndex, onClose }: Props) {
     setLoading(true);
     setSrc(null);
     const path = await getAttachmentFilePath(attachments[i].id);
+    // 文件不在磁盘上:没有可显示的图
+    if (!path) {
+      setLoading(false);
+      return;
+    }
     setSrc(getRepositories().platform.toFileAssetUrl(path));
     setLoading(false);
   }, [attachments]);
@@ -38,7 +43,7 @@ export function ImageLightbox({ attachments, initialIndex, onClose }: Props) {
       const prevIdx = (index - 1 + total) % total;
       for (const i of [prevIdx, nextIdx]) {
         const path = await getAttachmentFilePath(attachments[i].id);
-        new Image().src = getRepositories().platform.toFileAssetUrl(path);
+        if (path) new Image().src = getRepositories().platform.toFileAssetUrl(path);
       }
     };
     preload();

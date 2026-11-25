@@ -25,9 +25,34 @@ impl Serialize for AppError {
     }
 }
 
+impl AppError {
+    /// 给用户看的说明:去掉错误类型的英文前缀("Validation error: " 等),只留说明本身。
+    /// `Display` 保留前缀供日志和前端判别;启动提示这类直接展示给用户的场合用这个。
+    pub fn user_message(&self) -> String {
+        match self {
+            AppError::Validation(message)
+            | AppError::NotFound(message)
+            | AppError::Lock(message)
+            | AppError::Generic(message) => message.clone(),
+            AppError::Database(err) => err.to_string(),
+            AppError::Io(err) => err.to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_message_drops_the_error_kind_prefix() {
+        assert_eq!(AppError::Validation("名称不能为空".to_string()).user_message(), "名称不能为空");
+        assert_eq!(AppError::NotFound("工作区不存在".to_string()).user_message(), "工作区不存在");
+        assert_eq!(AppError::Lock("locked".to_string()).user_message(), "locked");
+        assert_eq!(AppError::Generic("出错了".to_string()).user_message(), "出错了");
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file missing");
+        assert_eq!(AppError::Io(io_err).user_message(), "file missing");
+    }
 
     #[test]
     fn test_database_error_display() {

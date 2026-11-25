@@ -1,10 +1,11 @@
 import { useEffect, Suspense, lazy } from 'react';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
 import './i18n';
 import { useLanguage } from './i18n/useLanguage';
+import { getRepositories } from './domain/repositories/current';
 import { invalidateTasks, invalidateTask, invalidateTags, invalidateHabits, invalidateDashboardStats, invalidateTaskNotes } from './lib/queryKeys';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -123,6 +124,20 @@ function MainLayout() {
       unlisten2?.();
       unlisten3?.();
     };
+  }, []);
+
+  // 启动时要告知用户的事,例如激活的工作区打不开而回退到了另一个
+  useEffect(() => {
+    if (getRepositories().platform.kind !== 'desktop') return;
+    let cancelled = false;
+    try {
+      void Promise.resolve(getRepositories().settings.getStartupNotice())
+        .then((notice) => {
+          if (!cancelled && notice) toast.warning(notice, { duration: 12000 });
+        })
+        .catch(() => { /* 读不到就不提示 */ });
+    } catch { /* 读不到就不提示 */ }
+    return () => { cancelled = true; };
   }, []);
 
 

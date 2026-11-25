@@ -195,11 +195,14 @@ pub fn upload_link_attachment(
     )
 }
 
+/// 附件文件路径。文件不在磁盘上时返回 None——例如从数据库文件添加的工作区
+/// 只有附件记录、没有文件——界面据此显示"文件缺失",而不是把它当成可打开的附件。
 #[tauri::command]
 pub fn get_attachment_file_path(
     state: State<AppState>,
     attachment_id: String,
-) -> Result<String, AppError> {
+) -> Result<Option<String>, AppError> {
     let conn = state.db()?;
-    attachment_repo::get_file_path(&conn, &attachment_id, &state.data_dir)
+    let path = attachment_repo::get_file_path(&conn, &attachment_id, &state.data_dir)?;
+    Ok(std::path::Path::new(&path).is_file().then_some(path))
 }

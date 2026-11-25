@@ -18,10 +18,13 @@ use crate::error::AppError;
     version
 )]
 pub struct Cli {
-    /// SQLite 数据库文件路径(默认:数据目录下 todo.db,
-    /// 如 %APPDATA%\com.todoflow.desktop\todo.db)
-    #[arg(long, global = true)]
+    /// SQLite 数据库文件路径。与 --profile 互斥
+    #[arg(long, global = true, conflicts_with = "profile")]
     pub db_path: Option<PathBuf>,
+
+    /// 工作区名称(不区分大小写)。不指定时跟随应用当前激活的工作区
+    #[arg(long, global = true, conflicts_with = "db_path")]
+    pub profile: Option<String>,
 
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -142,19 +145,14 @@ pub struct CreateTagArgs {
     pub parent_tag_id: Option<String>,
 }
 
-/// 解析 db 路径:--db-path > 默认数据目录/todo.db
-pub fn resolve_db_path(cli: &Cli) -> Result<PathBuf, AppError> {
-    if let Some(p) = &cli.db_path {
-        if let Some(parent) = p.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        return Ok(p.clone());
-    }
-    let dir = crate::default_data_dir().ok_or_else(|| {
-        AppError::Generic("无法确定数据目录,请用 --db-path 指定数据库文件".to_string())
-    })?;
-    std::fs::create_dir_all(&dir)?;
-    Ok(dir.join("todo.db"))
+/// 确定读写目标:`--db-path` > `--profile <名称>` > 跟随当前激活的工作区
+/// (没有工作区清单时为现有默认路径)。
+pub fn resolve_target(cli: &Cli) -> Result<super::target::Target, AppError> {
+    super::target::resolve_target(
+        cli.db_path.as_deref(),
+        cli.profile.as_deref(),
+        crate::default_data_dir().as_deref(),
+    )
 }
 
 fn open_conn(db_path: &std::path::Path) -> Result<rusqlite::Connection, AppError> {
@@ -165,13 +163,18 @@ fn open_conn(db_path: &std::path::Path) -> Result<rusqlite::Connection, AppError
 
 /// 执行 CLI;非 serve 子命令返回要打印的 JSON。
 pub fn run(cli: Cli) -> Result<Option<Value>, AppError> {
-    let db_path = resolve_db_path(&cli)?;
+    let target = resolve_target(&cli)?;
+    // 一次性子命令只读写此刻解析出的目标;父目录不存在时创建
+    let db_path = target.db_path(crate::default_data_dir().as_deref())?;
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     match cli.command {
         None | Some(Command::Serve) => {
             let rt = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()?;
-            rt.block_on(crate::mcp::serve(db_path))?;
+            rt.block_on(crate::mcp::serve(target, crate::default_data_dir()))?;
             Ok(None)
         }
         Some(Command::Add(a)) => {
@@ -274,6 +277,7 @@ mod tests {
     fn cli_with_db(db_path: PathBuf, command: Command) -> Cli {
         Cli {
             db_path: Some(db_path),
+            profile: None,
             command: Some(command),
         }
     }

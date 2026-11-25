@@ -3,6 +3,7 @@ import type { Habit, HabitLog, HabitWithStats } from '../../types/habit';
 import type { Tag, TagWithCount } from '../../types/tag';
 import type { Task, TaskReminder } from '../../types/task';
 import type { TaskNote } from '../models/note';
+import type { WorkspaceInfo } from '../models/workspace';
 import type { AiModelRepository } from '../repositories';
 import type { AppRepositories } from '../repositories';
 import type {
@@ -26,6 +27,8 @@ export interface MemoryRepositoryState {
   syncMeta: Record<string, string>;
   syncOperations: SyncOperation[];
   syncConflicts: SyncConflict[];
+  /** 工作区清单;测试里默认只有一个"默认工作区" */
+  workspaces: WorkspaceInfo[];
   aiConnections: import('../models/ai').AiConnectionInfo[];
   aiModels: import('../models/ai').AiModelInfo[];
   aiDefaultModel: string | null;
@@ -501,6 +504,9 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
     syncMeta: clone(seed.syncMeta ?? {}),
     syncOperations: clone(seed.syncOperations ?? []),
     syncConflicts: clone(seed.syncConflicts ?? []),
+    workspaces: [
+      { id: 'default', name: '默认工作区', is_active: true, task_count: 0, created_at: now(), last_activated_at: null },
+    ],
     aiConnections: [],
     aiModels: [],
     aiDefaultModel: null,
@@ -509,6 +515,22 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
     myDayContexts: new Map(),
     myDayProposals: new Map(),
     myDayPlans: new Map(),
+  };
+
+  const addWorkspace = (name: string, switchAfter: boolean): WorkspaceInfo => {
+    const workspace: WorkspaceInfo = {
+      id: createId('ws', state),
+      name,
+      is_active: false,
+      task_count: 0,
+      created_at: now(),
+      last_activated_at: null,
+    };
+    state.workspaces.push(workspace);
+    if (switchAfter) {
+      for (const item of state.workspaces) item.is_active = item === workspace;
+    }
+    return clone(workspace);
   };
 
   const repositories: AppRepositories = {
@@ -835,8 +857,47 @@ export function createMemoryRepositories(seed: MemoryRepositorySeed = {}) {
       },
       async backupDatabase() {},
       async exportCsv() {},
-      async importDatabase(source) {
-        return source;
+      async listWorkspaces() {
+        // 与"全部任务"页面一致:只算顶层任务
+        const liveTasks = state.tasks.filter((task) => !task.is_archived && !task.parent_task_id).length;
+        return clone(state.workspaces.map((workspace) => ({ ...workspace, task_count: liveTasks })));
+      },
+      async createWorkspace(name, switchAfter) {
+        return addWorkspace(name, switchAfter);
+      },
+      async addWorkspaceFromFile(_source, name, switchAfter) {
+        return addWorkspace(name || '工作区', switchAfter);
+      },
+      async renameWorkspace(id, name) {
+        const workspace = state.workspaces.find((item) => item.id === id);
+        if (!workspace) throw new Error(`Workspace not found: ${id}`);
+        workspace.name = name;
+        return clone(workspace);
+      },
+      async deleteWorkspace(id) {
+        if (state.workspaces.length <= 1) {
+          throw new Error('至少保留一个工作区,不能删除最后一个工作区');
+        }
+        const index = state.workspaces.findIndex((item) => item.id === id);
+        if (index < 0) throw new Error(`Workspace not found: ${id}`);
+        state.workspaces.splice(index, 1);
+        if (state.workspaces.every((item) => !item.is_active)) state.workspaces[0].is_active = true;
+        return null;
+      },
+      async activateWorkspace(id) {
+        const workspace = state.workspaces.find((item) => item.id === id);
+        if (!workspace) throw new Error(`Workspace not found: ${id}`);
+        for (const item of state.workspaces) item.is_active = item === workspace;
+        workspace.last_activated_at = now();
+      },
+      async getStartupNotice() {
+        return null;
+      },
+      async inspectBackup() {
+        return { tasks: [], has_reviews: false };
+      },
+      async recoverFromBackup() {
+        return { recovered: 0, replaced: 0, reviews_restored: 0 };
       },
       async getDashboardStats() {
         const total = state.tasks.length;

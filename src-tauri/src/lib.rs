@@ -8,6 +8,9 @@ pub mod mcp;
 pub mod models;
 mod reminders;
 pub mod shortcuts;
+pub mod workspace;
+#[cfg(not(mobile))]
+mod window_state;
 
 #[cfg(not(mobile))]
 use std::collections::HashMap;
@@ -80,14 +83,33 @@ mod single_instance {
 
     const SW_RESTORE: i32 = 9;
     const ERROR_ALREADY_EXISTS: u32 = 183;
+    const MUTEX_NAME: &str = "TodoFlow_SingleInstance_Global_Mutex";
+
+    fn wide(text: &str) -> Vec<u16> {
+        OsStr::new(text).encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    /// 名为 `mutex_name` 的互斥量是否已被某个进程持有。只探测,不占用。
+    fn mutex_is_held(mutex_name: &[u16]) -> bool {
+        let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, mutex_name.as_ptr()) };
+        let already_exists = unsafe { GetLastError() } == ERROR_ALREADY_EXISTS;
+
+        if !handle.is_null() {
+            unsafe { CloseHandle(handle) };
+        }
+
+        already_exists
+    }
+
+    /// 单实例锁是否已被某个进程持有。只探测,不占用。
+    pub fn is_another_instance_running() -> bool {
+        mutex_is_held(&wide(MUTEX_NAME))
+    }
 
     /// Returns true if another instance is already running.
     /// If so, finds the existing window and brings it to front.
     pub fn detect_and_show_existing() -> bool {
-        let mutex_name: Vec<u16> = OsStr::new("TodoFlow_SingleInstance_Global_Mutex")
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
+        let mutex_name = wide(MUTEX_NAME);
 
         let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, mutex_name.as_ptr()) };
         let last_error = unsafe { GetLastError() };
@@ -122,11 +144,66 @@ mod single_instance {
 
         false
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// 用一个测试专用的锁名,不受机器上正在运行的 TodoFlow 影响
+        fn test_mutex() -> Vec<u16> {
+            wide(&format!("TodoFlow_SingleInstance_Test_{}", std::process::id()))
+        }
+
+        /// 探测只看锁在不在,不会把锁占住:本进程持锁期间报告"已被占用",
+        /// 放手之后恢复原样。
+        #[test]
+        fn detects_a_held_mutex_without_taking_it() {
+            let name = test_mutex();
+            assert!(!mutex_is_held(&name));
+
+            let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr()) };
+            assert!(!handle.is_null());
+            assert!(mutex_is_held(&name));
+
+            unsafe { CloseHandle(handle) };
+            assert!(!mutex_is_held(&name));
+        }
+
+        /// 等待逻辑与真实的探测配合:锁被占用时等待,释放后继续
+        #[test]
+        fn wait_ends_once_the_other_instance_releases_the_lock() {
+            let tmp = tempfile::tempdir().unwrap();
+            crate::workspace::set_restart_marker(tmp.path()).unwrap();
+
+            let name = test_mutex();
+            let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr()) };
+            assert!(mutex_is_held(&name));
+            // 裸指针不能跨线程移动,按整数带过去
+            let raw = handle as usize;
+            let started = std::time::Instant::now();
+            let releaser = std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(400));
+                unsafe { CloseHandle(raw as *mut std::ffi::c_void) };
+            });
+            let proceed = crate::workspace::wait_for_previous_instance(
+                tmp.path(),
+                crate::workspace::RESTART_WAIT_LIMIT,
+                || mutex_is_held(&name),
+            );
+            releaser.join().unwrap();
+
+            assert!(proceed);
+            assert!(started.elapsed() >= std::time::Duration::from_millis(400));
+        }
+    }
 }
 
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
+    /// 当前工作区的数据目录(数据库与附件所在)
     pub data_dir: PathBuf,
+    /// 应用数据目录(工作区清单、窗口状态等属于应用的东西所在)
+    pub app_data_dir: PathBuf,
     #[cfg(not(mobile))]
     pub global_shortcut_map: Arc<Mutex<HashMap<Shortcut, String>>>,
     /// AI 模型请求运行时(HTTP 客户端、并发槽、取消注册表);网络执行不持数据库锁。
@@ -141,14 +218,47 @@ impl AppState {
     }
 }
 
+/// 应用退出前的收尾。
+pub(crate) fn on_exit(handle: &tauri::AppHandle) {
+    // 把主窗口最新的位置与尺寸落盘
+    #[cfg(not(mobile))]
+    window_state::flush(handle);
+    #[cfg(mobile)]
+    let _ = handle;
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // `tauri dev` 直接启动的进程充当“锚”:不初始化应用,只等应用结束,让开发会话活过工作区切换。
+    // 见 workspace::dev_handover。其余构建里这一步什么都不做。
+    #[cfg(target_os = "windows")]
+    if let Some(code) = workspace::dev_handover::anchor_dev_session() {
+        std::process::exit(code);
+    }
+    #[cfg(target_os = "windows")]
+    workspace::dev_handover::watch_anchor();
+
     // 单实例检测：如果已有实例在运行，激活已有窗口并退出
     #[cfg(target_os = "windows")]
     {
+        // 切换工作区后的重启:先等旧实例退出并释放单实例锁,
+        // 否则新实例会被当成第二次启动,显示旧窗口后直接退出,应用就此消失。
+        if let Some(dir) = default_data_dir() {
+            workspace::wait_for_previous_instance(
+                &dir,
+                workspace::RESTART_WAIT_LIMIT,
+                single_instance::is_another_instance_running,
+            );
+        }
         if single_instance::detect_and_show_existing() {
             std::process::exit(0);
         }
+    }
+    // 走到这里说明本实例将正常启动:重启标记(如果有)随之清除。
+    // 等不到旧实例退出而超时的那次会作为第二实例退出,标记留给下一次启动处理。
+    #[cfg(not(mobile))]
+    if let Some(dir) = default_data_dir() {
+        workspace::clear_restart_marker(&dir);
     }
 
     let builder = tauri::Builder::default()
@@ -198,7 +308,26 @@ pub fn run() {
                 return Err(Box::new(e));
             }
 
-            let attachments_dir = app_dir.join("attachments");
+            #[cfg(not(mobile))]
+            let window_tracker = match app.get_webview_window("main") {
+                Some(main) => {
+                    // 主窗口建成时是隐藏的:先恢复上次的位置与尺寸,再显示
+                    let restored = window_state::restore(&main, &app_dir);
+                    Some(window_state::track(&main, &app_dir, restored))
+                }
+                None => None,
+            };
+
+            // 打开当前激活的工作区。清单不存在时,现有数据原地登记为"默认工作区"。
+            #[cfg(not(mobile))]
+            let startup = workspace::resolve_for_startup(&app_dir)?;
+            // 当前工作区的数据目录;移动端沿用应用数据目录
+            #[cfg(not(mobile))]
+            let data_dir = startup.data_dir.clone();
+            #[cfg(mobile)]
+            let data_dir = app_dir.clone();
+
+            let attachments_dir = data_dir.join("attachments");
             if let Err(e) = std::fs::create_dir_all(&attachments_dir) {
                 eprintln!(
                     "FATAL: Failed to create attachments directory '{}': {}",
@@ -208,7 +337,10 @@ pub fn run() {
                 return Err(Box::new(e));
             }
 
-            let db_path = app_dir.join("todo.db");
+            let db_path = data_dir.join("todo.db");
+            #[cfg(not(mobile))]
+            let conn = startup.conn;
+            #[cfg(mobile)]
             let conn = match db::connection::open(&db_path) {
                 Ok(c) => c,
                 Err(e) => {
@@ -221,6 +353,7 @@ pub fn run() {
                 }
             };
 
+            #[cfg(mobile)]
             if let Err(e) = db::migrations::run(&conn) {
                 eprintln!("FATAL: Failed to run database migrations: {}", e);
                 return Err(Box::new(e));
@@ -231,7 +364,8 @@ pub fn run() {
             let global_shortcut_map = Arc::new(Mutex::new(HashMap::new()));
             let state = AppState {
                 db: db.clone(),
-                data_dir: app_dir,
+                data_dir,
+                app_data_dir: app_dir.clone(),
                 #[cfg(not(mobile))]
                 global_shortcut_map,
                 ai_runtime: Arc::new(crate::ai::gateway::AiRuntime::new()),
@@ -247,6 +381,15 @@ pub fn run() {
             app.manage(state);
             // 提醒弹窗待处理队列(轮询线程入队,alert 命令消费)
             app.manage(alerts::AlertState::default());
+            // 启动时要告知用户的事(例如激活的工作区打不开而回退)
+            #[cfg(not(mobile))]
+            app.manage(commands::workspace_commands::StartupNotice(Mutex::new(
+                startup.notice,
+            )));
+            #[cfg(not(mobile))]
+            if let Some(tracker) = window_tracker {
+                app.manage(tracker);
+            }
 
             #[cfg(not(mobile))]
             {
@@ -544,6 +687,11 @@ pub fn run() {
             // Start reminder polling(桌面窗口已就绪,启动首轮检查可立即弹出漏掉的提醒)
             reminders::start_polling(app.handle().clone(), db.clone());
 
+            // 主窗口以隐藏状态创建(位置恢复之前不闪现);一切就绪后再显示
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.show();
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -580,7 +728,15 @@ pub fn run() {
             commands::settings_commands::get_all_settings,
             commands::settings_commands::backup_database,
             commands::settings_commands::export_csv,
-            commands::settings_commands::import_database,
+            commands::workspace_commands::list_workspaces,
+            commands::workspace_commands::create_workspace,
+            commands::workspace_commands::add_workspace_from_file,
+            commands::workspace_commands::rename_workspace,
+            commands::workspace_commands::delete_workspace,
+            commands::workspace_commands::activate_workspace,
+            commands::workspace_commands::get_startup_notice,
+            commands::backup_recovery_commands::inspect_backup,
+            commands::backup_recovery_commands::recover_from_backup,
             commands::settings_commands::write_debug_log,
             commands::shortcut_commands::update_global_shortcuts,
             commands::shortcut_commands::get_all_shortcuts,
@@ -660,7 +816,15 @@ pub fn run() {
             commands::ai_commands::ai_get_review_context_status,
             commands::ai_commands::ai_generate_review,
         ])
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!())
+        .map(|app| {
+            // 不用 Builder::run,以便在退出前(包括切换工作区引起的重启)收尾
+            app.run(|handle, event| {
+                if let tauri::RunEvent::Exit = event {
+                    on_exit(handle);
+                }
+            })
+        });
 
     if let Err(e) = result {
         let error_msg = format!("TodoFlow failed to start:\n\n{}", e);
