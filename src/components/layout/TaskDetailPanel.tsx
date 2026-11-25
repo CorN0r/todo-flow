@@ -123,7 +123,10 @@ export function TaskDetailPanel() {
             {/* Content */}
             <div className="p-6">
               <ErrorBoundary>
-                <TaskDetail />
+                {/* 按任务重建:面板不关也能换任务(搜索结果里选一个、关闭动画还没结束又点了另一条)。
+                    TaskDetail 里存着正在编辑的内容,沿用同一个实例会把上一个任务的内容当成
+                    "未保存的修改"带到新任务上并自动保存(2026-11-24 真机验收踩到) */}
+                <TaskDetail key={selectedTaskId} />
               </ErrorBoundary>
             </div>
           </motion.aside>
