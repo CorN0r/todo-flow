@@ -115,7 +115,8 @@ src/
 ├── components/
 │   ├── layout/       Sidebar, Header, TaskDetailPanel
 │   ├── tasks/        TaskCard, TaskList, TaskDetail(双页签:任务内容/进展记录),
-│   │                 TaskQuickAdd, UnifiedLayout,
+│   │                 TaskQuickAdd, UnifiedLayout, TaskViewBody(五种视图 → 组件的映射),
+│   │                 KanbanBoard, MatrixBoard(接收当前范围任务的看板 / 四象限),
 │   │                 SubtaskDescription(子任务描述预览/编辑,列表+详情共用),
 │   │                 progress/ProgressTab(进展输入+分页时间线+状态事件)
 │   ├── ai/           AiModelSettings(设置页区块), BreakdownPanel(拆解), PolishPanel(润色), useElapsedSeconds(生成计时)
@@ -125,17 +126,17 @@ src/
 │   ├── shared/       CommandPalette, SearchBar, DatePicker, KeyCapture, ShortcutEditor,
 │   │                 ErrorBoundary, PomodoroFullscreen, Portal, ...
 │   └── attachments/  AttachmentZone, ImageLightbox
-├── pages/            TodayPage, CalendarPage, TagPage, SearchPage, DashboardPage,
+├── pages/            CalendarPage, TagPage, SearchPage, DashboardPage,
 │                     SettingsPage, WidgetPage, PomodoroWidgetPage, NotePage(桌面便签窗口),
 │                     ReviewPage(/review 日周回顾:事实/材料/文稿+AI 生成),
-│                     FocusStatsPage, ...
+│                     FocusStatsPage, DateFilterPage(/date/:filter:全部任务 + 计划的四个日期范围), ...
 ├── hooks/            useTasks, useTags, useTheme, useKeyboardShortcuts, usePomodoroSync,
 │                     useTaskNotes(便签固定/取消固定), useAiModels(AI 配置/验证/摘要),
 │                     useWorkspaces(工作区列表与操作)
 ├── domain/           跨平台契约层:models/(含 ai.ts, workspace.ts), repositories/(含 AiModelRepository),
 │                     adapters/(desktop 接 invoke,memory 为测试替身)——业务组件不直接碰 Tauri
-├── stores/           uiStore, shortcutStore, pomodoroStore, calendarStore, polishStore/breakdownStore(AI 会话,跨详情页存活)
-├── lib/              db.ts (Tauri invoke wrappers), date.ts, cn.ts, priority.ts,
+├── stores/           uiStore(taskViewMode 全局视图状态、lastPlannedRange), shortcutStore, pomodoroStore, calendarStore, polishStore/breakdownStore(AI 会话,跨详情页存活)
+├── lib/              db.ts (Tauri invoke wrappers), date.ts, cn.ts, priority.ts, dateRanges.ts(计划的日期范围), taskView.ts(视图容器的高度语义),
 │                     noteCountdown.ts(便签倒计时), ...
 ├── sync-client/      conflicts.ts, engine.ts (本地优先跨端同步客户端,对接外部 sync-server)
 ├── types/            task.ts, tag.ts, attachment.ts, shortcuts.ts, pomodoro.ts, note.ts
@@ -299,13 +300,28 @@ pomodoroStore (Zustand + localStorage persistence)
 - **删除**：先把库文件改名做占用探测（Windows 下被别的进程打开时改名失败 → 什么都不改并提示），成功后才清凭证、删条目和文件。删除**当前**工作区时库正被本进程占用 → 只登记（`pending_delete`）+ 换激活项 + 重启，由新进程在启动时完成；那时仍被占用（例如跟随激活项的 MCP 服务还没放开）最多重试 5×600ms，再不行就保留条目并提示
 - **主窗口状态**（`window_state.rs`）：`tauri.conf.json` 的主窗口 `visible:false`，setup 里先按 `window-state.json` 恢复位置再 `show()`；常驻线程每秒落盘 + 退出时落盘——为此用 `builder.build()` + `app.run()`（不是 `Builder::run`）才能收到 `RunEvent::Exit`
 - **从备份找回**（`db/recovery_repo.rs`）：取代了旧的整库 `import_database`（连同 `restore_progress_data` 一起移除）。先预览 → 勾选 → **单事务**执行；默认只找回当前库中没有的任务，任务整行以备份为准（带 `source` 标记）；带回所选任务的子任务及依赖的标签、提醒、便签、附件记录、进展记录。**进展记录**：本机仍有效的不动，随任务删除被清空正文的按备份恢复；**状态事件**只增不改（自增主键跨库撞号 → 保留本机）。习惯、设置、模型配置、同步状态不带；“同时恢复日／周回顾”是显式选项（同范围不同文稿、同 ID 不同内容都拒绝整次找回）；导入缺口每天只记一条
-- **前端**：`components/workspace/`（WorkspaceSwitcher、WorkspaceManagerDialog、RecoverFromBackupDialog）与 `hooks/useWorkspaces`；方法挂在 `SettingsRepository`（与备份、导出并列）；切换器只在 `platform.kind === 'desktop'` 显示，折叠时用小字换行显示名称；文案走 i18n（`workspace.*`、`recover.*`）
+- **前端**：`components/workspace/`（WorkspaceSwitcher、WorkspaceManagerDialog、RecoverFromBackupDialog）与 `hooks/useWorkspaces`；方法挂在 `SettingsRepository`（与备份、导出并列）；切换器只在 `platform.kind === 'desktop'` 显示，折叠时用小字换行显示名称；展开时内嵌在侧边栏顶行（取代独立的品牌行），清单未返回或当前环境不提供工作区时该位置显示应用名；文案走 i18n（`workspace.*`、`recover.*`）
 - **浮层必须遵守 Portal 约定**（见下文 Portal Dropdown Positioning）：切换菜单是 Portal + `fixed` + `z-[200]`，两个对话框 `z-[300]`。⚠️ 2026-11-24 真机实测：把菜单写成侧边栏内部的 `absolute` 定位，在玻璃主题下会被后面的导航项盖住、点击落到导航上。表面样式见 `popupSurface.ts`——玻璃主题会把 `bg-white` / `dark:bg-[#1E1E32]` 改写成很淡的半透明，所以菜单用接近不透明的 `menuSurface`（下面没有变暗背景），对话框用 `dialogSurface`（`glass-panel-strong`，和搜索下拉一致）
 - **启动提示不带错误前缀**：直接展示给用户的说明用 `AppError::user_message()`（去掉 "Validation error: " 等英文前缀）；`Display` 保留前缀供日志和前端判别
 - **管理界面的任务数只算顶层任务**（`workspace::store::task_count`）：要和“全部任务”页面标题上的数字一致，页面默认折叠子任务，把子任务算进去会显示 176 对 124 这样的不一致
 - **切换耗时实测**（独立调试构建，2026-11-24）：从点击到新窗口出现 3–7 秒，进入数据多的工作区更慢；经界面连续切换 10 次全部成功，窗口位置不变
 - **真机验收**：需要界面操作的验收受限于两点——这台机器的屏幕会很快自动锁定（实测 1–10 分钟不等；锁屏时截图和点击都不可用），WebView2 的 a11y 树内容陈旧不可靠。可靠的做法：给 exe 设 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 后启动，用调试口**只读**地取元素位置和文字（`src-tauri/target/acceptance-tools/cdp.mjs at|find` 直接给出截图坐标），再按坐标点击；不需要界面的部分（重启交接、窗口位置、回退、重启后完成删除、MCP）可以纯进程级验证（`headless.py`）。排查“本地存储里的值丢了”：直接看 `%LOCALAPPDATA%\com.todoflow.desktop\EBWebView\Default\Local Storage\leveldb\*.log`，记录是明文的，能分清“没写盘”和“被删了”。主窗口的 a11y 树这次实测可用：按钮和菜单项按 `AXPress` 触发比坐标点击稳（“更多操作”按钮坐标点了两下都没展开，可访问性一按就开）；但按名字找元素要避开同名的——标题栏的“关闭”会把主窗口收进气泡，而面板右上角的关闭键离它很近，关面板改点列表的空白处。坐标点击默认同时走鼠标和可访问性两条路，可能产生真人做不出的操作组合，验证“用户会不会遇到”时用纯鼠标（`strategy: 'event'`）
 - **附件缺失**：`get_attachment_file_path` 在文件不在磁盘上时返回 null（从 `.db` 添加的工作区只有记录、没有文件），AttachmentZone 显示“文件缺失”占位，仍可删除该记录
+
+## 侧边栏与任务视图（Navigation & Task Views）
+
+侧边栏信息架构与“范围 × 视图”的分离。规格见主 spec `openspec/specs/sidebar-navigation`、`planned-view`、`task-view-switching`；变更已归档到 `openspec/changes/archive/2026-11-26-streamline-sidebar-navigation`，主 spec 已同步（`task-status-filtering` 改了两条需求）。实施与验收记录在该目录的 `tasks.md`，取舍见 `design.md`。
+
+- **侧边栏只有三组**：顶行（折叠按钮 + 工作区切换器）、目的地（全部任务、我的一天、计划、日历、习惯追踪，顺序固定）、标签分组（可折叠）、底部组（数据面板、设置）。单个日期范围和任务视图 MUST NOT 再加回侧边栏。固定部分高度不超过 380px。分组标题用 `.sidebar-section-label`（12px、无 `uppercase`），目的地 / 标签 / 分组标题三组文字在六套主题下对比度都不低于 4.5:1——新引入的色值类要在 `index.css` 的 warm、lumina 覆盖表里补行
+- **地址只表达范围，视图是一份全局状态**：`/date/all`（全部任务）、`/date/<today|tomorrow|this-week|this-month>`（计划）、`/myday`、`/tag/:id`。视图是 `uiStore.taskViewMode`（`list | wall | unified | kanban | matrix`，持久化），换范围时保持。页面经 `TaskViewBody` 渲染当前视图；`lib/taskView.ts` 的 `taskViewBodyClass` 给容器高度语义——一体式 / 看板 / 四象限占满剩余高度并在内部滚动，列表 / 便签墙随页面滚动
+- **看板、四象限只放根任务卡片**：`TaskViewBody` 去掉任务的 `children` 再传给它们（`TaskCard` 会读 `task.children`）。四象限只放未完成且未放弃的任务；状态筛选对五种视图都生效
+- **`setTaskViewMode` 的副作用收在 store 里**：离开一体式时清除 `selectedTaskId`（一体式不开侧边详情）；切到看板 / 四象限时退出多选。页面里不要再各写一遍
+- **计划范围在页面内切换**：`DateFilterPage` 标题「计划」+ 范围分段控件；侧边栏「计划」指向 `uiStore.lastPlannedRange`（会话内，默认 `this-week`）。`Sidebar` 不能 import 懒加载的页面模块，范围的公共定义在 `lib/dateRanges.ts`
+- **旧路由**：`/` → `/myday`；`/kanban`、`/matrix` → `/date/all` 并启用对应视图（`App.tsx` 的 `LegacyViewRedirect`）。主区域路由是 `MainRoutes`，可以脱离整个应用单独测试
+- **详情面板只对当前清单里的任务保持打开**：`useDesktopTaskStatusFilter` 会清掉不在可见集合里的选中任务。所以“从别处带着一个任务跳进来”要落到包含它的清单——`ReviewPage` 的“打开任务”显式导航到 `/date/all` 并带上 `statusFilter: 'all'`（和数据看板的数字卡片同一写法），不能靠 `/` 的重定向落到“我的一天”
+- **界面验收**：`src-tauri/target/acceptance-tools/ui_harness.mjs`（git 忽略）在无头 Edge（与 WebView2 同内核）里加载构建产物并注入假的 Tauri 接口，切主题、量尺寸、截图、点击，不碰真实数据。先 `npx vite preview --port 4173 --strictPort --host 127.0.0.1`，再 `node ui_harness.mjs`；端口由浏览器自选、结束时按配置目录清理进程树（固定端口会被没退干净的实例占着，连到旧实例上拿到的是上次的状态）
+- **在真实的 WebView2 里验收、又不动用户正在用的安装版**：两者冲突的是代码里写死的单实例互斥量（`lib.rs` 的 `MUTEX_NAME`，不随应用标识变化）。做法是临时给互斥量名加后缀，`npx tauri dev --no-watch --config '{"identifier":"com.todoflow.desktop.verify"}'` 起一个隔离实例（自己的数据目录、WebView 配置目录），起来后立刻 `git checkout` 还原源码，再用 `CDP_PORT=9222 node ui_harness.mjs` 连上去；示例数据用 `ui_seed.py` 经命令行工具写进它自己的库。用完关掉实例并删除 `com.todoflow.desktop.verify` 的两个数据目录。⚠️ 真实窗口不在前台时动画帧会被节流：量颜色要等过渡走完，带退场动画的面板没走完会吃掉后面的点击
+- **重拍文档截图**（`docs/images/`，1200×800）：演示数据在仓库里，`scripts/db-backups/demo-db-20260610-235412.db`（`scripts/seed-demo-data.mjs` 生成，22 个任务；它的“今天”是 2026-06-09，直接用会全部显示成逾期）。`ui_demo_copy.py <演示库> <验收实例数据目录>/todo.db 2026-06-09` 把它复制过去并把日期整体平移到当天（只改副本），起隔离实例后 `CDP_PORT=9222 node ui_harness.mjs shots` 按 2 倍缩放拍，再 `ui_shots_post.py <输出目录>` 缩到 1200×800。`scripts/db-backups/` 里的 `user-db-*.db` 和演示库逐字节相同；`D:\Claude\Todo-Flow Res\todoflow-backup-2026-06-08.db` 是真实数据，不要拿来做截图。快速新建里日期要写在句子开头才会被识别（`明天9点 写周报 #工作 每天`），优先级用结尾的 `!`
 
 ## AI 模型接入（AI Model Access）
 
@@ -500,4 +516,4 @@ Description is included in the debounced auto-save (800ms). Two places must incl
 
 ## PageTitle Component
 
-`src/components/shared/PageTitle.tsx` — the header bar with title, filter chips, sort, view mode toggle, expand/collapse subtasks, multi-select, and new-task button. Key props: `filterMode`, `onFilterChange`, `sortMode`, `onSortChange`, `taskViewMode`, `onToggleViewMode`. Uses `globalSubtasksExpanded` from `uiStore` to toggle all subtasks across the current view.
+`src/components/shared/PageTitle.tsx` — the header bar with title, filter chips, sort, view menu, expand/collapse subtasks, multi-select, and new-task button. Key props: `filterMode`, `onFilterChange`, `sortMode`, `onSortChange`, `taskViewMode`, `onViewChange(mode)`. 排序和视图两个下拉共用文件内的 `HeaderDropdown`（Portal + `fixed`，按项目浮层约定）。右侧操作成一组（`ml-auto flex-wrap justify-end`）：窗口放不下时整组换到下一行并靠右。看板与四象限视图下不渲染「展开子任务」和「多选」。
