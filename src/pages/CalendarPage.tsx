@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useCalendarStore } from '../stores/calendarStore';
 import type { ViewMode } from '../stores/calendarStore';
-import { CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MonthView } from '../components/calendar/MonthView';
 import { WeekView } from '../components/calendar/WeekView';
 import { DayView } from '../components/calendar/DayView';
@@ -18,7 +18,7 @@ export function CalendarPage() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center">
-            <CalendarRange size={18} className="text-violet-500" />
+            <CalendarDays size={18} className="text-violet-500" />
           </div>
           <h3 className="text-[20px] font-bold text-[#111827] dark:text-white/90">{currentDate.getFullYear()}年{currentDate.getMonth() + 1}月</h3>
           <div className="flex items-center gap-1">

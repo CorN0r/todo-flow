@@ -1,7 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, fireEvent, screen, within } from '@testing-library/react';
+import { Link, Route, Routes } from 'react-router-dom';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { renderWithProviders } from '../test-utils';
+import { useUIStore } from '../../stores/uiStore';
+import { setRepositoriesForTesting, resetRepositories } from '../../domain/repositories/current';
+import { createMemoryRepositories } from '../../domain/adapters/memory';
+import { buildTask } from '../test-utils';
 
 vi.mock('../../hooks/useTags', () => ({
   useTags: () => ({
@@ -22,49 +27,154 @@ vi.mock('../../hooks/useTasks', () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock('../../stores/uiStore', () => ({
-  useUIStore: vi.fn((selector?: any) => {
-    const state = {
-      sidebarOpen: true,
-      setSidebarOpen: vi.fn(),
-      toggleSidebar: vi.fn(),
-      commandPaletteOpen: false,
-      setCommandPaletteOpen: vi.fn(),
-      selectedTaskId: null,
-    };
-    if (typeof selector === 'function') return selector(state);
-    return state;
-  }),
-}));
+// 带几个链接的壳子:用来在侧边栏保持挂载的同时切换路由
+function Harness() {
+  return (
+    <>
+      <Link to="/calendar">去日历</Link>
+      <Link to="/date/tomorrow">去明天</Link>
+      <Routes>
+        <Route path="/calendar" element={<p>日历页</p>} />
+        <Route path="/date/:filter" element={<p>日期页</p>} />
+        <Route path="*" element={<p>首页</p>} />
+      </Routes>
+      <Sidebar />
+    </>
+  );
+}
+
+function destinations() {
+  return within(screen.getByRole('navigation', { name: '主导航' })).getAllByRole('link');
+}
+
+function activeDestinationNames() {
+  return destinations().filter((link) => link.className.includes('font-medium')).map((link) => link.textContent);
+}
+
+function destinationIconNames() {
+  return [...screen.getByRole('navigation', { name: '主导航' }).querySelectorAll('svg')].map((svg) =>
+    (svg.getAttribute('class') ?? '').split(/\s+/).find((cls) => cls.startsWith('lucide-')),
+  );
+}
 
 describe('Sidebar', () => {
-  it('renders navigation links', () => {
-    renderWithProviders(<Sidebar />, { initialEntries: ['/'] });
-    expect(screen.getByText('我的一天')).toBeInTheDocument();
-    expect(screen.getByText('今天')).toBeInTheDocument();
-    expect(screen.getByText('数据面板')).toBeInTheDocument();
+  beforeEach(() => {
+    useUIStore.setState({ sidebarOpen: true, lastPlannedRange: 'this-week', theme: 'light' });
   });
 
-  it('renders Calendar section', () => {
-    renderWithProviders(<Sidebar />, { initialEntries: ['/'] });
-    expect(screen.getByText('日历')).toBeInTheDocument();
+  afterEach(() => {
+    resetRepositories();
   });
 
-  it('renders Tags section with tag names', () => {
-    renderWithProviders(<Sidebar />, { initialEntries: ['/'] });
+  it('目的地组恰好是五个入口,顺序固定', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    expect(destinations().map((link) => link.textContent)).toEqual(['全部任务', '我的一天', '计划', '日历', '习惯追踪']);
+  });
+
+  it('没有日期范围和任务视图的独立入口,今日清单只有我的一天', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    for (const label of ['今天', '明天', '未来7天', '未来30天', '四象限', '看板']) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
+  it('任意两个目的地的图标互不相同', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    const icons = destinationIconNames();
+    expect(icons).toHaveLength(5);
+    expect(icons.every(Boolean)).toBe(true);
+    expect(new Set(icons).size).toBe(5);
+  });
+
+  it('数据面板、设置和标签照常显示', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    expect(screen.getByRole('link', { name: '数据面板' })).toHaveAttribute('href', '/dashboard');
+    expect(screen.getByRole('link', { name: '设置' })).toHaveAttribute('href', '/settings');
     expect(screen.getByText('Work')).toBeInTheDocument();
     expect(screen.getByText('Personal')).toBeInTheDocument();
   });
 
-  it('renders task counts for tags', () => {
-    renderWithProviders(<Sidebar />, { initialEntries: ['/'] });
+  it('标签显示未完成任务计数', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
     // Work incomplete_count=2 and Personal incomplete_count=1
     const counts = screen.getAllByText(/^[12]$/);
     expect(counts.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('renders Settings link', () => {
-    renderWithProviders(<Sidebar />, { initialEntries: ['/'] });
-    expect(screen.getByText('设置')).toBeInTheDocument();
+  it('点击标签分组标题后标签收起,再点一次恢复', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    const header = screen.getByRole('button', { name: '标签' });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Work')).not.toBeInTheDocument();
+    // 收起后新建标签的入口还在
+    expect(screen.getByRole('button', { name: '新建标签' })).toBeInTheDocument();
+
+    fireEvent.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Work')).toBeInTheDocument();
+  });
+
+  it('标签的折叠状态在切换页面、收起再展开侧边栏之后保持', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    fireEvent.click(screen.getByRole('button', { name: '标签' }));
+
+    fireEvent.click(screen.getByRole('link', { name: '去日历' }));
+    expect(screen.getByText('日历页')).toBeInTheDocument();
+    expect(screen.queryByText('Work')).not.toBeInTheDocument();
+
+    act(() => useUIStore.getState().toggleSidebar());
+    act(() => useUIStore.getState().toggleSidebar());
+    expect(screen.getByRole('button', { name: '标签' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('位于计划范围时只有计划呈选中态', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/tomorrow'] });
+    expect(activeDestinationNames()).toEqual(['计划']);
+  });
+
+  it('位于全部任务时计划不选中', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    expect(activeDestinationNames()).toEqual(['全部任务']);
+  });
+
+  it('计划指向上次查看的范围,点击后进入该范围', () => {
+    useUIStore.setState({ lastPlannedRange: 'tomorrow' });
+    renderWithProviders(<Harness />, { initialEntries: ['/calendar'] });
+    const planned = screen.getByRole('link', { name: '计划' });
+    expect(planned).toHaveAttribute('href', '/date/tomorrow');
+    // 不在计划范围内时计划不选中,选中的是当前所在的日历
+    expect(activeDestinationNames()).toEqual(['日历']);
+
+    fireEvent.click(planned);
+    expect(screen.getByText('日期页')).toBeInTheDocument();
+  });
+
+  it('折叠成图标栏时仍有全部入口', () => {
+    useUIStore.setState({ sidebarOpen: false });
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    for (const name of ['全部任务', '我的一天', '计划', '日历', '习惯追踪', '数据面板', '设置']) {
+      expect(screen.getByRole('link', { name })).toBeInTheDocument();
+    }
+    expect(screen.queryByText('TodoFlow')).not.toBeInTheDocument();
+  });
+
+  it('工作区清单读不到时顶行显示应用名,目的地照常可用', () => {
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    expect(screen.getByText('TodoFlow')).toBeInTheDocument();
+    expect(destinations()).toHaveLength(5);
+  });
+
+  it('工作区清单读到后顶行显示工作区名称,不再显示应用名', async () => {
+    const { repositories } = createMemoryRepositories({ tasks: [buildTask({ id: 't1', title: '写周报' })] });
+    // 切换器只在桌面端显示;内存适配器默认报告的是测试环境
+    repositories.platform.kind = 'desktop';
+    setRepositoriesForTesting(repositories);
+
+    renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
+    expect(await screen.findByTestId('workspace-switcher')).toHaveTextContent('默认工作区');
+    expect(screen.queryByText('TodoFlow')).not.toBeInTheDocument();
   });
 });

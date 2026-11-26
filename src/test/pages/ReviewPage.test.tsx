@@ -1,10 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Route, Routes, useLocation } from 'react-router-dom';
 
 import { ReviewPage } from '../../pages/ReviewPage';
 import { renderWithProviders } from '../test-utils';
+import { useUIStore } from '../../stores/uiStore';
 import type { ReviewFacts, SavedReview } from '../../types/progress';
+
+// 回顾页跳走之后的落点:把地址和随导航带过去的状态显示出来
+function Landing() {
+  const location = useLocation();
+  return <output data-testid="review-landing">{location.pathname} {JSON.stringify(location.state)}</output>;
+}
 
 // ─── mock 数据层 ───
 const mocks = vi.hoisted(() => ({
@@ -72,9 +80,28 @@ beforeEach(() => {
   mocks.material = { items: [], total: 0, page: 1, page_size: 20 };
   mocks.contextStatus = { prepared: false, sources_changed: false, context_fingerprint: null };
   mocks.tags = [];
+  useUIStore.setState({ selectedTaskId: null });
 });
 
 describe('ReviewPage', () => {
+  it('从回顾里点开一个任务:选中它,并落到全部任务的全部状态', async () => {
+    // 详情面板只对当前清单里的任务保持打开:不能落到“我的一天”,状态也不能沿用别的筛选
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <Routes>
+          <Route path="/review" element={<ReviewPage />} />
+          <Route path="/date/:filter" element={<Landing />} />
+        </Routes>
+      </>,
+      { initialEntries: ['/review'] },
+    );
+    await user.click(await screen.findByRole('button', { name: /整理会议纪要/ }));
+
+    expect(useUIStore.getState().selectedTaskId).toBe('t1');
+    expect(screen.getByTestId('review-landing')).toHaveTextContent('/date/all {"statusFilter":"all"}');
+  });
+
   it('日回顾展示事实:根/子任务分列、重开单列、统计截止与覆盖说明', async () => {
     renderWithProviders(<ReviewPage />);
     expect(await screen.findByText('整理会议纪要')).toBeInTheDocument();

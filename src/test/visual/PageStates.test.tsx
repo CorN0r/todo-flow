@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { renderWithTheme, resetTheme } from '../test-utils';
-import { TodayPage } from '../../pages/TodayPage';
 import { MyDayPage } from '../../pages/MyDayPage';
 import { TagPage } from '../../pages/TagPage';
 
@@ -115,8 +114,6 @@ describe('Page visual states', () => {
 
   // Light theme
   describe('light theme', () => {
-    snapshotLoading(<TodayPage />, 'TodayPage', 'light');
-    snapshotEmpty(<TodayPage />, 'TodayPage', 'light');
     snapshotLoading(<MyDayPage />, 'MyDayPage', 'light');
     snapshotEmpty(<MyDayPage />, 'MyDayPage', 'light');
     snapshotLoading(<TagPage />, 'TagPage', 'light');
@@ -128,8 +125,6 @@ describe('Page visual states', () => {
 
   // Dark theme
   describe('dark theme', () => {
-    snapshotLoading(<TodayPage />, 'TodayPage', 'dark');
-    snapshotEmpty(<TodayPage />, 'TodayPage', 'dark');
     snapshotLoading(<MyDayPage />, 'MyDayPage', 'dark');
     snapshotEmpty(<MyDayPage />, 'MyDayPage', 'dark');
     snapshotLoading(<TagPage />, 'TagPage', 'dark');

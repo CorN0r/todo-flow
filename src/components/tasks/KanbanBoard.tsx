@@ -1,15 +1,13 @@
 import { useMemo, useState, useCallback } from 'react';
-import { useTasks, useUpdateTask } from '../hooks/useTasks';
-import { useTags } from '../hooks/useTags';
-import { useUIStore } from '../stores/uiStore';
-import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
-import { TaskCard } from '../components/tasks/TaskCard';
-import { type SortMode } from '../components/shared/PageTitle';
-import { Layout, Flag, CheckCircle2, Layers, ArrowUpDown, Calendar, Sun, PauseCircle, XCircle } from 'lucide-react';
-import { sortTasks } from '../lib/sortTasks';
-import { priorityColors } from '../lib/priority';
-import { cn } from '../lib/cn';
-import { formatDate, isOverdue, todayISO } from '../lib/date';
+import { useUpdateTask } from '../../hooks/useTasks';
+import { useTags } from '../../hooks/useTags';
+import { useUIStore } from '../../stores/uiStore';
+import { TaskCard } from './TaskCard';
+import { Flag, CheckCircle2, Layers, Calendar, Sun, PauseCircle, XCircle } from 'lucide-react';
+import { sortTasks } from '../../lib/sortTasks';
+import { priorityColors } from '../../lib/priority';
+import { cn } from '../../lib/cn';
+import { formatDate, isOverdue, todayISO } from '../../lib/date';
 import {
   DndContext,
   DragOverlay,
@@ -22,20 +20,12 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import type { Task } from '../types/task';
-import type { Tag } from '../types/tag';
+import type { Task } from '../../types/task';
+import type { Tag } from '../../types/tag';
 
 type GroupBy = 'priority' | 'tag' | 'completed';
 
 const PRIORITY_GROUPS = [4, 3, 2, 1, 0];
-
-const sortOptions: { value: SortMode; label: string }[] = [
-  { value: 'manual', label: '手动排序' },
-  { value: 'priority', label: '优先级' },
-  { value: 'date-desc', label: '截止日期' },
-  { value: 'alpha-asc', label: '字母' },
-  { value: 'created-desc', label: '创建时间' },
-];
 
 const PRIORITY_THEMES: Record<number, { color: string; bgClass: string; icon: React.ReactNode }> = {
   4: { color: '#EF4444', bgClass: 'bg-red-50 dark:bg-red-950/15', icon: <Flag size={16} color="#EF4444" /> },
@@ -208,19 +198,18 @@ function KanbanColumn({ column, isGlass }: { column: ColumnDef; isGlass: boolean
   );
 }
 
-export function KanbanPage() {
-  const { data: tasks, isLoading } = useTasks({ include_children: false });
+// 看板视图:接收当前范围的任务集合,拖拽卡片到另一列即修改对应的属性。
+// 排序跟随页头的排序;分组是看板自己的设置,放在看板顶部
+export function KanbanBoard({ tasks }: { tasks: Task[] }) {
   const { data: tags } = useTags();
   const updateTask = useUpdateTask();
   const sortMode = useUIStore((s) => s.sortMode);
-  const setSortMode = useUIStore((s) => s.setSortMode);
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
   const [groupBy, setGroupBy] = useState<GroupBy>('priority');
-  const [sortOpen, setSortOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<Task | null>(null);
 
-  const sorted = useMemo(() => sortTasks(tasks || [], sortMode), [tasks, sortMode]);
+  const sorted = useMemo(() => sortTasks(tasks, sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => sorted.filter((t) => !t.parent_task_id), [sorted]);
 
   const columns = useMemo((): ColumnDef[] => {
@@ -308,73 +297,29 @@ export function KanbanPage() {
     }
   }, [groupBy, updateTask]);
 
-  if (isLoading) return <LoadingSkeleton count={8} />;
-
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
-            <Layout size={18} className="text-indigo-500" />
-          </div>
-          <div>
-            <h1 className="text-[20px] font-bold text-[#111827] dark:text-white/90">看板</h1>
-            <p className="text-[13px] text-[#9CA3AF] mt-0.5">拖拽任务卡片到不同列以更改属性</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Sort dropdown */}
-          <div className="relative">
+      <div className="shrink-0 flex justify-end mb-2">
+        <div role="group" aria-label="看板分组" className="flex items-center gap-0.5 bg-[#F3F4F6] dark:bg-white/[0.04] rounded-lg p-1">
+          {([
+            ['priority', '优先级'],
+            ['tag', '标签'],
+            ['completed', '完成'],
+          ] as [GroupBy, string][]).map(([k, label]) => (
             <button
-              onClick={() => setSortOpen(!sortOpen)}
-              className="h-[30px] inline-flex items-center gap-1.5 px-[10px] rounded-md bg-white dark:bg-[#1e1e32] border border-[#E5E7EB] dark:border-white/[0.07] text-[12px] font-medium text-[#374151] dark:text-white/80 hover:bg-[#F9FAFB] dark:hover:bg-white/[0.06] transition-colors shrink-0"
+              key={k}
+              onClick={() => setGroupBy(k)}
+              aria-pressed={groupBy === k}
+              className={cn(
+                'px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors',
+                groupBy === k
+                  ? 'bg-white dark:bg-[#7C72F6] text-[#111827] dark:text-white shadow-sm'
+                  : 'text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80',
+              )}
             >
-              <ArrowUpDown size={13} className="text-[#6B7280]" />
-              {sortOptions.find((o) => o.value === sortMode)?.label || '排序'}
+              {label}
             </button>
-            {sortOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]">
-                  {sortOptions.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => { setSortMode(opt.value); setSortOpen(false); }}
-                      className={`w-full text-left px-3 py-2 text-[13px] transition-colors ${
-                        sortMode === opt.value
-                          ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6] font-medium'
-                          : 'text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Group-by toggle */}
-          <div className="flex items-center gap-0.5 bg-[#F3F4F6] dark:bg-white/[0.04] rounded-lg p-1 shrink-0">
-            {([
-              ['priority', '优先级'],
-              ['tag', '标签'],
-              ['completed', '完成'],
-            ] as [GroupBy, string][]).map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setGroupBy(k)}
-                className={cn(
-                  'px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors',
-                  groupBy === k
-                    ? 'bg-white dark:bg-[#7C72F6] text-[#111827] dark:text-white shadow-sm'
-                    : 'text-[#6B7280] hover:text-[#111827] dark:hover:text-white/80',
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
 

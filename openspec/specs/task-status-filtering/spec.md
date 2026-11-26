@@ -45,7 +45,7 @@
 - **THEN** 系统保留其子任务层级作为上下文，但不把子任务单独计入根任务状态计数
 
 ### Requirement: Desktop task collection pages share one filter experience
-系统 SHALL 在今天、全部任务及日期范围、我的一天和标签页面提供同一套桌面状态筛选行为，并让筛选结果适用于列表、便签墙和一体式视图。
+系统 SHALL 在我的一天、全部任务、计划的各日期范围和标签页面提供同一套桌面状态筛选行为，并让筛选结果适用于列表、便签墙、一体式、看板和四象限视图。
 
 #### Scenario: Filter persists across desktop collection pages
 - **WHEN** 用户在一个桌面任务集合页选择状态后导航到另一个受支持的任务集合页
@@ -82,8 +82,8 @@
 系统 MUST 让状态筛选与排序、视图切换、详情选择和批量选择使用同一个可见任务集合。
 
 #### Scenario: All desktop views show the same result
-- **WHEN** 用户在某个状态筛选下切换列表、便签墙或一体式视图
-- **THEN** 三种视图显示相同的匹配根任务集合
+- **WHEN** 用户在某个状态筛选下切换列表、便签墙、一体式或看板视图
+- **THEN** 四种视图显示相同的匹配根任务集合；四象限视图显示其中未完成且未放弃的任务
 
 #### Scenario: Hidden selection is removed
 - **WHEN** 筛选变化使已选择任务变为不可见

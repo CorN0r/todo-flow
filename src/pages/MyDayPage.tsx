@@ -2,9 +2,8 @@ import { useMemo, useCallback, useState } from 'react';
 import { todayISO, subDays } from '../lib/date';
 import { useTasks, useToggleMyDay } from '../hooks/useTasks';
 import { useUIStore } from '../stores/uiStore';
-import { TaskList } from '../components/tasks/TaskList';
-import { StickyWall } from '../components/tasks/StickyWall';
-import { UnifiedLayout } from '../components/tasks/UnifiedLayout';
+import { TaskViewBody } from '../components/tasks/TaskViewBody';
+import { taskViewBodyClass } from '../lib/taskView';
 import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -103,6 +102,10 @@ export function MyDayPage() {
   if (isLoading) return <LoadingSkeleton count={5} />;
   if (isError) return <EmptyState icon={<AlertTriangle size={40} />} title="加载失败" description="请检查数据库连接后重试" />;
 
+  // 看板与四象限要有确定的高度:中间区改成纵向 flex,清单区拿剩余高度并保底;
+  // 上方的区块较高时由中间区滚动,不把看板压扁
+  const isBoard = taskViewMode === 'kanban' || taskViewMode === 'matrix';
+
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 flex items-center gap-3 mb-2">
@@ -115,10 +118,7 @@ export function MyDayPage() {
             sortMode={sortMode} onSortChange={setSortMode}
             onNewTask={() => setShowNewTask(true)}
             selectionMode={selectionMode} onToggleSelection={handleToggleSelection}
-            taskViewMode={taskViewMode} onToggleViewMode={() => {
-              if (taskViewMode === 'unified') useUIStore.getState().setSelectedTaskId(null);
-              setTaskViewMode(taskViewMode === 'wall' ? 'unified' : taskViewMode === 'unified' ? 'list' : 'wall');
-            }} />
+            taskViewMode={taskViewMode} onViewChange={setTaskViewMode} />
           <p className="text-xs text-[#6B7280]">{today}</p>
         </div>
       </div>
@@ -138,7 +138,7 @@ export function MyDayPage() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
+      <div className={cn('flex-1 min-h-0 overflow-y-auto pb-6', isBoard && 'flex flex-col')}>
         {/* 昨日未完成 */}
         {yesterdayList.length > 0 && showYesterday && (
           <div className="mb-3">
@@ -149,7 +149,7 @@ export function MyDayPage() {
               <div className="flex items-center gap-1">
                 <button onClick={() => addAllToMyDay(yesterdayList)}
                   className="text-[10px] px-2 py-0.5 rounded-full bg-[#7C72F6]/10 text-[#7C72F6] hover:bg-[#7C72F6]/20 transition-colors font-medium">
-                  全部加入我的今天
+                  全部加入我的一天
                 </button>
                 <button onClick={() => setShowYesterday(false)}
                   className="text-[10px] px-1 py-0.5 rounded text-[#9CA3AF] hover:text-[#6B7280]">收起</button>
@@ -271,8 +271,8 @@ export function MyDayPage() {
         {/* 今日重点:AI 采纳的本机结果,独立于建议模式展示 */}
         <MyDayFocusPlan today={today} hiddenTaskIds={hiddenTaskIds} />
 
-        <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
-          {filteredTasks.length > 0 && (taskViewMode === 'wall' ? <StickyWall tasks={filteredTasks} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filteredTasks} reorderScope={topLevel} /> : <TaskList tasks={filteredTasks} reorderScope={topLevel} />)}
+        <div className={cn('flex-1', isBoard ? 'min-h-[480px] flex flex-col overflow-hidden' : taskViewBodyClass(taskViewMode))}>
+          {filteredTasks.length > 0 && <TaskViewBody mode={taskViewMode} tasks={filteredTasks} topLevel={topLevel} />}
           {topLevel.length > 0 && filteredTasks.length === 0 && statusFilter !== 'all' && (
             <FilteredTaskEmptyState filter={statusFilter} onShowAll={() => setStatusFilter('all')} />
           )}

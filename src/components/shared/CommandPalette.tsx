@@ -2,8 +2,9 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  House, CalendarDays, Settings, Sun, Moon, Monitor,
+  CalendarDays, CalendarRange, Settings, Sun, Moon, Monitor,
   PanelLeft, PanelLeftClose, Plus, Search, Sparkles, Flame, Lightbulb,
+  ListTodo, Target, BarChart3, Layout, LayoutGrid,
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useShortcutStore } from '../../stores/shortcutStore';
@@ -23,7 +24,7 @@ interface Command {
 
 export function CommandPalette() {
   const navigate = useNavigate();
-  const { commandPaletteOpen, setCommandPaletteOpen, sidebarOpen, toggleSidebar } = useUIStore();
+  const { commandPaletteOpen, setCommandPaletteOpen, sidebarOpen, toggleSidebar, lastPlannedRange, setTaskViewMode } = useUIStore();
   const shortcutMap = useShortcutStore((s) => s.shortcutMap);
   const { setTheme } = useTheme();
   const createTask = useCreateTask();
@@ -53,10 +54,18 @@ export function CommandPalette() {
   const commands = useMemo<Command[]>(() => {
     const sidebar = shortcutMap['toggle-sidebar']?.keys || 'Ctrl+B';
     return [
-    { id: 'today', label: '今天', icon: <House size={16} />, action: () => navigate('/'), category: '导航' },
+    // 导航命令覆盖侧边栏的全部目的地
+    { id: 'all-tasks', label: '全部任务', icon: <ListTodo size={16} />, action: () => navigate('/date/all'), category: '导航' },
+    { id: 'my-day', label: '我的一天', icon: <Sun size={16} />, action: () => navigate('/myday'), category: '导航' },
+    { id: 'planned', label: '计划', icon: <CalendarRange size={16} />, action: () => navigate(`/date/${lastPlannedRange}`), category: '导航' },
     { id: 'calendar', label: '日历', icon: <CalendarDays size={16} />, action: () => navigate('/calendar'), category: '导航' },
+    { id: 'habits', label: '习惯追踪', icon: <Target size={16} />, action: () => navigate('/habits'), category: '导航' },
+    { id: 'dashboard', label: '数据面板', icon: <BarChart3 size={16} />, action: () => navigate('/dashboard'), category: '导航' },
     { id: 'settings', label: '设置', icon: <Settings size={16} />, action: () => navigate('/settings'), category: '导航' },
     { id: 'toggle-sidebar', label: sidebarOpen ? '收起侧栏' : '展开侧栏', icon: sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />, shortcut: getShortcutDisplay(sidebar), action: toggleSidebar, category: '视图' },
+    // 看板与四象限不在侧边栏里了,给一条直达命令;列表/便签墙/一体式在页头的视图菜单里
+    { id: 'view-kanban', label: '看板视图', icon: <Layout size={16} />, action: () => setTaskViewMode('kanban'), category: '视图' },
+    { id: 'view-matrix', label: '四象限视图', icon: <LayoutGrid size={16} />, action: () => setTaskViewMode('matrix'), category: '视图' },
     { id: 'light', label: '浅色主题', icon: <Sun size={16} />, action: () => setTheme('light'), category: '视图' },
     { id: 'dark', label: '深色主题', icon: <Moon size={16} />, action: () => setTheme('dark'), category: '视图' },
     { id: 'system-theme', label: '系统主题', icon: <Monitor size={16} />, action: () => setTheme('system'), category: '视图' },
@@ -64,7 +73,7 @@ export function CommandPalette() {
     { id: 'warm', label: '温暖石炭', icon: <Flame size={16} />, action: () => setTheme('warm'), category: '视图' },
     { id: 'glass', label: '玻璃主题', icon: <Sparkles size={16} />, action: () => setTheme('glass'), category: '视图' },
     { id: 'new-task', label: '新建任务', icon: <Plus size={16} />, action: () => { createTask.mutate({ title: '新建任务', due_date: todayISO() }); setCommandPaletteOpen(false); }, category: '操作' },
-  ]}, [navigate, shortcutMap, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen]);
+    ]}, [navigate, shortcutMap, sidebarOpen, toggleSidebar, setTheme, createTask, setCommandPaletteOpen, lastPlannedRange, setTaskViewMode]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands;

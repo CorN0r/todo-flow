@@ -444,6 +444,9 @@
 
   /* Section label */
   .warm .section-label { color: #9e947a; }
+  .warm .sidebar-section-label { color: #A89D82; }
+  .warm .text-\[\#5F6C7A\] { color: #9e947a; }
+  .warm .dark\:text-\[\#9CA3AF\] { color: #9e947a; }
 
   /* ===== WidgetPage warm overrides (WidgetPage uses JS ternary, not dark: prefix) ===== */
   /* Dark-mode classes — WidgetPage applies these directly when resolvedTheme === 'dark' */
@@ -518,6 +521,8 @@
 
   /* Section label */
   .lumina .section-label { color: #6B7A8A; }
+  .lumina .sidebar-section-label { color: #525A6A; }
+  .lumina .text-\[\#5F6C7A\] { color: #4F5C6B; }
 
   /* Edge highlight on interactive elements */
   .lumina button.bg-\[\#7C72F6\]:not(.hover\:bg-\[\#6C63E6\]) {
@@ -634,6 +639,14 @@
     text-transform: uppercase;
     letter-spacing: 1px;
   }
+
+  /* Sidebar group label: 中文用不上大写和字距;颜色按对比度不低于 4.5:1 取值 */
+  .sidebar-section-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #525A6A;
+  }
+  .dark .sidebar-section-label { color: #A6A6BC; }
 }
 
 /* ═══════════════════════════════════════════

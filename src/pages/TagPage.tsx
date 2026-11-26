@@ -3,9 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useTasks } from '../hooks/useTasks';
 import { useTags } from '../hooks/useTags';
 import { useUIStore } from '../stores/uiStore';
-import { TaskList } from '../components/tasks/TaskList';
-import { StickyWall } from '../components/tasks/StickyWall';
-import { UnifiedLayout } from '../components/tasks/UnifiedLayout';
+import { TaskViewBody } from '../components/tasks/TaskViewBody';
+import { taskViewBodyClass } from '../lib/taskView';
 import { TaskQuickAdd } from '../components/tasks/TaskQuickAdd';
 import { LoadingSkeleton } from '../components/shared/LoadingSkeleton';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -61,10 +60,7 @@ export function TagPage() {
             sortMode={sortMode} onSortChange={setSortMode}
             onNewTask={() => setShowNewTask(true)}
             selectionMode={selectionMode} onToggleSelection={handleToggleSelection}
-            taskViewMode={taskViewMode} onToggleViewMode={() => {
-              if (taskViewMode === 'unified') useUIStore.getState().setSelectedTaskId(null);
-              setTaskViewMode(taskViewMode === 'wall' ? 'unified' : taskViewMode === 'unified' ? 'list' : 'wall');
-            }} />
+            taskViewMode={taskViewMode} onViewChange={setTaskViewMode} />
         </div>
       </div>
 
@@ -74,8 +70,8 @@ export function TagPage() {
         </div>
       )}
 
-      <div className={cn('flex-1 min-h-0', taskViewMode === 'unified' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pb-6')}>
-        {filteredTasks.length > 0 && (taskViewMode === 'wall' ? <StickyWall tasks={filteredTasks} /> : taskViewMode === 'unified' ? <UnifiedLayout tasks={filteredTasks} reorderScope={topLevel} /> : <TaskList tasks={filteredTasks} reorderScope={topLevel} />)}
+      <div className={cn('flex-1', taskViewBodyClass(taskViewMode))}>
+        {filteredTasks.length > 0 && <TaskViewBody mode={taskViewMode} tasks={filteredTasks} topLevel={topLevel} />}
         {topLevel.length > 0 && filteredTasks.length === 0 && statusFilter !== 'all' && (
           <FilteredTaskEmptyState filter={statusFilter} onShowAll={() => setStatusFilter('all')} />
         )}

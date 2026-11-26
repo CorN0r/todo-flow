@@ -1,5 +1,5 @@
 import { useEffect, Suspense, lazy } from 'react';
-import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Navigate, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster, toast } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
@@ -10,7 +10,6 @@ import { invalidateTasks, invalidateTask, invalidateTags, invalidateHabits, inva
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { TaskDetailPanel } from './components/layout/TaskDetailPanel';
-import { TodayPage } from './pages/TodayPage';
 import { WidgetPage } from './pages/WidgetPage';
 import { PomodoroWidgetPage } from './pages/PomodoroWidgetPage';
 import { NotePage } from './pages/NotePage';
@@ -24,7 +23,7 @@ import { usePomodoroSync } from './hooks/usePomodoroSync';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useUIStore } from './stores/uiStore';
+import { useUIStore, type TaskViewMode } from './stores/uiStore';
 import { usePomodoroStore } from './stores/pomodoroStore';
 import { useShortcutStore } from './stores/shortcutStore';
 import { getBrowserInitialEntryRoute } from './platform/appSurface';
@@ -44,8 +43,6 @@ const TagPage = lazy(() => import('./pages/TagPage').then((m) => ({ default: m.T
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const DateFilterPage = lazy(() => import('./pages/DateFilterPage').then((m) => ({ default: m.DateFilterPage })));
 const MyDayPage = lazy(() => import('./pages/MyDayPage').then((m) => ({ default: m.MyDayPage })));
-const MatrixPage = lazy(() => import('./pages/MatrixPage').then((m) => ({ default: m.MatrixPage })));
-const KanbanPage = lazy(() => import('./pages/KanbanPage').then((m) => ({ default: m.KanbanPage })));
 const HabitPage = lazy(() => import('./pages/HabitPage').then((m) => ({ default: m.HabitPage })));
 const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -56,6 +53,43 @@ const PomodoroFullscreen = lazy(() => import('./components/shared/PomodoroFullsc
 function PomodoroSync() {
   usePomodoroSync();
   return null;
+}
+
+// 旧的四象限、看板页面地址:落到“全部任务”并启用对应的视图
+function LegacyViewRedirect({ view }: { view: TaskViewMode }) {
+  useEffect(() => {
+    useUIStore.getState().setTaskViewMode(view);
+  }, [view]);
+  return <Navigate to="/date/all" replace />;
+}
+
+// 主区域的页面路由。地址只表达“看哪一批任务”,用哪种视图看是全局状态(uiStore.taskViewMode)
+export function MainRoutes() {
+  return (
+    <Suspense fallback={
+      <div className="h-full flex items-center justify-center text-[#7C72F6]">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    }>
+      <Routes>
+        {/* 独立的“今天”页面已并入“计划 › 今天”和“我的一天” */}
+        <Route path="/" element={<Navigate to="/myday" replace />} />
+        <Route path="/kanban" element={<LegacyViewRedirect view="kanban" />} />
+        <Route path="/matrix" element={<LegacyViewRedirect view="matrix" />} />
+        <Route path="/calendar/*" element={<CalendarPage />} />
+        <Route path="/myday" element={<MyDayPage />} />
+        <Route path="/date/:filter" element={<DateFilterPage />} />
+        <Route path="/tag/:tagId" element={<TagPage />} />
+        <Route path="/habits" element={<HabitPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/pomodoro" element={<PomodoroFullscreen />} />
+        <Route path="/focus-stats" element={<FocusStatsPage />} />
+        <Route path="/review" element={<ReviewPage />} />
+      </Routes>
+    </Suspense>
+  );
 }
 
 function AppLayout() {
@@ -191,32 +225,10 @@ function MainLayout() {
             style={{ padding: '16px 24px 0 24px' }}>
             <div className="h-full overflow-y-auto">
             <ErrorBoundary>
-              <Suspense fallback={
-                <div className="h-full flex items-center justify-center text-[#7C72F6]">
-                  <Loader2 className="w-8 h-8 animate-spin" />
-                </div>
-              }>
-                <Routes>
-                  <Route path="/" element={<TodayPage />} />
-                  <Route path="/calendar/*" element={<CalendarPage />} />
-                  <Route path="/myday" element={<MyDayPage />} />
-                  <Route path="/date/:filter" element={<DateFilterPage />} />
-                  <Route path="/tag/:tagId" element={<TagPage />} />
-
-                  <Route path="/matrix" element={<MatrixPage />} />
-                  <Route path="/kanban" element={<KanbanPage />} />
-                  <Route path="/habits" element={<HabitPage />} />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/search" element={<SearchPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/pomodoro" element={<PomodoroFullscreen />} />
-                  <Route path="/focus-stats" element={<FocusStatsPage />} />
-                  <Route path="/review" element={<ReviewPage />} />
-                </Routes>
-              </Suspense>
+              <MainRoutes />
             </ErrorBoundary>
-            </div>
-          </main>
+          </div>
+        </main>
         </div>
         <TaskDetailPanel />
         <ErrorBoundary><CommandPalette /></ErrorBoundary>

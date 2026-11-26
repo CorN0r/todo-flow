@@ -41,6 +41,8 @@ describe('WorkspaceSwitcher', () => {
     renderWithProviders(<WorkspaceSwitcher collapsed={false} />);
 
     expect(await screen.findByTestId('workspace-switcher')).toHaveTextContent('默认工作区');
+    // 内嵌在侧边栏顶行:静止时不带边框
+    expect(screen.getByTestId('workspace-switcher')).not.toHaveClass('border');
   });
 
   it('侧边栏折叠时仍能看到名称', async () => {
@@ -124,6 +126,24 @@ describe('WorkspaceSwitcher', () => {
 
     expect(screen.queryByTestId('workspace-switcher')).toBeNull();
     expect(screen.queryByTestId('workspace-switcher-collapsed')).toBeNull();
+  });
+
+  it('清单没读到时显示传入的回退内容', async () => {
+    const { repositories } = createMemoryRepositories();
+    vi.spyOn(repositories.settings, 'listWorkspaces').mockRejectedValue(new Error('boom'));
+    setRepositoriesForTesting(repositories);
+    renderWithProviders(<WorkspaceSwitcher collapsed={false} fallback={<span>TodoFlow</span>} />);
+
+    expect(screen.getByText('TodoFlow')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-switcher')).toBeNull();
+  });
+
+  it('当前环境不提供工作区时显示传入的回退内容', () => {
+    const { repositories } = createMemoryRepositories();
+    setRepositoriesForTesting(repositories);
+    renderWithProviders(<WorkspaceSwitcher collapsed={false} fallback={<span>TodoFlow</span>} />);
+
+    expect(screen.getByText('TodoFlow')).toBeInTheDocument();
   });
 
   it('切换到英文后文案跟着变', async () => {

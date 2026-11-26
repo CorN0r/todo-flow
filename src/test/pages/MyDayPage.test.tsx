@@ -35,7 +35,7 @@ describe('MyDayPage', () => {
     mockState.isError = false;
     mockState.suggestions = null;
     sessionStorage.clear();
-    useUIStore.setState({ taskStatusFilter: 'all', selectedTaskId: null, selectedTaskIds: new Set() });
+    useUIStore.setState({ taskStatusFilter: 'all', selectedTaskId: null, selectedTaskIds: new Set(), taskViewMode: 'list' });
   });
 
   it('shows loading skeleton when isLoading', () => {
@@ -128,5 +128,33 @@ describe('MyDayPage', () => {
     expect(screen.queryByText('S1')).toBeNull();
     fireEvent.click(screen.getByText(/重新推荐/));
     expect(screen.getByText('S1')).toBeInTheDocument();
+  });
+
+  function hasAncestorClass(el: Element, cls: string) {
+    let node: Element | null = el;
+    while (node) {
+      if (node.classList.contains(cls)) return true;
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  it('keeps suggestions in kanban view and gives the board a minimum height', () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    mockState.data = [buildTask({ id: 't1', title: '清单里的事' })];
+    mockState.suggestions = [buildTask({ id: 's1', title: '被建议的事', due_date: today })];
+    useUIStore.setState({ taskViewMode: 'kanban' });
+    renderWithProviders(<MyDayPage />);
+
+    expect(screen.getByText('被建议的事')).toBeInTheDocument();
+    expect(hasAncestorClass(screen.getByRole('group', { name: '看板分组' }), 'min-h-[480px]')).toBe(true);
+  });
+
+  it('list view has no minimum height on the task area', () => {
+    mockState.data = [buildTask({ id: 't1', title: '清单里的事' })];
+    renderWithProviders(<MyDayPage />);
+
+    expect(screen.queryByRole('group', { name: '看板分组' })).not.toBeInTheDocument();
+    expect(hasAncestorClass(screen.getByText('清单里的事'), 'min-h-[480px]')).toBe(false);
   });
 });

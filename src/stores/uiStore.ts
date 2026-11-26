@@ -1,8 +1,17 @@
 import { create } from 'zustand';
 import type { SortMode } from '../components/shared/PageTitle';
+import type { PlannedRange } from '../lib/dateRanges';
 import type { TaskStatusFilter } from '../lib/taskStatusFilter';
 
 type Theme = 'light' | 'dark' | 'system' | 'glass' | 'warm' | 'lumina';
+
+// 地址只表达“看哪一批任务”,视图是这一份全局状态:选了看板,换到别的范围也还是看板
+export type TaskViewMode = 'list' | 'wall' | 'unified' | 'kanban' | 'matrix';
+const TASK_VIEW_MODES: readonly TaskViewMode[] = ['list', 'wall', 'unified', 'kanban', 'matrix'];
+
+export function parseTaskViewMode(value: string | null): TaskViewMode {
+  return TASK_VIEW_MODES.includes(value as TaskViewMode) ? (value as TaskViewMode) : 'list';
+}
 
 interface UIState {
   sidebarOpen: boolean;
@@ -30,8 +39,12 @@ interface UIState {
   taskStatusFilter: TaskStatusFilter;
   setTaskStatusFilter: (filter: TaskStatusFilter) => void;
 
-  taskViewMode: 'list' | 'wall' | 'unified';
-  setTaskViewMode: (mode: 'list' | 'wall' | 'unified') => void;
+  // 侧边栏“计划”指向的范围:只在本次会话内记住,重启后回到默认
+  lastPlannedRange: PlannedRange;
+  setLastPlannedRange: (range: PlannedRange) => void;
+
+  taskViewMode: TaskViewMode;
+  setTaskViewMode: (mode: TaskViewMode) => void;
 
   globalSubtasksExpanded: boolean;
   toggleGlobalSubtasksExpanded: () => void;
@@ -58,7 +71,7 @@ function getResolvedTheme(theme: Theme): 'light' | 'dark' {
   return theme;
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -85,8 +98,18 @@ export const useUIStore = create<UIState>((set) => ({
   taskStatusFilter: 'all',
   setTaskStatusFilter: (taskStatusFilter) => set({ taskStatusFilter }),
 
-  taskViewMode: (localStorage.getItem('taskViewMode') as 'list' | 'wall' | 'unified') || 'list',
-  setTaskViewMode: (taskViewMode) => { localStorage.setItem('taskViewMode', taskViewMode); set({ taskViewMode }); },
+  lastPlannedRange: 'this-week',
+  setLastPlannedRange: (lastPlannedRange) => set({ lastPlannedRange }),
+
+  taskViewMode: parseTaskViewMode(localStorage.getItem('taskViewMode')),
+  setTaskViewMode: (taskViewMode) => {
+    // 一体式在右侧分栏里显示任务,不开侧边详情;离开时清掉选中,免得详情面板突然弹出
+    if (get().taskViewMode === 'unified' && taskViewMode !== 'unified') get().setSelectedTaskId(null);
+    // 看板与四象限没有批量选择
+    if (taskViewMode === 'kanban' || taskViewMode === 'matrix') get().exitSelectionMode();
+    localStorage.setItem('taskViewMode', taskViewMode);
+    set({ taskViewMode });
+  },
 
   globalSubtasksExpanded: false,
   toggleGlobalSubtasksExpanded: () => set((s) => ({ globalSubtasksExpanded: !s.globalSubtasksExpanded })),

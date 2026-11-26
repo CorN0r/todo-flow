@@ -23,8 +23,10 @@ interface MenuPlacement {
  *
  * 菜单按项目约定用 Portal + 固定定位:侧边栏是带毛玻璃的层叠上下文,
  * 把菜单放在它里面会被后面的导航项盖住。
+ *
+ * 清单读不到、或当前环境不提供工作区时,显示调用方传入的回退内容;不传就什么都不渲染。
  */
-export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
+export function WorkspaceSwitcher({ collapsed, fallback }: { collapsed: boolean; fallback?: React.ReactNode }) {
   const { t } = useTranslation();
   const isGlass = useUIStore((s) => s.theme) === 'glass';
   const { data: workspaces } = useWorkspaces();
@@ -43,11 +45,11 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
   }, [open]);
 
   // 工作区只在桌面端提供
-  if (getRepositories().platform.kind !== 'desktop') return null;
+  if (getRepositories().platform.kind !== 'desktop') return <>{fallback}</>;
   const list = workspaces ?? [];
   const active = list.find((workspace) => workspace.is_active) ?? list[0];
-  // 清单还没读到(或读取失败):先不显示,不影响侧边栏其余部分
-  if (!active) return null;
+  // 清单还没读到(或读取失败):显示回退内容,不影响侧边栏其余部分
+  if (!active) return <>{fallback}</>;
 
   const toggleMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (open) {
@@ -144,14 +146,17 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div className="shrink-0 px-3 pb-2">
+    <div className="shrink-0 flex-1 min-w-0">
       <button
         type="button"
         onClick={toggleMenu}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('workspace.switcherLabel', { name: active.name })}
-        className="w-full h-9 flex items-center gap-2 px-2.5 rounded-lg text-[13px] text-[#111827] dark:text-white/90 bg-white/70 dark:bg-white/[0.04] border border-[#E5E7EB] dark:border-white/[0.07] hover:border-[#7C72F6]/50 transition-colors"
+        className={cn(
+          'w-full h-9 flex items-center gap-2 px-2 rounded-lg text-[14px] font-semibold text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06] transition-colors',
+          open && 'bg-[#F3F4F6] dark:bg-white/[0.06]',
+        )}
         data-testid="workspace-switcher"
       >
         <Layers size={14} className="text-[#7C72F6] shrink-0" />

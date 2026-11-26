@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useUIStore } from '../../stores/uiStore';
+import { useUIStore, parseTaskViewMode } from '../../stores/uiStore';
 
 const initialState = {
   sidebarOpen: true,
@@ -10,6 +10,8 @@ const initialState = {
   theme: 'system' as const,
   resolvedTheme: 'light' as const,
   taskStatusFilter: 'all' as const,
+  lastPlannedRange: 'this-week' as const,
+  taskViewMode: 'list' as const,
   selectionMode: false,
   selectedTaskIds: new Set<string>(),
 };
@@ -161,6 +163,59 @@ describe('uiStore', () => {
       expect(useUIStore.getState().taskStatusFilter).toBe('all');
       useUIStore.getState().setTaskStatusFilter('suspended');
       expect(useUIStore.getState().taskStatusFilter).toBe('suspended');
+    });
+  });
+
+  describe('lastPlannedRange', () => {
+    it('starts with this-week and updates in memory', () => {
+      expect(useUIStore.getState().lastPlannedRange).toBe('this-week');
+      useUIStore.getState().setLastPlannedRange('tomorrow');
+      expect(useUIStore.getState().lastPlannedRange).toBe('tomorrow');
+    });
+  });
+
+  describe('taskViewMode', () => {
+    it('accepts all five views and persists the choice', () => {
+      for (const mode of ['list', 'wall', 'unified', 'kanban', 'matrix'] as const) {
+        useUIStore.getState().setTaskViewMode(mode);
+        expect(useUIStore.getState().taskViewMode).toBe(mode);
+        expect(localStorage.getItem('taskViewMode')).toBe(mode);
+      }
+    });
+
+    it('falls back to list for an unknown stored value', () => {
+      expect(parseTaskViewMode('bogus')).toBe('list');
+      expect(parseTaskViewMode(null)).toBe('list');
+      expect(parseTaskViewMode('matrix')).toBe('matrix');
+    });
+
+    it('clears the selected task when leaving unified, but not while staying in it', () => {
+      useUIStore.getState().setTaskViewMode('unified');
+      useUIStore.getState().setSelectedTaskId('task-1');
+      useUIStore.getState().setTaskViewMode('unified');
+      expect(useUIStore.getState().selectedTaskId).toBe('task-1');
+
+      useUIStore.getState().setTaskViewMode('list');
+      expect(useUIStore.getState().selectedTaskId).toBeNull();
+    });
+
+    it('exits selection mode when switching to a board view', () => {
+      useUIStore.getState().enterSelectionMode('task-1');
+      useUIStore.getState().setTaskViewMode('kanban');
+      expect(useUIStore.getState().selectionMode).toBe(false);
+      expect(useUIStore.getState().selectedTaskIds.size).toBe(0);
+
+      useUIStore.getState().enterSelectionMode('task-1');
+      useUIStore.getState().setTaskViewMode('matrix');
+      expect(useUIStore.getState().selectionMode).toBe(false);
+    });
+
+    it('keeps the selected task when switching between list and a board view', () => {
+      useUIStore.getState().setSelectedTaskId('task-1');
+      useUIStore.getState().setTaskViewMode('kanban');
+      expect(useUIStore.getState().selectedTaskId).toBe('task-1');
+      useUIStore.getState().setTaskViewMode('list');
+      expect(useUIStore.getState().selectedTaskId).toBe('task-1');
     });
   });
 });

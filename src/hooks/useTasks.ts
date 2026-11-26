@@ -52,7 +52,7 @@ export function useUpdateTask() {
 }
 
 // 加入/移出「我的一天」。加入时若任务没有截止日期则自动补今天:
-// 「今天」页面按 due_date 过滤,不补的话任务只会进「我的一天」而不会出现在「今天」。
+// 「计划 › 今天」和各日期范围按 due_date 过滤,不补的话任务只会进「我的一天」而不会出现在这些范围里。
 // 已有截止日期不覆盖;移出只清 my_day_date,不回退 due_date。
 export function useToggleMyDay() {
   const updateTask = useUpdateTask();

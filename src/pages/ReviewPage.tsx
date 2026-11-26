@@ -58,6 +58,13 @@ const SECTION_TITLES: { key: keyof ReviewSections; label: string }[] = [
 
 export function ReviewPage() {
   const navigate = useNavigate();
+
+  // 打开一个任务:落到“全部任务”并显示全部状态。详情面板只对当前清单里的任务保持打开,
+  // 回顾里的事项不一定在“我的一天”里,也不一定是未完成的
+  const openTask = (taskId: string) => {
+    useUIStore.getState().setSelectedTaskId(taskId);
+    navigate('/date/all', { state: { statusFilter: 'all' } });
+  };
   const queryClient = useQueryClient();
   const { data: tags } = useTags();
 
@@ -190,10 +197,7 @@ export function ReviewPage() {
         ))}
       </div>
 
-      {section === 'facts' && <FactsSection factsQuery={facts} onOpenTask={(taskId) => {
-        useUIStore.getState().setSelectedTaskId(taskId);
-        navigate('/');
-      }} />}
+      {section === 'facts' && <FactsSection factsQuery={facts} onOpenTask={openTask} />}
 
       {section === 'material' && (
         <MaterialSection
@@ -203,7 +207,7 @@ export function ReviewPage() {
           onKindChange={setMaterialKind}
           page={materialPage}
           onPageChange={setMaterialPage}
-          onOpenTask={(taskId) => { useUIStore.getState().setSelectedTaskId(taskId); navigate('/'); }}
+          onOpenTask={openTask}
         />
       )}
 

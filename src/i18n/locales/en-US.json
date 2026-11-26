@@ -24,12 +24,10 @@
 
   "sidebar.allTasks": "All Tasks",
   "sidebar.myDay": "My Day",
+  "sidebar.planned": "Planned",
   "sidebar.calendar": "Calendar",
-  "sidebar.matrix": "Eisenhower Matrix",
-  "sidebar.kanban": "Kanban",
   "sidebar.habits": "Habit Tracker",
   "sidebar.dashboard": "Dashboard",
-  "sidebar.planned": "Planned",
   "sidebar.next3Days": "Next 3 Days",
   "sidebar.next7Days": "Next 7 Days",
   "sidebar.thisYear": "This Year",
