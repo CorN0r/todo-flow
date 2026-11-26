@@ -279,6 +279,7 @@ pomodoroStore (Zustand + localStorage persistence)
 
 - **双 bin**：`Cargo.toml` 声明 `[[bin]] todo-flow`(GUI) + `[[bin]] todoflow-mcp`，并设 `default-run = "todo-flow"` 保证 `cargo run` 仍跑 GUI。MCP bin 在 `src-tauri/src/bin/mcp.rs`，链接 `todo_flow_lib`（db 层不依赖 tauri，可直接复用）
 - **构建**：`tauri build` 会自动构建并打包 `todoflow-mcp`——Cargo.toml 里声明的额外 `[[bin]]` 会被 Tauri 当作 external binary 自动嵌入安装包，安装后与 `todo-flow.exe` 同目录。⚠️ **不要在 `bundle.resources` 里手动加它**：会导致同一文件被打包两次（NSIS 重复 File、MSI 的 WiX `light.exe` 报重复 Component 失败）
+- **安装包要处理被占用的 `todoflow-mcp.exe`**：MCP 客户端（Claude Desktop 等）会把这个程序常驻运行，而安装模板只检查主程序是否在运行。正在运行的 exe 不能覆盖也不能删除，但可以改名——`windows/installer-hooks.nsh`（经 `bundle.windows.nsis.installerHooks` 引入，挂钩点名 `NSIS_HOOK_PREINSTALL` / `POSTINSTALL` / `POSTUNINSTALL`）在安装前把它改名为 `todoflow-mcp.exe.old`（仍被占就依次用 `.old1`、`.old2`…），新文件按原名写入；`.old*` 在旧进程结束后由下次安装、卸载或重启时清理。正在运行的旧进程不受影响，客户端下次重启它才换新版。2026-11-26 升级 v0.10.0 时踩到：安装程序卡在“无法打开要写入的文件”，主程序已换成新版、其余文件还是旧版。⚠️ NSIS 那个框里的“中止”不会让安装程序退出，也不还原已写入的文件，只停止后面的步骤（本机用 NSIS 3.11 的最小安装包实测）；要自己点“取消”。
 - **MCP server**：`todoflow-mcp serve`（stdio transport，`rmcp` 3.x）。⚠️ serve 模式 stdout 被协议独占，诊断一律 `eprintln!`
 - **9 个 MCP 工具**（`#[tool_router(server_handler)]` + `#[tool]`，参数名 snake_case + doc 注释中文进 JSON Schema）：create_task / list_tasks / get_task / update_task / complete_task / reopen_task / delete_task / list_tags / create_tag
 - **CLI 子命令**：add / list / get / update / done / reopen / delete / tags / create-tag，与 MCP 共享 `src-tauri/src/mcp/handlers.rs` 纯函数层
