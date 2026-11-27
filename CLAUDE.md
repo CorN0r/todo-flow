@@ -59,7 +59,7 @@ TodoFlow has three fixed Tauri WebView windows (created in `src-tauri/src/lib.rs
 | Window | Label | Size | Flags |
 |--------|-------|------|-------|
 | **main** | `"main"` | 1200×800 | Default window, resizeable, can hide to tray |
-| **widget** | `"widget"` | 300×420 (min 80×80) | `decorations(false)`, `always_on_top(true)`, `transparent(true)`, `skip_taskbar(true)` |
+| **widget** | `"widget"` | 300×420 (min 32×32) | `decorations(false)`, `always_on_top(true)`, `transparent(true)`, `skip_taskbar(true)` |
 | **pomodoro** | `"pomodoro"` | 190×200 | `decorations(false)`, `always_on_top(true)`, `transparent(true)`, `skip_taskbar(true)`, `resizable(true)` |
 | **note** | `note-<taskId>` | 280×auto (collapsed 280×36) | `decorations(false)`, `transparent(true)`, `skip_taskbar(true)`, `always_on_top` 按行 |
 
@@ -73,6 +73,7 @@ The widget window loads `/?widget=1`, pomodoro loads `/?pomodoro=1`, notes load 
 | `pomodoro-state` | main → widget, pomodoro | Sync timer state (every second) |
 | `pomodoro-control` | pomodoro → main | Control actions (pause/resume/skip/reset/stop) |
 | `bubble-color-changed` | main → widget | Sync custom bubble gradient |
+| `bubble-size-changed` | main → widget | Sync custom bubble diameter (28–64px) & compact window size |
 | `task-changed` | broadcast | Task data changed; all windows invalidate queries |
 | `task-notes-changed` | broadcast | task_notes 行增删/置顶/皮肤/折叠变更 |
 | `note-style-changed` | main → `note-<id>` | 便签皮肤热切换 |

@@ -513,7 +513,7 @@ pub fn run() {
                 )
                 .title("TodoFlow Widget")
                 .inner_size(300.0, 420.0)
-                .min_inner_size(80.0, 80.0)
+                .min_inner_size(32.0, 32.0)
                 .decorations(false)
                 .always_on_top(true)
                 .skip_taskbar(true)

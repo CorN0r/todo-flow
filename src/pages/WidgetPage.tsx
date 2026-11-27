@@ -8,6 +8,16 @@ import type { Task } from '../domain/models/task';
 import { clampPosition, snapPosition } from '../lib/windowGeometry';
 import { queryKeys, invalidateTasks } from '../lib/queryKeys';
 import { todayISO, isOverdue, subDays } from '../lib/date';
+import {
+  DEFAULT_BUBBLE_COLORS,
+  DEFAULT_BUBBLE_SIZE,
+  clampBubbleSize,
+  getBubbleFontSize,
+  getBubbleWindowSize,
+  parseBubbleColors,
+  parseBubbleSize,
+  type BubbleColors,
+} from '../lib/bubble';
 import { cn } from '../lib/cn';
 import { ListChecks, X, Check, Plus, AlertTriangle, ExternalLink } from 'lucide-react';
 
@@ -23,7 +33,6 @@ const TABS: { key: TabKey; label: string }[] = [
 
 const VALID_THEMES = ['light', 'dark', 'system', 'glass', 'warm', 'lumina'] as const;
 type Theme = typeof VALID_THEMES[number];
-type BubbleColors = { from: string; via: string; to: string };
 
 function hexToRgba(hex: string, alpha: number): string {
   const clean = hex.replace('#', '');
@@ -40,6 +49,42 @@ function getResolvedTheme(t: Theme): 'light' | 'dark' {
   return t;
 }
 
+async function getScreenBounds() {
+  let mon = await currentMonitor();
+  if (!mon) {
+    const win = getCurrentWindow();
+    const pos = await win.outerPosition();
+    const monitors = await availableMonitors();
+    mon = monitors.find(m =>
+      pos.x >= m.position.x && pos.x < m.position.x + m.size.width &&
+      pos.y >= m.position.y && pos.y < m.position.y + m.size.height
+    ) || monitors[0] || null;
+  }
+  if (!mon) return null;
+  const s = mon.scaleFactor;
+  return {
+    left: mon.position.x / s, top: mon.position.y / s,
+    right: (mon.position.x + mon.size.width) / s,
+    bottom: (mon.position.y + mon.size.height) / s,
+    scale: s,
+  };
+}
+
+async function clampInScreen(winW: number, winH: number) {
+  try {
+    const bounds = await getScreenBounds();
+    if (!bounds) return;
+    const win = getCurrentWindow();
+    const { scale: s } = bounds;
+    const pos = await win.outerPosition();
+    const logicalPos = { x: pos.x / s, y: pos.y / s };
+    const next = clampPosition(logicalPos, winW, winH, bounds, 8);
+    if (next.x !== logicalPos.x || next.y !== logicalPos.y) {
+      await win.setPosition(new PhysicalPosition(Math.round(next.x * s), Math.round(next.y * s)));
+    }
+  } catch { /* ignore */ }
+}
+
 export function WidgetPage() {
   const today = todayISO();
   const yesterday = subDays(new Date(), 1).toISOString().split('T')[0];
@@ -49,8 +94,10 @@ export function WidgetPage() {
     window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   );
 
-  const DEFAULT_BUBBLE: BubbleColors = { from: '#818CF8', via: '#A855F7', to: '#EC4899' };
-  const [bubbleColors, setBubbleColors] = useState<BubbleColors>(DEFAULT_BUBBLE);
+  const [bubbleColors, setBubbleColors] = useState<BubbleColors>(DEFAULT_BUBBLE_COLORS);
+  const [bubbleSize, setBubbleSize] = useState<number>(DEFAULT_BUBBLE_SIZE);
+  const [bubbleSizeLoaded, setBubbleSizeLoaded] = useState(false);
+  const bubbleWindowSizeRef = useRef<number>(getBubbleWindowSize(DEFAULT_BUBBLE_SIZE));
 
   // Block browser shortcuts (Ctrl+P / Ctrl+Shift+P = print)
   useEffect(() => {
@@ -65,15 +112,14 @@ export function WidgetPage() {
 
   useEffect(() => {
     getRepositories().settings.get('widget_bubble_color').then((raw) => {
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.from && parsed.via && parsed.to) {
-            setBubbleColors(parsed);
-          }
-        } catch { /* ignore */ }
-      }
+      setBubbleColors(parseBubbleColors(raw));
     }).catch(() => {});
+    getRepositories().settings.get('widget_bubble_size').then((raw) => {
+      const next = parseBubbleSize(raw);
+      bubbleWindowSizeRef.current = getBubbleWindowSize(next);
+      setBubbleSize(next);
+      setBubbleSizeLoaded(true);
+    }).catch(() => { setBubbleSizeLoaded(true); });
   }, []);
 
   useEffect(() => {
@@ -167,7 +213,12 @@ export function WidgetPage() {
 
   const [activeTab, setActiveTab] = useState<TabKey>('today');
   const [sizeMode, setSizeMode] = useState<'compact' | 'normal'>('compact');
+  const sizeModeRef = useRef<'compact' | 'normal'>('compact');
   const [sizeLoaded, setSizeLoaded] = useState(false);
+
+  useEffect(() => {
+    sizeModeRef.current = sizeMode;
+  }, [sizeMode]);
   const [inputValue, setInputValue] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -194,43 +245,30 @@ export function WidgetPage() {
   const preExpandPos = useRef<{ x: number; y: number } | null>(null);
   const shouldSnapRef = useRef(false);
 
-  // ====== 屏幕适配 ======
-
-  const getScreenBounds = async () => {
-    let mon = await currentMonitor();
-    if (!mon) {
-      const win = getCurrentWindow();
-      const pos = await win.outerPosition();
-      const monitors = await availableMonitors();
-      mon = monitors.find(m =>
-        pos.x >= m.position.x && pos.x < m.position.x + m.size.width &&
-        pos.y >= m.position.y && pos.y < m.position.y + m.size.height
-      ) || monitors[0] || null;
-    }
-    if (!mon) return null;
-    const s = mon.scaleFactor;
-    return {
-      left: mon.position.x / s, top: mon.position.y / s,
-      right: (mon.position.x + mon.size.width) / s,
-      bottom: (mon.position.y + mon.size.height) / s,
-      scale: s,
-    };
-  };
-
-  const clampInScreen = async (winW: number, winH: number) => {
-    try {
-      const bounds = await getScreenBounds();
-      if (!bounds) return;
-      const win = getCurrentWindow();
-      const { scale: s } = bounds;
-      const pos = await win.outerPosition();
-      const logicalPos = { x: pos.x / s, y: pos.y / s };
-      const next = clampPosition(logicalPos, winW, winH, bounds, 8);
-      if (next.x !== logicalPos.x || next.y !== logicalPos.y) {
-        await win.setPosition(new PhysicalPosition(Math.round(next.x * s), Math.round(next.y * s)));
+  // Listen for bubble size changes from settings (cross-WebView sync)
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    listen<number>('bubble-size-changed', (event) => {
+      if (cancelled) return;
+      const next = clampBubbleSize(Number(event.payload));
+      const nextWinSize = getBubbleWindowSize(next);
+      bubbleWindowSizeRef.current = nextWinSize;
+      setBubbleSize(next);
+      if (sizeModeRef.current === 'compact') {
+        getCurrentWindow()
+          .setSize(new LogicalSize(nextWinSize, nextWinSize))
+          .then(() => clampInScreen(nextWinSize, nextWinSize))
+          .catch(() => {});
       }
-    } catch { /* ignore */ }
-  };
+    }).then((u) => {
+      if (cancelled) { u(); return; }
+      unlisten = u;
+    }).catch(() => {});
+    return () => { cancelled = true; unlisten?.(); };
+  }, []);
+
+  // ====== 屏幕适配 ======
 
   const snapToEdge = async () => {
     try {
@@ -240,7 +278,7 @@ export function WidgetPage() {
       const { scale: s } = bounds;
       const pos = await win.outerPosition();
       const logicalPos = { x: pos.x / s, y: pos.y / s };
-      const size = 60;
+      const size = bubbleWindowSizeRef.current;
       const next = snapPosition(logicalPos, size, size, bounds, 30, 8);
       if (next.x !== logicalPos.x || next.y !== logicalPos.y) {
         const px = Math.round(next.x * s), py = Math.round(next.y * s);
@@ -261,8 +299,9 @@ export function WidgetPage() {
         preExpandPos.current = null;
         getRepositories().settings.set('widget_x', String(Math.round(pos.x))).catch(() => {});
         getRepositories().settings.set('widget_y', String(Math.round(pos.y))).catch(() => {});
+        const winSize = bubbleWindowSizeRef.current;
         setSizeMode('compact');
-        await win.setSize(new LogicalSize(60, 60));
+        await win.setSize(new LogicalSize(winSize, winSize));
         await new Promise(r => setTimeout(r, 50));
         await win.setPosition(new PhysicalPosition(pos.x, pos.y));
       } catch { /* ignore */ }
@@ -430,8 +469,9 @@ export function WidgetPage() {
       preExpandPos.current = null;
       getRepositories().settings.set('widget_x', String(Math.round(pos.x))).catch(() => {});
       getRepositories().settings.set('widget_y', String(Math.round(pos.y))).catch(() => {});
+      const winSize = bubbleWindowSizeRef.current;
       setSizeMode('compact');
-      await win.setSize(new LogicalSize(60, 60));
+      await win.setSize(new LogicalSize(winSize, winSize));
       await new Promise(r => setTimeout(r, 50));
       await win.setPosition(new PhysicalPosition(pos.x, pos.y));
       setTimeout(() => snapToEdge(), 150);
@@ -440,19 +480,20 @@ export function WidgetPage() {
     setTimeout(() => { collapsingRef.current = false; }, 500);
   };
 
-  // 挂载后校正:窗口建窗时固定 300x420,若当前是气泡模式则压回 60x60;位置越界则收拢回屏内
+  // 挂载后校正:窗口建窗时固定 300x420,若当前是气泡模式则按配置的尺寸压回;位置越界则收拢回屏内
   useEffect(() => {
-    if (!sizeLoaded) return;
+    if (!sizeLoaded || !bubbleSizeLoaded) return;
     (async () => {
       if (sizeMode === 'compact') {
-        try { await getCurrentWindow().setSize(new LogicalSize(60, 60)); } catch { /* 忽略 */ }
-        try { await clampInScreen(60, 60); } catch { /* 忽略 */ }
+        const winSize = bubbleWindowSizeRef.current;
+        try { await getCurrentWindow().setSize(new LogicalSize(winSize, winSize)); } catch { /* 忽略 */ }
+        try { await clampInScreen(winSize, winSize); } catch { /* 忽略 */ }
       } else {
         try { await clampInScreen(300, 420); } catch { /* 忽略 */ }
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sizeLoaded]);
+  }, [sizeLoaded, bubbleSizeLoaded]);
 
   // 主窗关闭/隐藏到托盘后悬浮窗被 show 出来:统一以气泡形态出现,并把越界位置收拢回屏内
   useEffect(() => {
@@ -462,7 +503,11 @@ export function WidgetPage() {
       if (sizeMode === 'normal') {
         collapseToBubble();
       } else {
-        clampInScreen(60, 60).catch(() => {});
+        const winSize = bubbleWindowSizeRef.current;
+        getCurrentWindow()
+          .setSize(new LogicalSize(winSize, winSize))
+          .then(() => clampInScreen(winSize, winSize))
+          .catch(() => {});
       }
     }).then((u) => {
       if (cancelled) { u(); return; }
@@ -565,14 +610,21 @@ export function WidgetPage() {
               }
             }}
             whileHover={{ scale: 1.15 }}
-            className="w-12 h-12 rounded-full flex items-center justify-center cursor-pointer pointer-events-auto select-none"
+            className="rounded-full flex items-center justify-center cursor-pointer pointer-events-auto select-none"
             style={{
+              width: bubbleSize,
+              height: bubbleSize,
               background: `linear-gradient(135deg, ${hexToRgba(bubbleColors.from, 0.85)}, ${hexToRgba(bubbleColors.via, 0.85)}, ${hexToRgba(bubbleColors.to, 0.85)})`,
               clipPath: 'circle(50% at 50% 50%)',
             }}
           >
-            <span className="text-[16px] font-bold text-white/95 leading-none tabular-nums select-none"
-              style={{ textShadow: '0 1px 2px rgba(0,0,0,0.15)' }}>
+            <span
+              className="font-bold text-white/95 leading-none tabular-nums select-none"
+              style={{
+                fontSize: getBubbleFontSize(bubbleSize, (isLoading ? '...' : String(count)).length),
+                textShadow: '0 1px 2px rgba(0,0,0,0.15)',
+              }}
+            >
               {isLoading ? '...' : count}
             </span>
           </motion.div>
