@@ -194,7 +194,7 @@ export function DatePicker({ value, onChange, dateCounts, showTime, startOpen, i
         <Portal>
           <div className="fixed inset-0 z-[260]" onClick={() => setOpen(false)} aria-hidden="true" />
           <div
-            className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-3 min-w-[260px]"
+            className="fixed z-[270] popover-surface border rounded-2xl shadow-xl p-3 min-w-[260px]"
             style={menuPos ?? {}}
           >
             {/* Month nav */}

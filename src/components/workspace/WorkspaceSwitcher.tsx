@@ -5,7 +5,6 @@ import '../../i18n';
 import { getRepositories } from '../../domain/repositories/current';
 import type { WorkspaceInfo } from '../../domain/models/workspace';
 import { useWorkspaces, useWorkspaceActions } from '../../hooks/useWorkspaces';
-import { useUIStore } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
 import { Portal } from '../shared/Portal';
 import { menuSurface } from './popupSurface';
@@ -28,7 +27,6 @@ interface MenuPlacement {
  */
 export function WorkspaceSwitcher({ collapsed, fallback }: { collapsed: boolean; fallback?: React.ReactNode }) {
   const { t } = useTranslation();
-  const isGlass = useUIStore((s) => s.theme) === 'glass';
   const { data: workspaces } = useWorkspaces();
   const actions = useWorkspaceActions();
   const [open, setOpen] = useState(false);
@@ -78,7 +76,7 @@ export function WorkspaceSwitcher({ collapsed, fallback }: { collapsed: boolean;
         role="menu"
         aria-label={t('workspace.switcherLabel', { name: active.name })}
         style={{ left: menuAt.left, top: menuAt.top, width: menuAt.width }}
-        className={cn('fixed z-[200] rounded-xl shadow-xl p-1.5', menuSurface(isGlass))}
+        className={cn('fixed z-[200] rounded-xl shadow-xl p-1.5', menuSurface())}
         data-testid="workspace-menu"
       >
         {list.map((workspace) => (

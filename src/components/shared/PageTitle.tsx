@@ -70,7 +70,7 @@ function HeaderDropdown<T extends string>({ trigger, label, items, value, onSele
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
             role="menu"
-            className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[200px]"
+            className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[200px]"
             style={position}
           >
             {items.map((item) => (

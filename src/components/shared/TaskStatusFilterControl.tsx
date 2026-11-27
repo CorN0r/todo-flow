@@ -96,7 +96,7 @@ export function TaskStatusFilterControl({ value, counts, onChange }: TaskStatusF
           <div
             role="menu"
             aria-label={t('filter.statusMenu')}
-            className="fixed z-50 min-w-[180px] rounded-lg border border-[#E5E7EB] dark:border-white/[0.07] bg-white dark:bg-[#1e1e32] p-1 shadow-xl"
+            className="fixed z-50 min-w-[180px] rounded-lg popover-surface border p-1 shadow-xl"
             style={menuPosition}
           >
             {menuOptions.map((filter) => (

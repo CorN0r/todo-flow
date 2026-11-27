@@ -235,7 +235,7 @@ export function ExpandedNote({ task, colors, colorIdx, rotation, onClose, isDark
             {showTagPicker && (
               <Portal>
                 <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} />
-                <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
+                <div className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[160px]"
                   style={menuPos ?? { top: 0, left: 0 }}>
                   {tags?.map((t) => {
                     const active = localTagIds.includes(t.id);

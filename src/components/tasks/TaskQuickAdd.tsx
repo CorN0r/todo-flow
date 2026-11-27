@@ -175,7 +175,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
           {showReminderPicker && (
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setShowReminderPicker(false)} aria-hidden="true" />
-              <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[130px]"
+              <div className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[130px]"
                 style={reminderPickerPos ?? { top: 0, left: 0 }}>
                 {Object.entries(getReminderPresets()).map(([key, { label }]) => (
                   <button key={key} onClick={() => { setReminderOffset(key); setShowReminderPicker(false); }}
@@ -208,7 +208,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
           {showPriorityPicker && (
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setShowPriorityPicker(false)} aria-hidden="true" />
-              <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[120px]"
+              <div className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[120px]"
                 style={priorityPickerPos ?? { top: 0, left: 0 }}>
                 {Object.entries(priorityLabels).map(([k, v]) => (
                   <button key={k} onClick={() => { setPriority(Number(k)); setShowPriorityPicker(false); }}
@@ -256,7 +256,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
             {showTagPicker && (
               <Portal>
                 <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} aria-hidden="true" />
-                <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[150px]"
+                <div className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[150px]"
                   style={tagPickerPos ?? { top: 0, left: 0 }}>
                   {tags.map((t) => {
                     const active = selectedTagIds.includes(t.id);

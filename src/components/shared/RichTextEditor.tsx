@@ -615,7 +615,7 @@ export function RichTextEditor({
       <BubbleMenu editor={editor}
         shouldShow={({ editor: ed }) => !('node' in ed.state.selection)}
         tippyOptions={{ duration: 150, placement: 'top' }}
-        className="flex items-center gap-0.5 bg-white dark:bg-[#1E1E32] border border-[#E5E7EB] dark:border-white/[0.10] rounded-lg shadow-lg px-1 py-1">
+        className="flex items-center gap-0.5 popover-surface border border-[#E5E7EB] dark:border-white/[0.10] rounded-lg shadow-lg px-1 py-1">
         <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="粗体"><Bold size={13} /></ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="斜体"><Italic size={13} /></ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="下划线"><UnderlineIcon size={13} /></ToolbarButton>
@@ -866,7 +866,7 @@ function FullscreenEditor({
         <BubbleMenu editor={editor}
           shouldShow={({ editor: ed }) => !('node' in ed.state.selection)}
           tippyOptions={{ duration: 150, placement: 'top' }}
-          className="flex items-center gap-0.5 bg-white dark:bg-[#1E1E32] border border-[#E5E7EB] dark:border-white/[0.10] rounded-lg shadow-lg px-1 py-1">
+          className="flex items-center gap-0.5 popover-surface border border-[#E5E7EB] dark:border-white/[0.10] rounded-lg shadow-lg px-1 py-1">
           <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="粗体"><Bold size={13} /></ToolbarButton>
           <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="斜体"><Italic size={13} /></ToolbarButton>
           <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="下划线"><UnderlineIcon size={13} /></ToolbarButton>

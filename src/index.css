@@ -647,6 +647,34 @@
     color: #525A6A;
   }
   .dark .sidebar-section-label { color: #A6A6BC; }
+
+  /* Popover surface: dropdown menus, context menus, date picker, reminder list, ...
+     The glass theme rewrites bg-white / dark:bg-[#1e1e32] into a faint translucent white
+     (see the .glass section above), so popovers on those classes let the content behind
+     bleed through. Popovers use this class instead and stay opaque in every theme.
+     Utilities beat this rule, so the element must not also carry a bg-* class;
+     `border` (width), rounded-* and shadow-* go on the element */
+  .popover-surface {
+    background-color: #FFFFFF;
+    border-color: #F3F4F6;
+  }
+  .dark .popover-surface {
+    background-color: #1E1E32;
+    border-color: rgba(255, 255, 255, 0.07);
+  }
+  /* Glass: fully opaque. At 95% the text and tags behind a menu still ghost through it. */
+  .glass .popover-surface {
+    background-color: #1E1E32;
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .warm .popover-surface {
+    background-color: #1c1a17;
+    border-color: rgba(201, 168, 76, 0.12);
+  }
+  .lumina .popover-surface {
+    background-color: #FFFFFF;
+    border-color: #E8E5E0;
+  }
 }
 
 /* ═══════════════════════════════════════════

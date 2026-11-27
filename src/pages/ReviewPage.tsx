@@ -231,7 +231,7 @@ export function ReviewPage() {
       {tagMenuOpen && (
         <Portal>
           <div className="fixed inset-0 z-40" onClick={() => setTagMenuOpen(false)} />
-          <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[200px] max-h-[300px] overflow-y-auto"
+          <div className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[200px] max-h-[300px] overflow-y-auto"
             style={tagMenuPos ?? { top: 0, left: 0 }}>
             <button onClick={() => { setSelectedTags([]); setTagMenuOpen(false); }}
               className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] text-[#111827] dark:text-white/90 flex items-center gap-2">

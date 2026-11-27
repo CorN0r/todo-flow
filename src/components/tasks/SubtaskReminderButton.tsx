@@ -50,7 +50,7 @@ export function SubtaskReminderButton({ child }: { child: Task }) {
         <Portal>
           <div className="fixed inset-0 z-[260]" onClick={() => setOpen(false)} aria-hidden="true" />
           <div
-            className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl p-3 min-w-[240px]"
+            className="fixed z-[270] popover-surface border rounded-xl shadow-xl p-3 min-w-[240px]"
             style={menuPos ?? {}}
           >
             <ReminderList taskId={child.id} dueDate={child.due_date} />

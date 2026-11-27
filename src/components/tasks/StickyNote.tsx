@@ -177,7 +177,7 @@ export function StickyNote({ task, colors, rotation, onExpand }: StickyNoteProps
         <Portal>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
           <div ref={menuRef} style={{ left: contextMenu.x, top: contextMenu.y }}
-            className="fixed z-[200] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1 w-[180px]"
+            className="fixed z-[200] popover-surface border rounded-lg shadow-xl py-1 w-[180px]"
             onClick={(e) => e.stopPropagation()}>
             <div className="px-3 py-1.5 text-xs text-[#6B7280] border-b border-[#F3F4F6] dark:border-white/[0.07] mb-1 truncate" title={task.title}>{task.title}</div>
             <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_completed: !task.is_completed }); setContextMenu(null); }}

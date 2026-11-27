@@ -61,7 +61,7 @@ export function BulkActionBar() {
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 80, opacity: 0 }}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2"
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 popover-surface border rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2"
       >
         <span className="text-sm font-semibold tabular-nums">已选 {count} 项</span>
 
@@ -99,7 +99,7 @@ export function BulkActionBar() {
         {showTagPicker && (
           <Portal>
             <div className="fixed inset-0 z-[260]" onClick={() => setShowTagPicker(false)} aria-hidden="true" />
-            <div className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06] rounded-xl shadow-xl p-1 min-w-[190px]"
+            <div className="fixed z-[270] popover-surface border rounded-xl shadow-xl p-1 min-w-[190px]"
               style={menuPos ?? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
             {tags?.map((t) => {
               const active = pendingTagIds.includes(t.id);

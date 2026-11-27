@@ -693,7 +693,7 @@ export function WidgetPage() {
         )}
         {contextMenu && sizeMode !== 'compact' && (
           <div ref={menuRef}
-            className="absolute z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1"
+            className="absolute z-50 popover-surface border rounded-lg shadow-xl py-1"
             style={{ left: contextMenu.x, top: contextMenu.y, minWidth: 150 }}>
             <button onClick={() => { getRepositories().platform.showMainFromWidget(); setContextMenu(null); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-[#111827] dark:text-white/90">

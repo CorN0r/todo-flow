@@ -151,7 +151,7 @@ export function UnifiedLayout({ tasks, reorderScope = tasks }: UnifiedLayoutProp
       <Portal>
         <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} />
         <div ref={ctxMenuRef} style={{ left: ctxMenu.x, top: ctxMenu.y }}
-          className="fixed z-[200] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1 w-[160px]">
+          className="fixed z-[200] popover-surface border rounded-lg shadow-xl py-1 w-[160px]">
           <div className="px-3 py-1.5 text-xs text-[#6B7280] border-b border-[#F3F4F6] dark:border-white/[0.07] mb-1 truncate">{ctxMenu.task.title}</div>
           <button onClick={() => { updateTask.mutate({ id: ctxMenu.task.id, is_completed: !ctxMenu.task.is_completed }); setCtxMenu(null); }}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">

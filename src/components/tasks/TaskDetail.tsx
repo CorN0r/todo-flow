@@ -469,7 +469,7 @@ export function TaskDetail() {
         {showMoreActions && (
           <Portal>
             <div className="fixed inset-0 z-40" onClick={() => setShowMoreActions(false)} />
-            <div role="menu" className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
+            <div role="menu" className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[160px]"
               style={moreActionsPos ?? { top: 0, left: 0 }}>
               <button role="menuitem" onClick={() => { updateTask.mutate({ id: task.id, is_pinned: !task.is_pinned }); setShowMoreActions(false); }}
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] flex items-center gap-2 text-[#111827] dark:text-white/90">
@@ -565,7 +565,7 @@ export function TaskDetail() {
           {openPriority && (
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setOpenPriority(false)} />
-              <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[140px]"
+              <div className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[140px]"
                 style={priorityPos ?? { top: 0, left: 0 }}>
                 {Object.entries(priorityConfig).map(([k, v]) => (
                   <button key={k} onClick={() => { update({ priority: Number(k) }); setOpenPriority(false); }}
@@ -598,7 +598,7 @@ export function TaskDetail() {
           {openTag && (
             <Portal>
               <div className="fixed inset-0 z-40" onClick={() => setOpenTag(false)} />
-              <div className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[160px]"
+              <div className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[160px]"
                 style={tagPos ?? { top: 0, left: 0 }}>
                 {tags?.map((t) => {
                   const active = local.tag_ids.includes(t.id);

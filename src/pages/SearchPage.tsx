@@ -207,7 +207,7 @@ export function SearchPage() {
                 <Portal>
                   <div className="fixed inset-0 z-40" onClick={() => setTagDropdownOpen(false)} />
                   <div
-                    className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[180px] max-h-[260px] overflow-y-auto"
+                    className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[180px] max-h-[260px] overflow-y-auto"
                     style={tagDropdownPos ?? { top: 0, left: 0 }}
                   >
                     <button
@@ -286,7 +286,7 @@ export function SearchPage() {
                 <Portal>
                   <div className="fixed inset-0 z-40" onClick={() => setPriorityDropdownOpen(false)} />
                   <div
-                    className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl py-1 min-w-[140px]"
+                    className="fixed z-50 popover-surface border rounded-xl shadow-xl py-1 min-w-[140px]"
                     style={priorityDropdownPos ?? { top: 0, left: 0 }}
                   >
                     {PRIORITY_OPTIONS.map((opt) => (

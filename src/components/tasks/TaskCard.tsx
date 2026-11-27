@@ -149,7 +149,7 @@ function SubtaskContent({ child, onDelete, onEditingChange, onEditDescription }:
         <Portal>
           <div className="fixed inset-0 z-40" onClick={() => setSubMenu(null)} />
           <div ref={subMenuRef} style={{ left: subMenu.x, top: subMenu.y }}
-            className="fixed z-[200] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1 min-w-[160px]">
+            className="fixed z-[200] popover-surface border rounded-lg shadow-xl py-1 min-w-[160px]">
             <div className="px-3 py-1.5 text-xs text-[#6B7280] border-b border-[#F3F4F6] dark:border-white/[0.07] mb-1 truncate">{child.title}</div>
             <button onClick={() => { updateTask.mutate({ id: child.id, is_completed: !child.is_completed }); setSubMenu(null); }}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">
@@ -195,7 +195,7 @@ function SubtaskContent({ child, onDelete, onEditingChange, onEditDescription }:
       {datePopOpen && (
         <Portal>
           <div className="fixed inset-0 z-[260]" onClick={() => setDatePopOpen(false)} aria-hidden="true" />
-          <div className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl p-2"
+          <div className="fixed z-[270] popover-surface border rounded-xl shadow-xl p-2"
             style={{ top: '20%', left: '50%', transform: 'translateX(-50%)' }}>
             <DatePicker startOpen showTime value={child.due_date || ''}
               onChange={(v) => { updateTask.mutate({ id: child.id, due_date: v }); setDatePopOpen(false); }} />
@@ -205,7 +205,7 @@ function SubtaskContent({ child, onDelete, onEditingChange, onEditDescription }:
       {reminderPopOpen && child.due_date && (
         <Portal>
           <div className="fixed inset-0 z-[260]" onClick={() => setReminderPopOpen(false)} aria-hidden="true" />
-          <div className="fixed z-[270] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-xl shadow-xl p-3 min-w-[240px]"
+          <div className="fixed z-[270] popover-surface border rounded-xl shadow-xl p-3 min-w-[240px]"
             style={{ top: '20%', left: '50%', transform: 'translateX(-50%)' }}>
             <ReminderList taskId={child.id} dueDate={child.due_date} />
           </div>
@@ -529,7 +529,7 @@ export function TaskCard({ task, depth = 0, onEditingChange }: { task: Task; dep
         <Portal>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
           <div ref={menuRef} style={{ left: contextMenu.x, top: contextMenu.y }}
-            className="fixed z-[200] bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-lg shadow-xl py-1 w-[180px]">
+            className="fixed z-[200] popover-surface border rounded-lg shadow-xl py-1 w-[180px]">
             <div className="px-3 py-1.5 text-xs text-[#6B7280] border-b border-[#F3F4F6] dark:border-white/[0.07] mb-1 truncate" title={task.title}>{task.title}</div>
             <button onClick={handleToggleComplete}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors">

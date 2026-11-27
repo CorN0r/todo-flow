@@ -129,7 +129,7 @@ export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
         <Portal>
           <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setCustomOpen(false); }} />
           <div
-            className="fixed z-50 bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.07] rounded-2xl shadow-xl p-1.5 min-w-[200px]"
+            className="fixed z-50 popover-surface border rounded-2xl shadow-xl p-1.5 min-w-[200px]"
             style={{ top: pos.top, left: pos.left }}
           >
             {/* Presets */}
