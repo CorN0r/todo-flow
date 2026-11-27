@@ -132,13 +132,13 @@ export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
             className="fixed z-50 popover-surface border rounded-2xl shadow-xl p-1.5 min-w-[200px]"
             style={{ top: pos.top, left: pos.left }}
           >
-            {/* Presets */}
+            {/* Presets。行要写成块级:行内块的行会让浏览器把菜单的“内容宽度”算成所有行并排,菜单被撑得很宽 */}
             {presets.map((p) => (
               <button
                 key={`${p.type}-${p.interval}`}
                 onClick={() => apply(p.type, p.interval)}
                 className={cn(
-                  'w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors',
+                  'block w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors',
                   config?.type === p.type && config?.interval === p.interval
                     ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6] font-medium'
                     : 'text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]',
@@ -151,7 +151,7 @@ export function RecurrencePicker({ value, onChange, startOpen, iconOnly }: {
             {/* Custom */}
             <button
               onClick={() => setCustomOpen(!customOpen)}
-              className="w-full text-left px-3 py-2 rounded-lg text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-[#9CA3AF]"
+              className="block w-full text-left px-3 py-2 rounded-lg text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors text-[#9CA3AF]"
             >
               自定义...
             </button>

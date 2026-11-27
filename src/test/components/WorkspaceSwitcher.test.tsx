@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import i18n from '../../i18n';
@@ -6,6 +8,7 @@ import { renderWithProviders } from '../test-utils';
 import { setRepositoriesForTesting, resetRepositories } from '../../domain/repositories/current';
 import { createMemoryRepositories } from '../../domain/adapters/memory';
 import { buildTask } from '../test-utils';
+import { contrast, cssValue, hex, paintedBackground } from '../contrast';
 
 function setup() {
   const { repositories, state } = createMemoryRepositories({
@@ -116,6 +119,26 @@ describe('WorkspaceSwitcher', () => {
     fireEvent.click(screen.getByTestId('workspace-open-manager'));
 
     expect(await screen.findByRole('dialog', { name: '管理工作区' })).toBeInTheDocument();
+  });
+
+  // “当前工作区”那一项是主色的字压在主色的浅底上。浅色主题下主色只有 3:1,
+  // 文字色取自 index.css 的 .sidebar-selected,底色叠在菜单表面(.popover-surface)上
+  it.each([
+    ['浅色', 'light'],
+    ['Lumina', 'lumina'],
+  ] as const)('%s 主题下“当前工作区”那一项的对比度不低于 4.5:1', async (_label, theme) => {
+    setup();
+    renderWithProviders(<WorkspaceSwitcher collapsed={false} />);
+
+    fireEvent.click(await screen.findByTestId('workspace-switcher'));
+
+    const current = (await screen.findAllByTestId('workspace-menu-item'))[0];
+    const scoped = (selector: string) => (theme === 'lumina' ? `.lumina ${selector}` : selector);
+    const surface = hex(cssValue(scoped('.popover-surface'), 'background-color'));
+    const text = hex(cssValue(scoped('.sidebar-selected'), 'color'));
+    expect(current).toHaveAttribute('aria-current', 'true');
+    expect(current).toHaveClass('sidebar-selected');
+    expect(contrast(text, paintedBackground(current.className, surface))).toBeGreaterThanOrEqual(4.5);
   });
 
   it('清单还没读到时不显示,不影响其余部分', () => {

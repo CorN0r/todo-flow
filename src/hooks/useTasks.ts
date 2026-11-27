@@ -4,6 +4,7 @@ import { getRepositories } from '../domain/repositories/current';
 import type { CreateTaskInput, ReorderItem, TaskFilters, UpdateTaskInput } from '../domain/models/task';
 import { queryKeys, invalidateTasks, invalidateTask, invalidateTags, invalidateReminders } from '../lib/queryKeys';
 import { todayISO } from '../lib/date';
+import { errMessage } from '../lib/errMessage';
 
 export function useTasks(filters?: TaskFilters) {
   return useQuery({
@@ -34,7 +35,7 @@ export function useCreateTask() {
       invalidateTasks(queryClient);
       toast.success('任务已创建');
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -47,7 +48,7 @@ export function useUpdateTask() {
       invalidateTask(queryClient);
       invalidateTags(queryClient);
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -77,7 +78,7 @@ export function useDeleteTask() {
       invalidateTasks(queryClient);
       invalidateTags(queryClient);
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -97,7 +98,7 @@ export function useDuplicateTask() {
       invalidateTasks(queryClient);
       toast.success('任务已复制');
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -120,7 +121,7 @@ export function useCreateTaskReminder() {
       invalidateTasks(queryClient);
       toast.success('提醒已添加');
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -133,7 +134,7 @@ export function useDeleteTaskReminder() {
       invalidateTasks(queryClient);
       toast.success('提醒已删除');
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -145,6 +146,6 @@ export function useClearTaskReminders() {
       invalidateReminders(queryClient);
       invalidateTasks(queryClient);
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }

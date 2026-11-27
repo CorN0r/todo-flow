@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { getRepositories } from '../domain/repositories/current';
 import type { CreateTagInput, TagWithCount } from '../types/tag';
 import { queryKeys, invalidateTags } from '../lib/queryKeys';
+import { errMessage } from '../lib/errMessage';
 
 export function useTags() {
   return useQuery({
@@ -20,7 +21,7 @@ export function useCreateTag() {
       invalidateTags(queryClient);
       toast.success('标签已创建');
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -32,7 +33,7 @@ export function useUpdateTag() {
     onSuccess: () => {
       invalidateTags(queryClient);
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 

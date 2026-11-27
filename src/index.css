@@ -648,6 +648,13 @@
   }
   .dark .sidebar-section-label { color: #A6A6BC; }
 
+  /* Selected entry in the sidebar: destination, tag, footer link, current workspace.
+     The accent (#7C72F6) on its own tint only reaches about 3:1 in the light themes, so the text
+     takes a darker accent there (>= 4.5:1 against the tint over the sidebar background).
+     Dark themes keep white text through `dark:text-white` on the element */
+  .sidebar-selected { color: #594BD3; }
+  .lumina .sidebar-selected { color: #4F5E73; }
+
   /* Popover surface: dropdown menus, context menus, date picker, reminder list, ...
      The glass theme rewrites bg-white / dark:bg-[#1e1e32] into a faint translucent white
      (see the .glass section above), so popovers on those classes let the content behind

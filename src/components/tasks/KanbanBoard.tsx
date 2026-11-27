@@ -2,7 +2,6 @@ import { useMemo, useState, useCallback } from 'react';
 import { useUpdateTask } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { useUIStore } from '../../stores/uiStore';
-import { TaskCard } from './TaskCard';
 import { Flag, CheckCircle2, Layers, Calendar, Sun, PauseCircle, XCircle } from 'lucide-react';
 import { sortTasks } from '../../lib/sortTasks';
 import { priorityColors } from '../../lib/priority';
@@ -44,113 +43,119 @@ interface ColumnDef {
   tasks: Task[];
 }
 
-function DraggableKanbanCard({ task }: { task: Task }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-    data: { task },
-  });
-
+// 看板里的紧凑卡片。列里的卡片和拖动时浮起的卡片是同一个,免得拖起来换了个样子
+function KanbanCard({ task }: { task: Task }) {
   const updateTask = useUpdateTask();
   const setSelectedTaskId = useUIStore((s) => s.setSelectedTaskId);
   const { data: tags } = useTags();
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
   const overdue = isOverdue(task.due_date);
-
   const tagMap = useMemo(() => {
     if (!tags) return new Map();
     return new Map(tags.map((t) => [t.id, t]));
   }, [tags]);
   const taskTags = (task.tag_ids || []).map((id) => tagMap.get(id)).filter((t): t is Tag => !!t);
 
+  return (
+    <div
+      data-testid="kanban-card"
+      className={cn(
+        'rounded-[10px] p-3 cursor-grab active:cursor-grabbing select-none transition-colors group',
+        !isGlass && 'bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06]',
+        !isGlass && task.is_completed && 'opacity-60',
+        isGlass && 'glass-card',
+        overdue && !task.is_completed && 'border-l-[3px] border-l-red-400 hover:border-l-red-400',
+        !overdue && 'hover:border-[#7C72F6]/30',
+      )}
+      onClick={() => setSelectedTaskId(task.id)}
+    >
+      <div className="flex items-start gap-2">
+        {/* Status indicator */}
+        {task.is_suspended ? (
+          <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_suspended: false }); }}
+            className="shrink-0 mt-0.5 text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
+            title="恢复">
+            <PauseCircle size={18} />
+          </button>
+        ) : task.is_abandoned ? (
+          <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_abandoned: false }); }}
+            className="shrink-0 mt-0.5 text-[#EF4444] hover:text-red-500 transition-colors"
+            title="重新激活">
+            <XCircle size={18} />
+          </button>
+        ) : (
+        <button
+          onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_completed: !task.is_completed }); }}
+          className={cn(
+            'w-[18px] h-[18px] rounded-full border-2 shrink-0 mt-0.5 transition-colors',
+            task.is_completed
+              ? 'bg-[#7C72F6] border-[#7C72F6]'
+              : 'border-[#D1D5DB] dark:border-white/20 hover:border-[#7C72F6]',
+          )}
+        >
+          {task.is_completed && (
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3 m-auto">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </button>
+        )}
+
+        {/* Title + meta */}
+        <div className="flex-1 min-w-0">
+          <span className={cn(
+            'text-[13px] leading-snug block',
+            task.is_completed && 'line-through text-[#9CA3AF]',
+            !task.is_completed && 'text-[#111827] dark:text-white/90',
+          )} style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}>
+            {task.title}
+          </span>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {taskTags.map((t) => (
+              <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
+                style={{ backgroundColor: t.color + '20', color: t.color }}>
+                {t.name}
+              </span>
+            ))}
+            {task.priority > 0 && (
+              <span className={cn('text-[11px] flex items-center gap-0.5 shrink-0', priorityColors[task.priority])}>
+                <Flag size={10} />
+              </span>
+            )}
+            {task.due_date && (
+              <span className={cn('text-[11px] flex items-center gap-1 shrink-0', overdue && !task.is_completed ? 'text-red-500' : 'text-[#9CA3AF]')}>
+                <Calendar size={10} />
+                {formatDate(task.due_date)}
+              </span>
+            )}
+            {task.my_day_date === todayISO() && (
+              <Sun size={12} className="text-amber-500 shrink-0" />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DraggableKanbanCard({ task }: { task: Task }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+    data: { task },
+  });
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
 
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} style={style} className={cn(isDragging && 'opacity-0', 'cursor-grab [&_*]:!cursor-grab')}>
-      <div
-        className={cn(
-          'rounded-[10px] p-3 cursor-grab active:cursor-grabbing select-none transition-colors group',
-          !isGlass && 'bg-white dark:bg-[#1e1e32] border border-[#F3F4F6] dark:border-white/[0.06]',
-          !isGlass && task.is_completed && 'opacity-60',
-          isGlass && 'glass-card',
-          overdue && !task.is_completed && 'border-l-[3px] border-l-red-400 hover:border-l-red-400',
-          !overdue && 'hover:border-[#7C72F6]/30',
-        )}
-        onClick={() => setSelectedTaskId(task.id)}
-      >
-        <div className="flex items-start gap-2">
-          {/* Status indicator */}
-          {task.is_suspended ? (
-            <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_suspended: false }); }}
-              className="shrink-0 mt-0.5 text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
-              title="恢复">
-              <PauseCircle size={18} />
-            </button>
-          ) : task.is_abandoned ? (
-            <button onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_abandoned: false }); }}
-              className="shrink-0 mt-0.5 text-[#EF4444] hover:text-red-500 transition-colors"
-              title="重新激活">
-              <XCircle size={18} />
-            </button>
-          ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); updateTask.mutate({ id: task.id, is_completed: !task.is_completed }); }}
-            className={cn(
-              'w-[18px] h-[18px] rounded-full border-2 shrink-0 mt-0.5 transition-colors',
-              task.is_completed
-                ? 'bg-[#7C72F6] border-[#7C72F6]'
-                : 'border-[#D1D5DB] dark:border-white/20 hover:border-[#7C72F6]',
-            )}
-          >
-            {task.is_completed && (
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-3 h-3 m-auto">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
-          </button>
-          )}
-
-          {/* Title + meta */}
-          <div className="flex-1 min-w-0">
-            <span className={cn(
-              'text-[13px] leading-snug block',
-              task.is_completed && 'line-through text-[#9CA3AF]',
-              !task.is_completed && 'text-[#111827] dark:text-white/90',
-            )} style={{
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}>
-              {task.title}
-            </span>
-
-            {/* Meta row */}
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {taskTags.map((t) => (
-                <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
-                  style={{ backgroundColor: t.color + '20', color: t.color }}>
-                  {t.name}
-                </span>
-              ))}
-              {task.priority > 0 && (
-                <span className={cn('text-[11px] flex items-center gap-0.5 shrink-0', priorityColors[task.priority])}>
-                  <Flag size={10} />
-                </span>
-              )}
-              {task.due_date && (
-                <span className={cn('text-[11px] flex items-center gap-1 shrink-0', overdue && !task.is_completed ? 'text-red-500' : 'text-[#9CA3AF]')}>
-                  <Calendar size={10} />
-                  {formatDate(task.due_date)}
-                </span>
-              )}
-              {task.my_day_date === todayISO() && (
-                <Sun size={12} className="text-amber-500 shrink-0" />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <KanbanCard task={task} />
     </div>
   );
 }
@@ -207,7 +212,7 @@ export function KanbanBoard({ tasks }: { tasks: Task[] }) {
   const theme = useUIStore((s) => s.theme);
   const isGlass = theme === 'glass';
   const [groupBy, setGroupBy] = useState<GroupBy>('priority');
-  const [activeDrag, setActiveDrag] = useState<Task | null>(null);
+  const [activeDrag, setActiveDrag] = useState<{ task: Task; width: number | undefined } | null>(null);
 
   const sorted = useMemo(() => sortTasks(tasks, sortMode), [tasks, sortMode]);
   const topLevel = useMemo(() => sorted.filter((t) => !t.parent_task_id), [sorted]);
@@ -268,7 +273,9 @@ export function KanbanBoard({ tasks }: { tasks: Task[] }) {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const task = event.active.data.current?.task as Task | undefined;
-    if (task) setActiveDrag(task);
+    // 浮起的卡片按原卡片的宽度排:不指定宽度的话标题不换行,会比原来宽
+    const width = event.active.rect.current.initial?.width || undefined;
+    if (task) setActiveDrag({ task, width });
   }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -331,8 +338,11 @@ export function KanbanBoard({ tasks }: { tasks: Task[] }) {
         </div>
         <DragOverlay dropAnimation={null}>
           {activeDrag ? (
-            <div className="opacity-90 scale-105 rotate-1 shadow-2xl rounded-[10px]">
-              <TaskCard task={activeDrag} />
+            <div
+              className="opacity-90 scale-105 rotate-1 shadow-2xl rounded-[10px] cursor-grabbing [&_*]:!cursor-grabbing"
+              style={{ width: activeDrag.width }}
+            >
+              <KanbanCard task={activeDrag.task} />
             </div>
           ) : null}
         </DragOverlay>

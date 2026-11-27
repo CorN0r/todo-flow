@@ -23,7 +23,7 @@ import { CSS } from '@dnd-kit/utilities';
 
 // 两级层级:目的地 14px / 34px,标签 13px / 30px。三组文字的颜色在六套主题下都不低于 4.5:1
 const NAV_STYLE = 'flex items-center gap-[10px] px-3 rounded-lg text-[14px] transition-colors';
-const ACTIVE_NAV = 'bg-[rgba(124,114,246,0.1)] text-[#7C72F6] font-medium dark:bg-[rgba(124,114,246,0.125)] dark:text-white';
+const ACTIVE_NAV = 'bg-[rgba(124,114,246,0.1)] sidebar-selected font-medium dark:bg-[rgba(124,114,246,0.125)] dark:text-white';
 const INACTIVE_NAV = 'text-[#374151] hover:bg-[#F3F4F6] hover:text-[#111827] dark:text-[#C4C4CC] dark:hover:bg-white/[0.04] dark:hover:text-white';
 const TAG_STYLE = 'flex items-center gap-[10px] px-3 rounded-lg text-[13px] transition-colors';
 const INACTIVE_TAG = 'text-[#5F6C7A] hover:bg-[#F3F4F6] hover:text-[#111827] dark:text-[#9CA3AF] dark:hover:bg-white/[0.04] dark:hover:text-white';
@@ -293,7 +293,7 @@ export function Sidebar() {
   const sidebarBg = isGlass ? 'glass-panel' : 'bg-[#F3F2FA] dark:bg-[#16162A]';
   const settingsBg = 'bg-[#EEECF8] dark:bg-[rgba(255,255,255,0.03)]';
   const footerLink = 'flex items-center gap-[10px] text-[13px] transition-colors';
-  const footerLinkActive = 'text-[#7C72F6] dark:text-white font-medium';
+  const footerLinkActive = 'sidebar-selected dark:text-white font-medium';
   const footerLinkInactive = 'text-[#374151] hover:text-[#111827] dark:text-[#9CA3AF] dark:hover:text-white';
   const logoText = 'text-[#111827] dark:text-white';
 

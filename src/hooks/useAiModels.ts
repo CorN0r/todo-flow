@@ -6,7 +6,7 @@ import type {
   CreateConnectionInput,
   UpdateConnectionInput,
 } from '../domain/models/ai';
-import { isAiError } from '../domain/models/ai';
+import { errMessage } from '../lib/errMessage';
 
 // AI 数据当前仅本机使用,不做跨端同步;查询键集中在 queryKeys 之外以降低侵入,
 // 但沿用同样的 staleTime 风格。
@@ -187,9 +187,4 @@ export function useClearAiInvocations() {
     },
     onError: (err: unknown) => toast.error(errMessage(err)),
   });
-}
-
-export function errMessage(err: unknown): string {
-  if (isAiError(err)) return err.message;
-  return String(err);
 }

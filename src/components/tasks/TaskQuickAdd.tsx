@@ -179,7 +179,7 @@ export function TaskQuickAdd({ tagId, parentTaskId, placeholder = '添加任务.
                 style={reminderPickerPos ?? { top: 0, left: 0 }}>
                 {Object.entries(getReminderPresets()).map(([key, { label }]) => (
                   <button key={key} onClick={() => { setReminderOffset(key); setShowReminderPicker(false); }}
-                    className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors ${reminderOffset === key ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
+                    className={`block w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] transition-colors ${reminderOffset === key ? 'text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90'}`}>
                     {label}
                   </button>
                 ))}

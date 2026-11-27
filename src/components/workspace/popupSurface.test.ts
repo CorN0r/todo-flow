@@ -65,4 +65,24 @@ describe('popover surfaces stay opaque', () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it('rows inside a popover are block-level, so it is only as wide as its widest row', () => {
+    // 行内块的行(没写 flex / block 的 button)会让浏览器把浮层的“内容宽度”算成所有行并排:
+    // 搜索页的标签下拉曾被撑到 628px,提醒下拉会被撑到窗口边缘
+    const BLOCK_LEVEL = ['block', 'flex', 'grid', 'inline-flex'];
+    const offenders: string[] = [];
+    for (const file of [...sourceFiles('src/components'), ...sourceFiles('src/pages')]) {
+      const lines = readFileSync(file, 'utf8').split(/\r?\n/);
+      const popoverStarts = lines.flatMap((line, index) => (line.includes('popover-surface') ? [index] : []));
+      for (const [index, line] of lines.entries()) {
+        if (!popoverStarts.some((start) => index > start && index <= start + 40)) continue;
+        for (const literal of line.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+          const classes = (literal[1] ?? literal[2] ?? literal[3] ?? '').split(/\s+/);
+          if (!classes.includes('w-full') || !classes.includes('text-left')) continue;
+          if (!classes.some((name) => BLOCK_LEVEL.includes(name))) offenders.push(`${file}:${index + 1} ${classes.slice(0, 4).join(' ')}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });

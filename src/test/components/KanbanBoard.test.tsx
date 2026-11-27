@@ -1,10 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { KanbanBoard } from '../../components/tasks/KanbanBoard';
 import { buildTask, renderWithProviders } from '../test-utils';
 import { useUIStore } from '../../stores/uiStore';
 
 const mockTags = { data: null as any };
+
+// 记下看板传给 DndContext 的回调,测试里直接触发“开始拖动”(jsdom 里没法真的拖);
+// 浮层改成有内容就渲染,好检查拖动途中浮起的卡片
+const dnd = vi.hoisted(() => ({ contextProps: null as Record<string, unknown> | null }));
+vi.mock('@dnd-kit/core', async () => {
+  const actual = await vi.importActual<typeof import('@dnd-kit/core')>('@dnd-kit/core');
+  return {
+    ...actual,
+    DndContext: (props: Record<string, unknown>) => {
+      dnd.contextProps = props;
+      return <actual.DndContext {...(props as React.ComponentProps<typeof actual.DndContext>)} />;
+    },
+    DragOverlay: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  };
+});
 
 vi.mock('../../hooks/useTasks', () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
@@ -70,5 +85,23 @@ describe('KanbanBoard', () => {
 
     expect(screen.getByText('父任务')).toBeInTheDocument();
     expect(screen.queryByText('子任务')).not.toBeInTheDocument();
+  });
+
+  it('拖动时浮起的卡片就是列里的看板卡片', () => {
+    const task = buildTask({ id: 'a', title: '写周报', priority: 3, description: '一段只该出现在列表卡片上的描述' });
+    renderWithProviders(<KanbanBoard tasks={[task]} />);
+    expect(screen.getAllByTestId('kanban-card')).toHaveLength(1);
+
+    const onDragStart = dnd.contextProps!.onDragStart as (event: unknown) => void;
+    act(() => {
+      onDragStart({ active: { id: 'a', data: { current: { task } }, rect: { current: { initial: { width: 242, height: 67 } } } } });
+    });
+
+    const [inColumn, floating] = screen.getAllByTestId('kanban-card');
+    expect(floating).toHaveTextContent('写周报');
+    expect(floating).not.toHaveTextContent('一段只该出现在列表卡片上的描述');
+    // 浮起的卡片按原卡片的宽度排;列里的卡片靠列宽
+    expect(floating.parentElement).toHaveStyle({ width: '242px' });
+    expect(inColumn.parentElement).not.toHaveStyle({ width: '242px' });
   });
 });

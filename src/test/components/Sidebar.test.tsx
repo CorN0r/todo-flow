@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import { Link, Route, Routes } from 'react-router-dom';
@@ -7,6 +9,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { setRepositoriesForTesting, resetRepositories } from '../../domain/repositories/current';
 import { createMemoryRepositories } from '../../domain/adapters/memory';
 import { buildTask } from '../test-utils';
+import { contrast, cssValue, hex, paintedBackground } from '../contrast';
 
 vi.mock('../../hooks/useTags', () => ({
   useTags: () => ({
@@ -176,5 +179,30 @@ describe('Sidebar', () => {
     renderWithProviders(<Harness />, { initialEntries: ['/date/all'] });
     expect(await screen.findByTestId('workspace-switcher')).toHaveTextContent('默认工作区');
     expect(screen.queryByText('TodoFlow')).not.toBeInTheDocument();
+  });
+
+  // 浅色主题下主色压在自己的浅色底上只有 3:1。这里按真实取值算:文字色取自 index.css 的
+  // .sidebar-selected,底色取自选中项的背景类叠在侧边栏背景上。深色主题的文字是白色,不用算
+  it.each([
+    ['浅色', '目的地', 'light', '/date/all'],
+    ['浅色', '底部入口', 'light', '/dashboard'],
+    ['Lumina', '目的地', 'lumina', '/date/all'],
+    ['Lumina', '底部入口', 'lumina', '/dashboard'],
+  ] as const)('%s 主题下选中的%s对比度不低于 4.5:1', (_label, which, theme, route) => {
+    useUIStore.setState({ theme });
+    renderWithProviders(<Harness />, { initialEntries: [route] });
+
+    const sidebar = screen.getByRole('navigation', { name: '主导航' }).closest('aside')!;
+    const sidebarBackground = theme === 'lumina'
+      ? hex(cssValue('.lumina .bg-\\[\\#F3F2FA\\]', 'background-color'))
+      : paintedBackground(sidebar.className, [255, 255, 255]);
+    const text = hex(cssValue(theme === 'lumina' ? '.lumina .sidebar-selected' : '.sidebar-selected', 'color'));
+    const link = which === '目的地'
+      ? destinations().find((candidate) => candidate.className.includes('font-medium'))!
+      : screen.getByRole('link', { name: '数据面板' });
+
+    expect(link.className).toContain('font-medium');
+    expect(link).toHaveClass('sidebar-selected');
+    expect(contrast(text, paintedBackground(link.className, sidebarBackground))).toBeGreaterThanOrEqual(4.5);
   });
 });

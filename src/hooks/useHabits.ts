@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { getRepositories } from '../domain/repositories/current';
 import type { CreateHabitInput, HabitWithStats } from '../types/habit';
 import { queryKeys, invalidateHabits } from '../lib/queryKeys';
+import { errMessage } from '../lib/errMessage';
 
 export function useHabits() {
   return useQuery({
@@ -20,7 +21,7 @@ export function useCreateHabit() {
       invalidateHabits(queryClient);
       toast.success('习惯已创建');
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -32,7 +33,7 @@ export function useUpdateHabit() {
     onSuccess: () => {
       invalidateHabits(queryClient);
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -44,7 +45,7 @@ export function useDeleteHabit() {
       invalidateHabits(queryClient);
       toast.success('习惯已删除');
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 
@@ -55,7 +56,7 @@ export function useToggleHabitLog() {
     onSuccess: () => {
       invalidateHabits(queryClient);
     },
-    onError: (err: string) => toast.error(err),
+    onError: (err) => toast.error(errMessage(err)),
   });
 }
 

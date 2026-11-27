@@ -213,7 +213,7 @@ export function SearchPage() {
                     <button
                       onClick={() => { setFilter('tagId', null); setTagDropdownOpen(false); }}
                       className={cn(
-                        'w-full text-left px-3 py-2 text-[13px] transition-colors',
+                        'block w-full text-left px-3 py-2 text-[13px] transition-colors',
                         !filters.tagId ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]'
                       )}
                     >
@@ -224,7 +224,7 @@ export function SearchPage() {
                         key={t.id}
                         onClick={() => { setFilter('tagId', t.id); setTagDropdownOpen(false); }}
                         className={cn(
-                          'w-full text-left px-3 py-2 text-[13px] transition-colors',
+                          'block w-full text-left px-3 py-2 text-[13px] transition-colors',
                           filters.tagId === t.id ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]'
                         )}
                       >
@@ -294,7 +294,7 @@ export function SearchPage() {
                         key={String(opt.value)}
                         onClick={() => { setFilter('priority', opt.value); setPriorityDropdownOpen(false); }}
                         className={cn(
-                          'w-full text-left px-3 py-2 text-[13px] transition-colors',
+                          'block w-full text-left px-3 py-2 text-[13px] transition-colors',
                           filters.priority === opt.value ? 'bg-[#7C72F6]/[0.08] text-[#7C72F6] font-medium' : 'text-[#111827] dark:text-white/90 hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04]'
                         )}
                       >

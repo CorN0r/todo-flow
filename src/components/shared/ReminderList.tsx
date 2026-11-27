@@ -66,17 +66,18 @@ export function ReminderList({ taskId, dueDate }: ReminderListProps) {
             <div className="fixed inset-0 z-[280]" onClick={() => { setShowMenu(false); setShowCustom(false); }} />
             <div className="fixed z-[290] popover-surface border rounded-xl shadow-xl py-1 min-w-[180px]"
               style={menuPos ?? { top: 0, left: 0 }}>
+              {/* 行要写成块级:行内块的行会让浏览器把菜单的“内容宽度”算成所有行并排,菜单被撑得很宽 */}
               {availablePresets.map(([key, { label }]) => (
                 <button key={key} onClick={() => {
                   createReminder.mutate({ taskId, offset: key, dueDate });
                   setShowMenu(false);
                 }}
-                  className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] text-[#111827] dark:text-white/90 transition-colors">
+                  className="block w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] text-[#111827] dark:text-white/90 transition-colors">
                   {label}
                 </button>
               ))}
               <button onClick={() => setShowCustom(!showCustom)}
-                className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] text-[#6B7280] transition-colors">
+                className="block w-full text-left px-3 py-1.5 text-[13px] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.04] text-[#6B7280] transition-colors">
                 自定义...
               </button>
               {showCustom && (

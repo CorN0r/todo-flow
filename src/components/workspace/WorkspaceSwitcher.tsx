@@ -88,7 +88,7 @@ export function WorkspaceSwitcher({ collapsed, fallback }: { collapsed: boolean;
             className={cn(
               'w-full h-8 flex items-center gap-2 px-2.5 rounded-lg text-[13px] text-left transition-colors',
               workspace.is_active
-                ? 'bg-[rgba(124,114,246,0.1)] text-[#7C72F6] font-medium'
+                ? 'bg-[rgba(124,114,246,0.1)] sidebar-selected font-medium dark:text-white'
                 : 'text-[#374151] dark:text-[#C4C4CC] hover:bg-[#F3F4F6] dark:hover:bg-white/[0.06]',
             )}
             aria-current={workspace.is_active ? 'true' : undefined}
