@@ -320,7 +320,7 @@ pomodoroStore (Zustand + localStorage persistence)
 - **计划范围在页面内切换**：`DateFilterPage` 标题「计划」+ 范围分段控件；侧边栏「计划」指向 `uiStore.lastPlannedRange`（会话内，默认 `this-week`）。`Sidebar` 不能 import 懒加载的页面模块，范围的公共定义在 `lib/dateRanges.ts`
 - **旧路由**：`/` → `/myday`；`/kanban`、`/matrix` → `/date/all` 并启用对应视图（`App.tsx` 的 `LegacyViewRedirect`）。主区域路由是 `MainRoutes`，可以脱离整个应用单独测试
 - **详情面板只对当前清单里的任务保持打开**：`useDesktopTaskStatusFilter` 会清掉不在可见集合里的选中任务。所以“从别处带着一个任务跳进来”要落到包含它的清单——`ReviewPage` 的“打开任务”显式导航到 `/date/all` 并带上 `statusFilter: 'all'`（和数据看板的数字卡片同一写法），不能靠 `/` 的重定向落到“我的一天”
-- **界面验收**：`src-tauri/target/acceptance-tools/ui_harness.mjs`（git 忽略）在无头 Edge（与 WebView2 同内核）里加载构建产物并注入假的 Tauri 接口，切主题、量尺寸、截图、点击，不碰真实数据。先 `npx vite preview --port 4173 --strictPort --host 127.0.0.1`，再 `node ui_harness.mjs`；端口由浏览器自选、结束时按配置目录清理进程树（固定端口会被没退干净的实例占着，连到旧实例上拿到的是上次的状态）
+- **界面验收**：`src-tauri/target/acceptance-tools/ui_harness.mjs`（git 忽略）在无头 Edge（与 WebView2 同内核）里加载构建产物并注入假的 Tauri 接口，切主题、量尺寸、截图、点击，不碰真实数据。先 `npx vite preview --port 4173 --strictPort --host 127.0.0.1`，再 `node ui_harness.mjs`；端口由浏览器自选、结束时按配置目录清理进程树（固定端口会被没退干净的实例占着，连到旧实例上拿到的是上次的状态）。`drops` 场景会逐个打开各处的下拉（头部两个菜单、快速添加栏、右键菜单、详情面板、编辑器工具条、搜索页）并记下算出来的背景色和按内容量出来的宽度，`DROP_TAG`/`DROP_THEME` 控制文件名后缀和主题；`contrast` 场景按实际画出来的底色量侧边栏选中项的对比度；`kandrag` 场景真的拖一张看板卡片，量浮起来的那张。⚠️ 这台机器上无头浏览器在后台会被系统节流、不出帧（和主题无关）：截图调用一直等，带退场动画的面板关不完，但页面本身有响应。脚本启动浏览器时已关掉后台节流（`--disable-backgrounding-occluded-windows` 等），每个浏览器调用也带超时，截图超时会重试
 - **在真实的 WebView2 里验收、又不动用户正在用的安装版**：两者冲突的是代码里写死的单实例互斥量（`lib.rs` 的 `MUTEX_NAME`，不随应用标识变化）。做法是临时给互斥量名加后缀，`npx tauri dev --no-watch --config '{"identifier":"com.todoflow.desktop.verify"}'` 起一个隔离实例（自己的数据目录、WebView 配置目录），起来后立刻 `git checkout` 还原源码，再用 `CDP_PORT=9222 node ui_harness.mjs` 连上去；示例数据用 `ui_seed.py` 经命令行工具写进它自己的库。用完关掉实例并删除 `com.todoflow.desktop.verify` 的两个数据目录。⚠️ 真实窗口不在前台时动画帧会被节流：量颜色要等过渡走完，带退场动画的面板没走完会吃掉后面的点击
 - **重拍文档截图**（`docs/images/`，1200×800）：演示数据在仓库里，`scripts/db-backups/demo-db-20260610-235412.db`（`scripts/seed-demo-data.mjs` 生成，22 个任务；它的“今天”是 2026-06-09，直接用会全部显示成逾期）。`ui_demo_copy.py <演示库> <验收实例数据目录>/todo.db 2026-06-09` 把它复制过去并把日期整体平移到当天（只改副本），起隔离实例后 `CDP_PORT=9222 node ui_harness.mjs shots` 按 2 倍缩放拍，再 `ui_shots_post.py <输出目录>` 缩到 1200×800。`scripts/db-backups/` 里的 `user-db-*.db` 和演示库逐字节相同；`D:\Claude\Todo-Flow Res\todoflow-backup-2026-06-08.db` 是真实数据，不要拿来做截图。快速新建里日期要写在句子开头才会被识别（`明天9点 写周报 #工作 每天`），优先级用结尾的 `!`
 
@@ -388,12 +388,17 @@ ALL dropdowns/popups MUST use `<Portal>` + `fixed` positioning with `getBounding
 
 这条不是风格偏好：侧边栏（玻璃主题下带 `backdrop-filter`）是独立的层叠上下文，放在它里面的 `absolute` 浮层会被后面的导航项盖住，点击也落到导航上（2026-11-24 工作区切换菜单实测）。另外玻璃主题会改写 `bg-white` / `dark:bg-[#1E1E32]`，浮层的表面样式要单独处理，见 `components/workspace/popupSurface.ts`。
 
+菜单里的行要写成块级（`flex` 或 `block`）。行是默认的行内块 `<button>` 时，浏览器会把浮层的“内容宽度”算成所有行并排：搜索页的标签下拉曾被撑到 628px，提醒下拉会被撑到窗口边缘（2026-11-27）。`drops` 场景会记下每个浮层按内容量出来的宽度。
+
 ### TanStack Query Invalidation
 ```tsx
 queryClient.invalidateQueries({
   predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'tasks'
 });
 ```
+
+### Error Toasts
+`toast.error()` only renders text. A mutation's `onError` gets whatever was thrown — a string from the backend, an `Error` from the frontend, an object with `message` — so it always goes through `errMessage()` (`src/lib/errMessage.ts`): `onError: (err) => toast.error(errMessage(err))`. Passing the value itself took the whole window down (white screen) as soon as a save threw an `Error`, because `<Toaster>` sits outside every error boundary. Guard: `src/test/hooks/mutationErrorToasts.test.tsx` covers all 15 write hooks.
 
 ### Due Date Format
 `due_date` stores `"YYYY-MM-DD"` (date-only) or `"YYYY-MM-DD HH:mm"` (with time). Comparisons use `.slice(0, 10)`. `parseISO()` needs `.replace(' ', 'T')` first.
@@ -418,6 +423,15 @@ The Pomodoro standalone window uses the same edge snapping pattern (`PomodoroWid
 6 themes: `light`, `dark`, `system`, `glass`, `warm`, `lumina`. CSS variables defined in `src/index.css` per theme class (`.dark`, `.glass`, `.warm`, `.lumina`). The `.glass`/`.warm`/`.lumina` sections also contain Tailwind arbitrary value overrides for explicit hex colors (e.g., `.warm .text-[#7C72F6] { color: #C9A84C; }`).
 
 WidgetPage uses JS ternary (`resolvedTheme === 'dark' ? X : Y`) instead of Tailwind `dark:` variants — so CSS theme overrides for widget must target direct classes (no `dark:` prefix). Widget bubble gradient is user-customizable via Settings (5 presets + custom color pickers, stored in `widget_bubble_color` setting).
+
+**Popover surfaces use `.popover-surface`, never `bg-white` / `dark:bg-[#1E1E32]`.** The glass rules above live in `@layer utilities` and rewrite those two classes into a 4% translucent white + blur, so a menu on them lets the text and tags behind bleed through (user report 2026-11-26). `.popover-surface` sits in `@layer base` with one opaque rule per theme (glass: solid `#1E1E32`; 95% still ghosted). Convention:
+
+- Menus with no dimmed backdrop (dropdowns, context menus, date/reminder/recurrence pickers, the editor bubble toolbar): `popover-surface border` — or `menuSurface()` from `components/workspace/popupSurface.ts`. The element must not also carry a `bg-*` or `glass-panel` class: utilities beat the base layer.
+- Dialogs over a dimmed backdrop keep the glass look via `dialogSurface()` / `glass-panel-strong`.
+
+Guard: `components/workspace/popupSurface.test.ts` (helper, stylesheet opacity per theme, no component pairs the class with a thinned background).
+
+**Selected sidebar items use `.sidebar-selected`, not `text-[#7C72F6]`.** The accent on its own 10% tint is about 3:1 in the light themes. `.sidebar-selected` is a darker accent per theme (light `#594BD3`, lumina `#4F5E73`); dark themes keep white text through `dark:text-white` on the element. Used by destinations, tags, footer links and the current-workspace row of the switcher menu. Measured ≥ 5:1 in every theme (`node ui_harness.mjs contrast`). Guard: the contrast tests in `Sidebar.test.tsx` / `WorkspaceSwitcher.test.tsx` compute it from the real class names and CSS values (`src/test/contrast.ts`).
 
 ---
 
